@@ -1,0 +1,117 @@
+<div class="table-view">
+  <div class="controls">
+    <input 
+      type="text" 
+      [(ngModel)]="searchTerm"
+      (input)="onSearchChange()"
+      placeholder="Search table..." />
+    <select [(ngModel)]="filterType" (change)="onFilterChange()">
+      <option value="all">All Subnets</option>
+      <option value="high-risk">High Risk Only</option>
+      <option value="large">Large Subnets (>500 devices)</option>
+    </select>
+  </div>
+
+  <div class="table-container">
+    <table class="subnet-table">
+      <thead>
+        <tr>
+          <th class="sortable" (click)="sort('subnet')">
+            Subnet 
+            <span class="sort-indicator">
+              {{sortField === 'subnet' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}}
+            </span>
+          </th>
+          <th class="sortable" (click)="sort('deviceCount')">
+            Devices 
+            <span class="sort-indicator">
+              {{sortField === 'deviceCount' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}}
+            </span>
+          </th>
+          <th class="sortable" (click)="sort('riskScore')">
+            Risk Score 
+            <span class="sort-indicator">
+              {{sortField === 'riskScore' ? (sortDirection === 'asc' ? '▲' : '▼') : (sortField === '' ? '▼' : '')}}
+            </span>
+          </th>
+          <th class="sortable" (click)="sort('riskLevel')">
+            Risk Level 
+            <span class="sort-indicator">
+              {{sortField === 'riskLevel' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}}
+            </span>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let item of paginatedData" (click)="onRowClick(item)"
+            (mouseenter)="showTooltip($event, item)" (mouseleave)="hideTooltip()">
+          <td>{{item.subnet}}</td>
+          <td>{{item.deviceCount | number}}</td>
+          <td>{{item.riskScore | number:'1.2-2'}}</td>
+          <td>
+            <span [class]="getRiskClass(item.riskLevel)">
+              {{item.riskLevel.toUpperCase()}}
+            </span>
+          </td>
+        </tr>
+        <tr *ngIf="paginatedData.length === 0">
+          <td colspan="4" class="text-center">No data found</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="pagination-container">
+    <div class="pagination-info">
+      {{paginationInfo}}
+    </div>
+    
+    <div class="pagination-controls">
+      <div class="pagination-select">
+        <label>Show:</label>
+        <select [(ngModel)]="pageSize" (change)="onPageSizeChange()">
+          <option value="10">10</option>
+          <option value="15">15</option>
+          <option value="20">20</option>
+        </select>
+        <span>entries</span>
+      </div>
+      
+      <div class="pagination-buttons">
+        <button 
+          class="pagination-btn" 
+          (click)="goToPage(1)"
+          [disabled]="currentPage === 1">
+          First
+        </button>
+        <button 
+          class="pagination-btn" 
+          (click)="goToPage(currentPage - 1)"
+          [disabled]="currentPage === 1">
+          Previous
+        </button>
+        
+        <button 
+          *ngFor="let page of getPageNumbers()"
+          class="pagination-btn"
+          [class.active]="page === currentPage"
+          (click)="goToPage(page)">
+          {{page}}
+        </button>
+        
+        <button 
+          class="pagination-btn" 
+          (click)="goToPage(currentPage + 1)"
+          [disabled]="currentPage === totalPages">
+          Next
+        </button>
+        <button 
+          class="pagination-btn" 
+          (click)="goToPage(totalPages)"
+          [disabled]="currentPage === totalPages">
+          Last
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

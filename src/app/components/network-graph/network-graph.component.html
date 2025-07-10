@@ -1,0 +1,15 @@
+<!-- network-graph.component.html -->
+<div class="network-graph-container">
+  <div class="controls">
+    <input 
+      type="text" 
+      [(ngModel)]="searchTerm"
+      (input)="onSearchChange()"
+      placeholder="Search subnets..." 
+      class="search-input" />
+    
+    <div #legendContainer class="legend-container"></div>
+  </div>
+
+  <div #graphContainer class="graph-container"></div>
+</div>
