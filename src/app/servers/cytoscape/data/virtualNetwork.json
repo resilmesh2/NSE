@@ -11,7 +11,7 @@
         "label": "microsoft:windows_10:*",
         "type": "SoftwareVersion",
         "details": "os_component",
-        "parent": "vulnerability-compound-1043603"
+        "parent": "vulnerability-compound-838557"
       }
     },
     {
@@ -29,7 +29,7 @@
         "label": "*:*:*",
         "type": "SoftwareVersion",
         "details": "os_component",
-        "parent": "compound-1429848"
+        "parent": "compound-1575703"
       }
     },
     {
@@ -1272,6 +1272,84 @@
       }
     },
     {
+      "v": "18208",
+      "value": {
+        "label": "147.251.104.62",
+        "type": "IP",
+        "details": null
+      }
+    },
+    {
+      "v": "18209",
+      "value": {
+        "label": "5.1",
+        "type": "Node",
+        "details": "0.0",
+        "parent": "compound-18208"
+      }
+    },
+    {
+      "v": "18210",
+      "value": {
+        "label": "Host",
+        "type": "Host",
+        "details": null,
+        "parent": "compound-18208"
+      }
+    },
+    {
+      "v": "18211",
+      "value": {
+        "label": "147.251.104.126",
+        "type": "IP",
+        "details": null
+      }
+    },
+    {
+      "v": "18212",
+      "value": {
+        "label": "5.0",
+        "type": "Node",
+        "details": "0.0",
+        "parent": "compound-18211"
+      }
+    },
+    {
+      "v": "18213",
+      "value": {
+        "label": "Host",
+        "type": "Host",
+        "details": null,
+        "parent": "compound-18211"
+      }
+    },
+    {
+      "v": "18214",
+      "value": {
+        "label": "147.251.104.254",
+        "type": "IP",
+        "details": null
+      }
+    },
+    {
+      "v": "18215",
+      "value": {
+        "label": "3.7",
+        "type": "Node",
+        "details": "0.0",
+        "parent": "compound-18214"
+      }
+    },
+    {
+      "v": "18216",
+      "value": {
+        "label": "Host",
+        "type": "Host",
+        "details": null,
+        "parent": "compound-18214"
+      }
+    },
+    {
       "v": "18336",
       "value": {
         "label": "Host",
@@ -1296,6 +1374,14 @@
         "type": "Host",
         "details": null,
         "parent": "compound-18164"
+      }
+    },
+    {
+      "v": "18465",
+      "value": {
+        "label": "147.251.104.175",
+        "type": "IP",
+        "details": null
       }
     },
     {
@@ -1849,6 +1935,17 @@
       }
     },
     {
+      "v": "31800",
+      "value": {
+        "label": [
+          "gw304.phil.muni.cz."
+        ],
+        "type": "DomainName",
+        "details": "PTR",
+        "parent": "compound-18211"
+      }
+    },
+    {
       "v": "31801",
       "value": {
         "label": [
@@ -1857,6 +1954,17 @@
         "type": "DomainName",
         "details": "PTR",
         "parent": "compound-2650"
+      }
+    },
+    {
+      "v": "31802",
+      "value": {
+        "label": [
+          "gw204.phil.muni.cz."
+        ],
+        "type": "DomainName",
+        "details": "PTR",
+        "parent": "compound-18208"
       }
     },
     {
@@ -1936,6 +2044,17 @@
         "type": "DomainName",
         "details": "PTR",
         "parent": "compound-8898"
+      }
+    },
+    {
+      "v": "31834",
+      "value": {
+        "label": [
+          "gw104.phil.muni.cz."
+        ],
+        "type": "DomainName",
+        "details": "PTR",
+        "parent": "compound-18214"
       }
     },
     {
@@ -2885,6 +3004,14 @@
       }
     },
     {
+      "v": "163701",
+      "value": {
+        "label": "147.251.104.194",
+        "type": "IP",
+        "details": null
+      }
+    },
+    {
       "v": "165495",
       "value": {
         "label": "147.251.103.34",
@@ -2935,6 +3062,34 @@
       }
     },
     {
+      "v": "174612",
+      "value": {
+        "label": [
+          "vhost183.phil.muni.cz."
+        ],
+        "type": "DomainName",
+        "details": "PTR",
+        "parent": "compound-174615"
+      }
+    },
+    {
+      "v": "174615",
+      "value": {
+        "label": "147.251.104.183",
+        "type": "IP",
+        "details": null
+      }
+    },
+    {
+      "v": "174664",
+      "value": {
+        "label": "0.0",
+        "type": "Node",
+        "details": "0.1",
+        "parent": "compound-174615"
+      }
+    },
+    {
       "v": "175540",
       "value": {
         "label": "147.251.103.141",
@@ -2958,6 +3113,14 @@
         "type": "Host",
         "details": null,
         "parent": "compound-175540"
+      }
+    },
+    {
+      "v": "175790",
+      "value": {
+        "label": "147.251.104.192",
+        "type": "IP",
+        "details": null
       }
     },
     {
@@ -3097,7 +3260,7 @@
         "label": "openbsd:openssh:8.4",
         "type": "SoftwareVersion",
         "details": "nmap_client",
-        "parent": "vulnerability-compound-18164"
+        "parent": "vulnerability-compound-18214"
       }
     },
     {
@@ -3718,6 +3881,14 @@
       }
     },
     {
+      "v": "686961",
+      "value": {
+        "label": "147.251.104.208",
+        "type": "IP",
+        "details": null
+      }
+    },
+    {
       "v": "725737",
       "value": {
         "label": "Host",
@@ -3922,6 +4093,80 @@
       }
     },
     {
+      "v": "835760",
+      "value": {
+        "label": [
+          "plin00.phil.muni.cz."
+        ],
+        "type": "DomainName",
+        "details": "PTR",
+        "parent": "compound-838557"
+      }
+    },
+    {
+      "v": "838557",
+      "value": {
+        "label": "147.251.104.65",
+        "type": "IP",
+        "details": null
+      }
+    },
+    {
+      "v": "838576",
+      "value": {
+        "label": "2.5",
+        "type": "Node",
+        "details": "0.0",
+        "parent": "compound-838557"
+      }
+    },
+    {
+      "v": "838642",
+      "value": {
+        "label": "Host",
+        "type": "Host",
+        "details": null,
+        "parent": "compound-838557"
+      }
+    },
+    {
+      "v": "870465",
+      "value": {
+        "label": "147.251.104.173",
+        "type": "IP",
+        "details": null
+      }
+    },
+    {
+      "v": "870475",
+      "value": {
+        "label": "0.0",
+        "type": "Node",
+        "details": "0.0",
+        "parent": "compound-870465"
+      }
+    },
+    {
+      "v": "870565",
+      "value": {
+        "label": "Host",
+        "type": "Host",
+        "details": null,
+        "parent": "compound-870465"
+      }
+    },
+    {
+      "v": "876763",
+      "value": {
+        "label": [
+          "vhost173.phil.muni.cz."
+        ],
+        "type": "DomainName",
+        "details": "PTR",
+        "parent": "compound-870465"
+      }
+    },
+    {
       "v": "914300",
       "value": {
         "label": "3.4",
@@ -4033,6 +4278,43 @@
         "type": "DomainName",
         "details": "PTR",
         "parent": "compound-990632"
+      }
+    },
+    {
+      "v": "991800",
+      "value": {
+        "label": [
+          "vhost148.phil.muni.cz."
+        ],
+        "type": "DomainName",
+        "details": "PTR",
+        "parent": "compound-991907"
+      }
+    },
+    {
+      "v": "991907",
+      "value": {
+        "label": "147.251.104.148",
+        "type": "IP",
+        "details": null
+      }
+    },
+    {
+      "v": "991910",
+      "value": {
+        "label": "0.0",
+        "type": "Node",
+        "details": "0.1",
+        "parent": "compound-991907"
+      }
+    },
+    {
+      "v": "991918",
+      "value": {
+        "label": "Host",
+        "type": "Host",
+        "details": null,
+        "parent": "compound-991907"
       }
     },
     {
@@ -4334,6 +4616,26 @@
       }
     },
     {
+      "v": "1023830",
+      "value": {
+        "label": [
+          "vhost201.phil.muni.cz."
+        ],
+        "type": "DomainName",
+        "details": "PTR",
+        "parent": "compound-1024192"
+      }
+    },
+    {
+      "v": "1023917",
+      "value": {
+        "label": "Host",
+        "type": "Host",
+        "details": null,
+        "parent": "compound-1024192"
+      }
+    },
+    {
       "v": "1023918",
       "value": {
         "label": [
@@ -4382,6 +4684,14 @@
       }
     },
     {
+      "v": "1024192",
+      "value": {
+        "label": "147.251.104.201",
+        "type": "IP",
+        "details": null
+      }
+    },
+    {
       "v": "1024199",
       "value": {
         "label": "Host",
@@ -4397,6 +4707,15 @@
         "type": "Host",
         "details": null,
         "parent": "compound-18150"
+      }
+    },
+    {
+      "v": "1024251",
+      "value": {
+        "label": "0.0",
+        "type": "Node",
+        "details": "0.0",
+        "parent": "compound-1024192"
       }
     },
     {
@@ -4617,7 +4936,7 @@
         "label": "Vulnerability",
         "type": "Vulnerability",
         "details": "Assumed vulnerability with ID CVE-2020-14145",
-        "parent": "vulnerability-compound-18164"
+        "parent": "vulnerability-compound-18214"
       }
     },
     {
@@ -4626,7 +4945,7 @@
         "label": "Application confidentiality loss",
         "type": "CVE",
         "details": "5.9",
-        "parent": "vulnerability-compound-18164"
+        "parent": "vulnerability-compound-18214"
       }
     },
     {
@@ -4668,6 +4987,15 @@
       }
     },
     {
+      "v": "1433575",
+      "value": {
+        "label": "Host",
+        "type": "Host",
+        "details": null,
+        "parent": "compound-174615"
+      }
+    },
+    {
       "v": "1462824",
       "value": {
         "label": "Vulnerability",
@@ -4686,12 +5014,49 @@
       }
     },
     {
+      "v": "1575043",
+      "value": {
+        "label": [
+          "vhost147.phil.muni.cz."
+        ],
+        "type": "DomainName",
+        "details": "PTR",
+        "parent": "compound-1575703"
+      }
+    },
+    {
+      "v": "1575703",
+      "value": {
+        "label": "147.251.104.147",
+        "type": "IP",
+        "details": null
+      }
+    },
+    {
+      "v": "1575721",
+      "value": {
+        "label": "Host",
+        "type": "Host",
+        "details": null,
+        "parent": "compound-1575703"
+      }
+    },
+    {
+      "v": "1575750",
+      "value": {
+        "label": "0.0",
+        "type": "Node",
+        "details": "0.0",
+        "parent": "compound-1575703"
+      }
+    },
+    {
       "v": "1621520",
       "value": {
         "label": "Vulnerability",
         "type": "Vulnerability",
         "details": "Assumed vulnerability with ID CVE-2021-28447",
-        "parent": "vulnerability-compound-1043603"
+        "parent": "vulnerability-compound-838557"
       }
     },
     {
@@ -4700,13 +5065,21 @@
         "label": "System integrity loss",
         "type": "CVE",
         "details": "4.4",
-        "parent": "vulnerability-compound-1043603"
+        "parent": "vulnerability-compound-838557"
       }
     },
     {
       "v": "1700316",
       "value": {
         "label": "147.251.103.0/24",
+        "type": "Subnet",
+        "details": "4.1"
+      }
+    },
+    {
+      "v": "1700317",
+      "value": {
+        "label": "147.251.104.0/24",
         "type": "Subnet",
         "details": "4.1"
       }
@@ -6314,6 +6687,146 @@
       "v": "compound-1429848",
       "value": {
         "label": "Compound Node for 1429848",
+        "type": "Compound",
+        "details": null
+      }
+    },
+    {
+      "v": "vulnerability-compound-18208",
+      "value": {
+        "label": "Vulnerability Compound for 18208",
+        "type": "Compound",
+        "details": null,
+        "parent": "compound-18208"
+      }
+    },
+    {
+      "v": "compound-18208",
+      "value": {
+        "label": "Compound Node for 18208",
+        "type": "Compound",
+        "details": null
+      }
+    },
+    {
+      "v": "vulnerability-compound-18211",
+      "value": {
+        "label": "Vulnerability Compound for 18211",
+        "type": "Compound",
+        "details": null,
+        "parent": "compound-18211"
+      }
+    },
+    {
+      "v": "compound-18211",
+      "value": {
+        "label": "Compound Node for 18211",
+        "type": "Compound",
+        "details": null
+      }
+    },
+    {
+      "v": "vulnerability-compound-18214",
+      "value": {
+        "label": "Vulnerability Compound for 18214",
+        "type": "Compound",
+        "details": null,
+        "parent": "compound-18214"
+      }
+    },
+    {
+      "v": "compound-18214",
+      "value": {
+        "label": "Compound Node for 18214",
+        "type": "Compound",
+        "details": null
+      }
+    },
+    {
+      "v": "compound-18465",
+      "value": {
+        "label": "Compound Node for 18465",
+        "type": "Compound",
+        "details": null
+      }
+    },
+    {
+      "v": "compound-163701",
+      "value": {
+        "label": "Compound Node for 163701",
+        "type": "Compound",
+        "details": null
+      }
+    },
+    {
+      "v": "compound-174615",
+      "value": {
+        "label": "Compound Node for 174615",
+        "type": "Compound",
+        "details": null
+      }
+    },
+    {
+      "v": "compound-175790",
+      "value": {
+        "label": "Compound Node for 175790",
+        "type": "Compound",
+        "details": null
+      }
+    },
+    {
+      "v": "compound-686961",
+      "value": {
+        "label": "Compound Node for 686961",
+        "type": "Compound",
+        "details": null
+      }
+    },
+    {
+      "v": "vulnerability-compound-838557",
+      "value": {
+        "label": "Vulnerability Compound for 838557",
+        "type": "Compound",
+        "details": null,
+        "parent": "compound-838557"
+      }
+    },
+    {
+      "v": "compound-838557",
+      "value": {
+        "label": "Compound Node for 838557",
+        "type": "Compound",
+        "details": null
+      }
+    },
+    {
+      "v": "compound-870465",
+      "value": {
+        "label": "Compound Node for 870465",
+        "type": "Compound",
+        "details": null
+      }
+    },
+    {
+      "v": "compound-991907",
+      "value": {
+        "label": "Compound Node for 991907",
+        "type": "Compound",
+        "details": null
+      }
+    },
+    {
+      "v": "compound-1024192",
+      "value": {
+        "label": "Compound Node for 1024192",
+        "type": "Compound",
+        "details": null
+      }
+    },
+    {
+      "v": "compound-1575703",
+      "value": {
+        "label": "Compound Node for 1575703",
         "type": "Compound",
         "details": null
       }
@@ -11253,6 +11766,398 @@
       "w": "1433226",
       "value": {
         "id": "1099-1433226",
+        "type": "ON"
+      }
+    },
+    {
+      "v": "686961",
+      "w": "1700317",
+      "value": {
+        "id": "686961-1700317",
+        "type": "PART_OF"
+      }
+    },
+    {
+      "v": "18465",
+      "w": "1700317",
+      "value": {
+        "id": "18465-1700317",
+        "type": "PART_OF"
+      }
+    },
+    {
+      "v": "18214",
+      "w": "1700317",
+      "value": {
+        "id": "18214-1700317",
+        "type": "PART_OF"
+      }
+    },
+    {
+      "v": "174615",
+      "w": "1700317",
+      "value": {
+        "id": "174615-1700317",
+        "type": "PART_OF"
+      }
+    },
+    {
+      "v": "18208",
+      "w": "1700317",
+      "value": {
+        "id": "18208-1700317",
+        "type": "PART_OF"
+      }
+    },
+    {
+      "v": "1575703",
+      "w": "1700317",
+      "value": {
+        "id": "1575703-1700317",
+        "type": "PART_OF"
+      }
+    },
+    {
+      "v": "838557",
+      "w": "1700317",
+      "value": {
+        "id": "838557-1700317",
+        "type": "PART_OF"
+      }
+    },
+    {
+      "v": "1024192",
+      "w": "1700317",
+      "value": {
+        "id": "1024192-1700317",
+        "type": "PART_OF"
+      }
+    },
+    {
+      "v": "991907",
+      "w": "1700317",
+      "value": {
+        "id": "991907-1700317",
+        "type": "PART_OF"
+      }
+    },
+    {
+      "v": "18211",
+      "w": "1700317",
+      "value": {
+        "id": "18211-1700317",
+        "type": "PART_OF"
+      }
+    },
+    {
+      "v": "175790",
+      "w": "1700317",
+      "value": {
+        "id": "175790-1700317",
+        "type": "PART_OF"
+      }
+    },
+    {
+      "v": "163701",
+      "w": "1700317",
+      "value": {
+        "id": "163701-1700317",
+        "type": "PART_OF"
+      }
+    },
+    {
+      "v": "870465",
+      "w": "1700317",
+      "value": {
+        "id": "870465-1700317",
+        "type": "PART_OF"
+      }
+    },
+    {
+      "v": "18208",
+      "w": "31802",
+      "value": {
+        "id": "18208-31802",
+        "type": "RESOLVES_TO"
+      }
+    },
+    {
+      "v": "18209",
+      "w": "18208",
+      "value": {
+        "id": "18209-18208",
+        "type": "HAS_ASSIGNED"
+      }
+    },
+    {
+      "v": "18209",
+      "w": "18210",
+      "value": {
+        "id": "18209-18210",
+        "type": "IS_A"
+      }
+    },
+    {
+      "v": "180295",
+      "w": "18210",
+      "value": {
+        "id": "180295-18210",
+        "type": "ON"
+      }
+    },
+    {
+      "v": "18211",
+      "w": "31800",
+      "value": {
+        "id": "18211-31800",
+        "type": "RESOLVES_TO"
+      }
+    },
+    {
+      "v": "18212",
+      "w": "18211",
+      "value": {
+        "id": "18212-18211",
+        "type": "HAS_ASSIGNED"
+      }
+    },
+    {
+      "v": "18212",
+      "w": "18213",
+      "value": {
+        "id": "18212-18213",
+        "type": "IS_A"
+      }
+    },
+    {
+      "v": "180295",
+      "w": "18213",
+      "value": {
+        "id": "180295-18213",
+        "type": "ON"
+      }
+    },
+    {
+      "v": "18214",
+      "w": "31834",
+      "value": {
+        "id": "18214-31834",
+        "type": "RESOLVES_TO"
+      }
+    },
+    {
+      "v": "18215",
+      "w": "18214",
+      "value": {
+        "id": "18215-18214",
+        "type": "HAS_ASSIGNED"
+      }
+    },
+    {
+      "v": "18215",
+      "w": "18216",
+      "value": {
+        "id": "18215-18216",
+        "type": "IS_A"
+      }
+    },
+    {
+      "v": "180295",
+      "w": "18216",
+      "value": {
+        "id": "180295-18216",
+        "type": "ON"
+      }
+    },
+    {
+      "v": "174615",
+      "w": "174612",
+      "value": {
+        "id": "174615-174612",
+        "type": "RESOLVES_TO"
+      }
+    },
+    {
+      "v": "174664",
+      "w": "174615",
+      "value": {
+        "id": "174664-174615",
+        "type": "HAS_ASSIGNED"
+      }
+    },
+    {
+      "v": "174664",
+      "w": "1433575",
+      "value": {
+        "id": "174664-1433575",
+        "type": "IS_A"
+      }
+    },
+    {
+      "v": "1099",
+      "w": "1433575",
+      "value": {
+        "id": "1099-1433575",
+        "type": "ON"
+      }
+    },
+    {
+      "v": "838557",
+      "w": "835760",
+      "value": {
+        "id": "838557-835760",
+        "type": "RESOLVES_TO"
+      }
+    },
+    {
+      "v": "838576",
+      "w": "838557",
+      "value": {
+        "id": "838576-838557",
+        "type": "HAS_ASSIGNED"
+      }
+    },
+    {
+      "v": "838576",
+      "w": "838642",
+      "value": {
+        "id": "838576-838642",
+        "type": "IS_A"
+      }
+    },
+    {
+      "v": "975",
+      "w": "838642",
+      "value": {
+        "id": "975-838642",
+        "type": "ON"
+      }
+    },
+    {
+      "v": "870465",
+      "w": "876763",
+      "value": {
+        "id": "870465-876763",
+        "type": "RESOLVES_TO"
+      }
+    },
+    {
+      "v": "870475",
+      "w": "870465",
+      "value": {
+        "id": "870475-870465",
+        "type": "HAS_ASSIGNED"
+      }
+    },
+    {
+      "v": "870475",
+      "w": "870565",
+      "value": {
+        "id": "870475-870565",
+        "type": "IS_A"
+      }
+    },
+    {
+      "v": "1099",
+      "w": "870565",
+      "value": {
+        "id": "1099-870565",
+        "type": "ON"
+      }
+    },
+    {
+      "v": "991907",
+      "w": "991800",
+      "value": {
+        "id": "991907-991800",
+        "type": "RESOLVES_TO"
+      }
+    },
+    {
+      "v": "991910",
+      "w": "991907",
+      "value": {
+        "id": "991910-991907",
+        "type": "HAS_ASSIGNED"
+      }
+    },
+    {
+      "v": "991910",
+      "w": "991918",
+      "value": {
+        "id": "991910-991918",
+        "type": "IS_A"
+      }
+    },
+    {
+      "v": "1099",
+      "w": "991918",
+      "value": {
+        "id": "1099-991918",
+        "type": "ON"
+      }
+    },
+    {
+      "v": "1024192",
+      "w": "1023830",
+      "value": {
+        "id": "1024192-1023830",
+        "type": "RESOLVES_TO"
+      }
+    },
+    {
+      "v": "1024251",
+      "w": "1024192",
+      "value": {
+        "id": "1024251-1024192",
+        "type": "HAS_ASSIGNED"
+      }
+    },
+    {
+      "v": "1024251",
+      "w": "1023917",
+      "value": {
+        "id": "1024251-1023917",
+        "type": "IS_A"
+      }
+    },
+    {
+      "v": "1099",
+      "w": "1023917",
+      "value": {
+        "id": "1099-1023917",
+        "type": "ON"
+      }
+    },
+    {
+      "v": "1575703",
+      "w": "1575043",
+      "value": {
+        "id": "1575703-1575043",
+        "type": "RESOLVES_TO"
+      }
+    },
+    {
+      "v": "1575750",
+      "w": "1575703",
+      "value": {
+        "id": "1575750-1575703",
+        "type": "HAS_ASSIGNED"
+      }
+    },
+    {
+      "v": "1575750",
+      "w": "1575721",
+      "value": {
+        "id": "1575750-1575721",
+        "type": "IS_A"
+      }
+    },
+    {
+      "v": "1099",
+      "w": "1575721",
+      "value": {
+        "id": "1099-1575721",
         "type": "ON"
       }
     }
