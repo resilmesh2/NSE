@@ -8,8 +8,19 @@
 
 # Node
 /node_modules
+**/node_modules/
 npm-debug.log
 yarn-error.log
+
+# Server-specific ignores
+src/servers/*/node_modules/
+src/servers/*/package-lock.json
+
+# Environment files with sensitive data
+src/servers/*/.env
+
+# Server data files
+src/servers/*/data/
 
 # IDEs and editors
 .idea/
