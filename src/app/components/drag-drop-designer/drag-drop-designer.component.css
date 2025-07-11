@@ -857,6 +857,52 @@
   border-color: #28a745;
 }
 
+/* Network selector checkbox styles */
+.network-option-checkbox:hover {
+  border-color: #007bff !important;
+  background: #f8f9fa !important;
+}
+
+.network-option-checkbox input[type="checkbox"] {
+  accent-color: #007bff;
+}
+
+.network-option-checkbox.selected {
+  border-color: #007bff;
+  background-color: #f8f9fa;
+}
+
+/* Select all checkbox styling */
+input[type="checkbox"]:indeterminate {
+  background-color: #007bff;
+  border-color: #007bff;
+}
+
+/* Modal actions styling for network selector */
+.selector-modal .modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.selection-count {
+  margin-right: auto;
+  font-size: 14px;
+  color: #666;
+}
+
+/* Disabled button styling */
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: #6c757d;
+}
+
+.btn:disabled:hover {
+  transform: none;
+  opacity: 0.6;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .custom-component-modal {

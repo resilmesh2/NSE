@@ -419,7 +419,7 @@ private checkIfDeviceDataIsPopulated(apiData: any[], subnetCidr: string): boolea
     if (!subnet || typeof subnet !== 'string' || !subnet.includes('/')) return false;
     const [, cidrPart] = subnet.split('/');
     const cidr = parseInt(cidrPart);
-    return cidr === 24; // Only /24 networks
+    return cidr >= 16 && cidr <= 30;
   });
 
   const vulnerableSubnets = cidrValuesNode.data.vulns || [];

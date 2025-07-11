@@ -287,22 +287,54 @@
 <div class="modal-overlay" *ngIf="showNetworkModal" (click)="closeNetworkModal()">
   <div class="selector-modal" (click)="$event.stopPropagation()">
     <div class="selector-modal-header">
-      <h3>Select Network Range</h3>
+      <h3>Select Network Ranges</h3>
       <button (click)="closeNetworkModal()" class="close-btn">×</button>
     </div>
     <div class="selector-modal-content">
-      <p>Choose a network range to apply your risk calculation:</p>
+      <p>Choose network ranges to apply your risk calculation (multiple selections allowed):</p>
+      
+      <div style="margin-bottom: 15px;">
+        <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer;">
+          <input type="checkbox" 
+                 [(ngModel)]="selectAllNetworks" 
+                 [indeterminate]="isSelectAllIndeterminate()"
+                 (change)="toggleAllNetworks($event)" 
+                 style="margin: 0; transform: scale(1.2);">
+          <strong>Select All Networks</strong>
+        </label>
+      </div>
+      
       <div class="network-options">
-        <div *ngFor="let network of availableNetworks" 
-             class="network-option" 
-             (click)="applyToNetwork(network)">
-          <div class="network-name">{{network.prefix}}.x.x</div>
-          <div class="network-stats">{{network.subnets.length}} subnets, {{network.totalDevices}} devices</div>
+        <label *ngFor="let network of availableNetworks; let i = index" 
+               class="network-option-checkbox" 
+               [class.selected]="selectedNetworks[i]"
+               style="display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid #dee2e6; border-radius: 6px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s ease;"
+               [style.border-color]="selectedNetworks[i] ? '#007bff' : '#dee2e6'"
+               [style.background-color]="selectedNetworks[i] ? '#f8f9fa' : 'white'">
+          <input type="checkbox" 
+                 [(ngModel)]="selectedNetworks[i]"
+                 (change)="updateNetworkSelection()"
+                 style="margin: 0; transform: scale(1.2);">
+          <div style="flex: 1;">
+            <div class="network-name" style="font-weight: 600; color: #333; margin-bottom: 4px;">{{network.prefix}}.x.x</div>
+            <div class="network-stats" style="font-size: 12px; color: #666;">{{network.subnets.length}} subnets, {{network.totalDevices}} devices</div>
+          </div>
+        </label>
+      </div>
+      
+      <div class="modal-actions" style="margin-top: 20px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #eee; padding-top: 15px;">
+        <span class="selection-count" style="font-size: 14px; color: #666;">{{getSelectionCountText()}}</span>
+        <div>
+          <button (click)="closeNetworkModal()" class="btn btn-secondary" style="margin-right: 10px;">Cancel</button>
+          <button (click)="applyToSelectedNetworks()" 
+                  [disabled]="getSelectedNetworksCount() === 0" 
+                  class="btn btn-primary">Apply Configuration</button>
         </div>
       </div>
     </div>
   </div>
 </div>
+
 <!-- Subnet Selection Modal -->
 <div class="modal-overlay" *ngIf="showSubnetModal" (click)="closeSubnetModal()">
   <div class="selector-modal" (click)="$event.stopPropagation()">

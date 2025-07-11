@@ -66,6 +66,10 @@ export class DragDropDesignerComponent implements OnInit {
   availableNetworks: any[] = [];
   availableSubnets: any[] = [];
 
+  // Multi-select network properties
+  selectedNetworks: boolean[] = [];
+  selectAllNetworks = false;
+
   showCustomComponentModal = false;
   customComponent = {
     name: '',
@@ -84,29 +88,112 @@ export class DragDropDesignerComponent implements OnInit {
     // Get current network data for apply functionality
     this.loadNetworkData();
   }
-
+  
   private loadNetworkData() {
-    const currentData = this.networkDataService.getCurrentNetworkData();
-    
-    // Extract unique networks
-    const networkMap = new Map();
-    currentData.forEach(subnet => {
-      const networkPrefix = subnet.subnet.split('.').slice(0, 2).join('.');
-      if (!networkMap.has(networkPrefix)) {
-        networkMap.set(networkPrefix, {
-          prefix: networkPrefix,
-          subnets: [],
-          totalDevices: 0
-        });
-      }
-      const network = networkMap.get(networkPrefix);
-      network.subnets.push(subnet);
-      network.totalDevices += subnet.deviceCount;
-    });
+  const currentData = this.networkDataService.getCurrentNetworkData();
+  
+  // Extract unique networks
+  const networkMap = new Map();
+  currentData.forEach(subnet => {
+    const networkPrefix = subnet.subnet.split('.').slice(0, 2).join('.');
+    if (!networkMap.has(networkPrefix)) {
+      networkMap.set(networkPrefix, {
+        prefix: networkPrefix,
+        subnets: [],
+        totalDevices: 0
+      });
+    }
+    const network = networkMap.get(networkPrefix);
+    network.subnets.push(subnet);
+    network.totalDevices += subnet.deviceCount;
+  });
 
-    this.availableNetworks = Array.from(networkMap.values());
-    this.availableSubnets = currentData.slice(0, 20);
+  this.availableNetworks = Array.from(networkMap.values());
+  this.availableSubnets = currentData.slice(0, 20);
+  
+  // Initialize selection arrays
+  this.selectedNetworks = new Array(this.availableNetworks.length).fill(false);
+}
+
+toggleAllNetworks(event: any) {
+  const selectAll = event.target.checked;
+  this.selectedNetworks = new Array(this.availableNetworks.length).fill(selectAll);
+  this.selectAllNetworks = selectAll;
+}
+
+updateNetworkSelection() {
+  const selectedCount = this.getSelectedNetworksCount();
+  const totalCount = this.availableNetworks.length;
+  
+  if (selectedCount === 0) {
+    this.selectAllNetworks = false;
+  } else if (selectedCount === totalCount) {
+    this.selectAllNetworks = true;
+  } else {
+    this.selectAllNetworks = false;
   }
+}
+
+isSelectAllIndeterminate(): boolean {
+  const selectedCount = this.getSelectedNetworksCount();
+  const totalCount = this.availableNetworks.length;
+  return selectedCount > 0 && selectedCount < totalCount;
+}
+
+getSelectedNetworksCount(): number {
+  return this.selectedNetworks.filter(selected => selected).length;
+}
+
+getSelectionCountText(): string {
+  const count = this.getSelectedNetworksCount();
+  if (count === 0) {
+    return '0 networks selected';
+  } else if (count === 1) {
+    return '1 network selected';
+  } else {
+    return `${count} networks selected`;
+  }
+}
+
+applyToSelectedNetworks() {
+  const selectedNetworkIndices = this.selectedNetworks
+    .map((selected, index) => selected ? index : -1)
+    .filter(index => index !== -1);
+  
+  if (selectedNetworkIndices.length === 0) {
+    alert('Please select at least one network to apply the configuration.');
+    return;
+  }
+  
+  this.closeNetworkModal();
+  
+  const selectedNetworkData = selectedNetworkIndices.map(index => this.availableNetworks[index]);
+  const totalSubnets = selectedNetworkData.reduce((sum, network) => sum + network.subnets.length, 0);
+  const totalDevices = selectedNetworkData.reduce((sum, network) => sum + network.totalDevices, 0);
+  
+  console.log(`🌐 Would apply configuration to ${selectedNetworkData.length} networks`);
+  selectedNetworkData.forEach(network => {
+    console.log(`- ${network.prefix}.x.x: ${network.subnets.length} subnets, ${network.totalDevices} devices`);
+  });
+  
+  // Show success message with details
+  const networkNames = selectedNetworkData.map(n => n.prefix + '.x.x').join(', ');
+  const message = `✅ Configuration prepared for ${selectedNetworkData.length} network${selectedNetworkData.length > 1 ? 's' : ''}!\n\nNetworks: ${networkNames}\n\nThis would affect:\n- ${totalSubnets} subnets\n- ${totalDevices} devices\n\nNote: Implementation pending backend integration.`;
+  
+  alert(message);
+  
+  // Reset selections
+  this.selectedNetworks = new Array(this.availableNetworks.length).fill(false);
+  this.selectAllNetworks = false;
+}
+
+// Update the existing closeNetworkModal method to reset selections
+closeNetworkModal() {
+  this.showNetworkModal = false;
+  // Reset selections when closing
+  this.selectedNetworks = new Array(this.availableNetworks.length).fill(false);
+  this.selectAllNetworks = false;
+}
 
   drop(event: CdkDragDrop<RiskComponent[]>) {
   if (event.previousContainer === event.container) {
@@ -425,10 +512,6 @@ saveCustomComponent() {
     this.showConfigModal = false;
   }
 
-  closeNetworkModal() {
-    this.showNetworkModal = false;
-  }
-
   closeSubnetModal() {
     this.showSubnetModal = false;
   }
@@ -447,15 +530,6 @@ saveCustomComponent() {
         this.applyToRandomSample();
         break;
     }
-  }
-
-  applyToNetwork(network: any) {
-    this.closeNetworkModal();
-    
-    console.log(`🌐 Would apply configuration to ${network.prefix}.x.x network`);
-    console.log(`Affected: ${network.subnets.length} subnets, ${network.totalDevices} devices`);
-    
-    alert(`✅ Configuration prepared for ${network.prefix}.x.x network!\n\nThis would affect:\n- ${network.subnets.length} subnets\n- ${network.totalDevices} devices\n\nNote: Implementation pending backend integration.`);
   }
 
   applyToSubnet(subnet: any) {
