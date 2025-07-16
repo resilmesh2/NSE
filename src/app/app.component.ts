@@ -34,7 +34,7 @@ export class AppComponent implements OnInit {
   @ViewChild(DevicePopupComponent) devicePopup!: DevicePopupComponent;
   @ViewChild('headerElement', { static: true }) headerElement!: ElementRef<HTMLElement>;
   
-  title = 'Network Visualization Dashboard';
+  title = 'Network Risk Dashboard';
   networkStatus = 'unknown';
   networkData: SubnetData[] = [];
   stats: NetworkStats = {

@@ -171,7 +171,7 @@ applyToSelectedNetworks() {
   const totalSubnets = selectedNetworkData.reduce((sum, network) => sum + network.subnets.length, 0);
   const totalDevices = selectedNetworkData.reduce((sum, network) => sum + network.totalDevices, 0);
   
-  console.log(`🌐 Would apply configuration to ${selectedNetworkData.length} networks`);
+  console.log(`Would apply configuration to ${selectedNetworkData.length} networks`);
   selectedNetworkData.forEach(network => {
     console.log(`- ${network.prefix}.x.x: ${network.subnets.length} subnets, ${network.totalDevices} devices`);
   });
@@ -504,7 +504,7 @@ saveCustomComponent() {
   this.availableComponents.push(newComponent);
   this.closeCustomComponentModal();
   
-  console.log('➕ Added custom component:', newComponent.name);
+  console.log('Added custom component:', newComponent.name);
 }
 
   // Modal methods
@@ -535,18 +535,18 @@ saveCustomComponent() {
   applyToSubnet(subnet: any) {
     this.closeSubnetModal();
     
-    console.log(`🏠 Would apply configuration to subnet: ${subnet.subnet}`);
+    console.log(`Would apply configuration to subnet: ${subnet.subnet}`);
     console.log(`Current risk: ${subnet.riskScore}, Devices: ${subnet.deviceCount}`);
     
     const newRisk = this.calculatePreviewRisk();
-    alert(`✅ Configuration prepared for ${subnet.subnet}!\n\nCurrent Risk: ${subnet.riskScore.toFixed(1)}\nPredicted New Risk: ${newRisk.toFixed(1)}\nDevices: ${subnet.deviceCount}\n\nNote: Implementation pending backend integration.`);
+    alert(`Configuration prepared for ${subnet.subnet}!\n\nCurrent Risk: ${subnet.riskScore.toFixed(1)}\nPredicted New Risk: ${newRisk.toFixed(1)}\nDevices: ${subnet.deviceCount}\n\nNote: Implementation pending backend integration.`);
   }
 
   applyToRandomSample() {
     const sampleSize = Math.min(10, this.availableSubnets.length);
     const sample = this.availableSubnets.slice(0, sampleSize);
     
-    console.log(`🎲 Would apply configuration to ${sampleSize} random subnets`);
+    console.log(`Would apply configuration to ${sampleSize} random subnets`);
     
     const changes = sample.map(subnet => {
       const newRisk = this.calculatePreviewRisk();

@@ -71,7 +71,7 @@ export class NetworkDataService {
   // Check for existing subnet details and update node properties
 private async checkExistingSubnetDetails(subnets: SubnetData[]): Promise<SubnetData[]> {
   try {
-    console.log('🔍 Checking for existing subnet details...');
+    console.log('Checking for existing subnet details...');
     
     // Quick health check first
     const healthCheck = await firstValueFrom(this.apiService.checkApiHealth());
@@ -108,9 +108,9 @@ private async checkExistingSubnetDetails(subnets: SubnetData[]): Promise<SubnetD
           subnet.subnetRiskSource = 'existing_data';
           subnet.riskLevel = this.determineRiskLevel(details.riskScore);
           
-          console.log(`🎨 Updated ${subnet.subnet}: devices ${details.deviceCount}, risk ${previousRisk.toFixed(1)} → ${details.riskScore.toFixed(1)} (${subnet.riskLevel})`);
+          console.log(`Updated ${subnet.subnet}: devices ${details.deviceCount}, risk ${previousRisk.toFixed(1)} → ${details.riskScore.toFixed(1)} (${subnet.riskLevel})`);
         } else {
-          console.log(`📊 Updated ${subnet.subnet}: ${details.deviceCount} devices, risk unchanged: ${subnet.riskScore.toFixed(1)}`);
+          console.log(`Updated ${subnet.subnet}: ${details.deviceCount} devices, risk unchanged: ${subnet.riskScore.toFixed(1)}`);
         }
         
         updatedCount++;
@@ -231,7 +231,7 @@ private extractSubnetDetailsFromExistingData(apiData: any[]): { [subnet: string]
         devices: [],
         riskScore: directSubnetRisks[subnetCidr]
       };
-      console.log(`📋 Added subnet with direct risk score only: ${subnetCidr} (${directSubnetRisks[subnetCidr]})`);
+      console.log(`Added subnet with direct risk score only: ${subnetCidr} (${directSubnetRisks[subnetCidr]})`);
     }
   });
 
@@ -1030,7 +1030,7 @@ updateSubnetDeviceCount(subnetCidr: string, deviceCount: number): void {
     subnet.deviceCount = deviceCount;
     subnet.hasDetailedData = true;
     this.updateNetworkData(currentData);
-    console.log(`🔄 Updated ${subnetCidr}: ${deviceCount} devices`);
+    console.log(`Updated ${subnetCidr}: ${deviceCount} devices`);
   }
 }
 }

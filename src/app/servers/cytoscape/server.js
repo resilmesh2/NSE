@@ -681,18 +681,17 @@ app.get('/api/expand-virtual-network/:nodeId/:nodeType', async (req, res) => {
 });
 
 // API route to collapse a node and remove neighbors
-// API route to collapse a node and remove neighbors
 app.post('/api/collapse-virtual-network', async (req, res) => {
     try {
         const data = req.body;
-        console.log(`🗑️ Collapsing ${data.length} elements from virtual network`);
+        console.log(`Collapsing ${data.length} elements from virtual network`);
         
         await collapseVirtualNetwork(data);
         
         // IMPORTANT: Save the cleaned network
         await saveVirtualNetwork();
         
-        console.log('✅ Virtual network collapsed and saved');
+        console.log('Virtual network collapsed and saved');
         
         res.json({ 
             message: 'Virtual network collapsed and saved successfully',

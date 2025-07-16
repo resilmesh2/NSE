@@ -165,7 +165,7 @@
             <p><strong>Device Type:</strong> {{selectedDevice.deviceType || 'Unknown'}}</p>
             <p><strong>Operating System:</strong> {{selectedDevice.os || 'Unknown'}}</p>
             <p><strong>Status:</strong> 
-              <span [ngClass]="'status-' + getDeviceStatus(selectedDevice)?.toLowerCase()">
+              <span [ngClass]="'status-' + getDeviceStatus(selectedDevice).toLowerCase()">
                 {{getDeviceStatus(selectedDevice) || 'Unknown'}}
               </span>
             </p>
@@ -190,7 +190,7 @@
                 {{getRiskClass(selectedDevice.riskScore || 0).toUpperCase()}}
               </span>
             </p>
-            <p><strong>Vulnerabilities:</strong> {{selectedDevice.vulnerabilities?.length || 0}}</p>
+            <p><strong>Vulnerabilities:</strong> {{selectedDevice.vulnerabilities.length || 0}}</p>
             <p><strong>Open Ports:</strong> {{getDeviceOpenPorts(selectedDevice) || 'N/A'}}</p>
           </div>
         </div>

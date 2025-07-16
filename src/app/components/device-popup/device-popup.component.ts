@@ -23,7 +23,7 @@ export class DevicePopupComponent implements OnInit {
   filterType = 'all';
   sortType = 'threat-desc';
   currentPage = 1;
-  pageSize = 20;
+  pageSize = 50;
   totalPages = 1;
 
 constructor(
