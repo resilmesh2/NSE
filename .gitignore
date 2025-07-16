@@ -15,6 +15,7 @@ yarn-error.log
 # Server-specific ignores
 src/servers/*/node_modules/
 src/servers/*/package-lock.json
+src/servers/*/data/
 
 # Environment files with sensitive data
 src/servers/*/.env
