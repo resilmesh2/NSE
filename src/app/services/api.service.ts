@@ -73,4 +73,22 @@ export class ApiService {
     console.error('API Error:', error);
     return throwError(() => error);
   }
+
+  // Add this method to ApiService class
+getNodeAttributes(): Observable<any> {
+  return this.http.get<any>(`${this.API_DEVICE_DETAILS_URL}/get-node-attributes`)
+    .pipe(
+      timeout(this.REQUEST_TIMEOUT),
+      catchError(this.handleError)
+    );
+}
+
+// Add this method to ApiService class
+writeCustomRiskComponent(componentData: any): Observable<any> {
+  return this.http.post<any>(`${this.API_DEVICE_DETAILS_URL}/write-custom-risk-component`, componentData)
+    .pipe(
+      timeout(this.REQUEST_TIMEOUT),
+      catchError(this.handleError)
+    );
+}
 }

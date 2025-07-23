@@ -705,6 +705,429 @@ app.post('/api/collapse-virtual-network', async (req, res) => {
     }
 });
 
+// Debug endpoint to see all properties on Node objects
+app.get('/api/debug-node-properties', async (req, res) => {
+    const session = driver.session();
+    
+    try {
+        // Get all properties from the first 10 nodes
+        const query = `
+        MATCH (n:Node)
+        RETURN n
+        LIMIT 10
+        `;
+        
+        const result = await session.run(query);
+        const nodeProperties = [];
+        
+        result.records.forEach((record, index) => {
+            const node = record.get('n');
+            const props = node.properties;
+            nodeProperties.push({
+                nodeIndex: index,
+                nodeId: node.identity.toNumber(),
+                properties: Object.keys(props),
+                propertyValues: props
+            });
+        });
+
+        // Also get all unique property keys across all nodes
+        const allKeysQuery = `
+        MATCH (n:Node)
+        WITH n
+        UNWIND keys(n) as key
+        RETURN DISTINCT key, count(*) as nodeCount
+        ORDER BY nodeCount DESC
+        `;
+        
+        const allKeysResult = await session.run(allKeysQuery);
+        const allUniqueKeys = allKeysResult.records.map(record => ({
+            property: record.get('key'),
+            nodeCount: record.get('nodeCount').toNumber()
+        }));
+
+        res.json({
+            sampleNodes: nodeProperties,
+            allUniqueProperties: allUniqueKeys,
+            totalSampleNodes: nodeProperties.length
+        });
+
+    } catch (error) {
+        console.error('Error in debug endpoint:', error);
+        res.status(500).json({ error: 'Failed to debug node properties', details: error.message });
+    } finally {
+        await session.close();
+    }
+});
+
+// Add this endpoint to test IP targeting
+app.get('/api/debug-ip-targeting', async (req, res) => {
+    const session = driver.session();
+    
+    try {
+        // Get sample IPs that exist in the database
+        const query = `
+        MATCH (subnet:Subnet)<-[:PART_OF]-(ip:IP)<-[:HAS_ASSIGNED]-(n:Node)
+        WHERE n.\`Risk Score\` IS NOT NULL
+        RETURN ip.address as ipAddress, subnet.range as subnetRange, n.\`Risk Score\` as riskScore
+        LIMIT 10
+        `;
+        
+        const result = await session.run(query);
+        const ips = result.records.map(record => ({
+            ip: record.get('ipAddress'),
+            subnet: record.get('subnetRange'),
+            riskScore: record.get('riskScore')
+        }));
+
+        res.json({
+            message: 'Sample IPs with Node connections',
+            ips: ips,
+            count: ips.length
+        });
+
+    } catch (error) {
+        console.error('Error in IP debug endpoint:', error);
+        res.status(500).json({ error: 'Failed to get IP debug info', details: error.message });
+    } finally {
+        await session.close();
+    }
+});
+
+// Node attributes endpoint
+app.get('/api/get-node-attributes', async (req, res) => {
+    const session = driver.session();
+    
+    try {
+        console.log('Fetching node attributes...');
+        
+        // First, get all unique property keys that exist on Node objects
+        const allKeysQuery = `
+        MATCH (n:Node)
+        WITH n
+        UNWIND keys(n) as key
+        RETURN DISTINCT key, count(*) as nodeCount
+        ORDER BY nodeCount DESC
+        `;
+        
+        const allKeysResult = await session.run(allKeysQuery);
+        console.log(`Found ${allKeysResult.records.length} unique properties on Node objects`);
+        
+        const allProperties = {};
+        const knownSystemProperties = [
+            'id', 'created', 'updated', 'name', 'label', 'type', 'status'
+        ];
+        
+        // Get statistics for each numeric property
+        for (const record of allKeysResult.records) {
+            const propKey = record.get('key');
+            const nodeCount = record.get('nodeCount').toNumber();
+            
+            console.log(`Processing property: ${propKey} (${nodeCount} nodes)`);
+            
+            // Skip obvious system properties
+            if (knownSystemProperties.includes(propKey)) {
+                console.log(`Skipping system property: ${propKey}`);
+                continue;
+            }
+            
+            try {
+                // Try to get numeric statistics for this property
+                const statsQuery = `
+                MATCH (n:Node)
+                WHERE n.${propKey.includes(' ') ? '`' + propKey + '`' : propKey} IS NOT NULL
+                AND toString(n.${propKey.includes(' ') ? '`' + propKey + '`' : propKey}) =~ '^-?[0-9]*\\.?[0-9]+$'
+                WITH toFloat(n.${propKey.includes(' ') ? '`' + propKey + '`' : propKey}) as numValue
+                WHERE numValue IS NOT NULL
+                RETURN 
+                    avg(numValue) as avgValue,
+                    max(numValue) as maxValue,
+                    min(numValue) as minValue,
+                    count(numValue) as numericCount
+                `;
+                
+                const statsResult = await session.run(statsQuery);
+                
+                if (statsResult.records.length > 0) {
+                    const statsRecord = statsResult.records[0];
+                    const numericCount = statsRecord.get('numericCount').toNumber();
+                    
+                    if (numericCount > 0) {
+                        allProperties[propKey] = {
+                            avg: statsRecord.get('avgValue'),
+                            max: statsRecord.get('maxValue'),
+                            min: statsRecord.get('minValue'),
+                            nodeCount: numericCount,
+                            totalNodes: nodeCount
+                        };
+                        console.log(`✅ ${propKey}: avg=${allProperties[propKey].avg?.toFixed(2)}, max=${allProperties[propKey].max?.toFixed(2)}, nodes=${numericCount}`);
+                    }
+                }
+            } catch (propError) {
+                console.log(`⚠️ Could not get stats for ${propKey}:`, propError.message);
+            }
+        }
+        
+        console.log(`Successfully processed ${Object.keys(allProperties).length} numeric properties`);
+        
+        // Build the response
+        const response = {
+            statistics: {},
+            discoveredProperties: allProperties,
+            totalPropertiesFound: Object.keys(allProperties).length
+        };
+        
+        // Map known properties to the statistics object for backward compatibility
+        const knownMappings = {
+            'betweenness': 'betweenness',
+            'degree': 'degree', 
+            'normalizedBetweenness': 'normalizedBetweenness',
+            'normalizedDegree': 'normalizedDegree',
+            'cvss_score': 'cvssScore',
+            'criticality': 'criticality',
+            'threatScore': 'threatScore',
+            'Risk Score': 'riskScore'
+        };
+        
+        Object.entries(knownMappings).forEach(([neo4jProp, apiKey]) => {
+            if (allProperties[neo4jProp]) {
+                response.statistics[apiKey] = allProperties[neo4jProp];
+            }
+        });
+        
+        console.log('Sending response with:', response.totalPropertiesFound, 'properties');
+        res.json(response);
+
+    } catch (error) {
+        console.error('Error fetching node attributes:', error);
+        res.status(500).json({ 
+            error: 'Failed to fetch node attributes', 
+            details: error.message,
+            stack: error.stack 
+        });
+    } finally {
+        await session.close();
+    }
+});
+
+// Custom risk component endpoint
+app.post('/api/write-custom-risk-component', async (req, res) => {
+    const session = driver.session();
+    
+    try {
+        const { 
+            componentName, 
+            neo4jProperty, 
+            formula, 
+            method, 
+            components, 
+            targetType = 'all',
+            targetValues = [],
+            calculationMode = 'calculate' // New parameter: 'calculate' or 'setValue'
+        } = req.body;
+
+        console.log(`Updating Neo4j property: ${neo4jProperty}`);
+        console.log(`Method: ${method}`);
+        console.log(`Target Type: ${targetType}`);
+        console.log(`Calculation Mode: ${calculationMode}`);
+        console.log('Components received:', components);
+
+        let query = '';
+        let whereClause = '';
+
+        // Properly format property name for Neo4j (handle spaces)
+        const formatPropertyName = (propName) => {
+            if (propName.includes(' ') || propName.includes('-')) {
+                return `\`${propName}\``;
+            }
+            return propName;
+        };
+
+        // Build target-specific WHERE clause
+        if (targetType === 'network' && targetValues.length > 0) {
+            const networkPrefixes = targetValues.map(network => `"${network.prefix}."`);
+            whereClause = `AND (${networkPrefixes.map(prefix => `ip.address STARTS WITH ${prefix}`).join(' OR ')})`;
+        } else if (targetType === 'subnet' && targetValues.length > 0) {
+            const subnetRanges = targetValues.map(subnet => `"${subnet.subnet}"`);
+            whereClause = `AND subnet.range IN [${subnetRanges.join(', ')}]`;
+        } else if (targetType === 'sample' && targetValues.length > 0) {
+            const subnetRanges = targetValues.map(subnet => `"${subnet.subnet}"`);
+            whereClause = `AND subnet.range IN [${subnetRanges.join(', ')}]`;
+        } else if (targetType === 'ip' && targetValues.length > 0) {
+            const ipAddresses = targetValues.map(ip => `"${ip.ip}"`);
+            whereClause = `AND ip.address IN [${ipAddresses.join(', ')}]`;
+        }
+
+        if (calculationMode === 'setValue') {
+            // Simple value setting mode
+            const setValue = components[0]?.currentValue || 0;
+            
+            if (targetType === 'all') {
+                query = `
+                MATCH (n:Node)
+                WHERE n.\`Risk Score\` IS NOT NULL
+                SET n.${formatPropertyName(neo4jProperty)} = ${setValue}
+                RETURN count(n) as updatedNodes, avg(n.${formatPropertyName(neo4jProperty)}) as avgValue
+                `;
+            } else {
+                query = `
+                MATCH (subnet:Subnet)<-[:PART_OF]-(ip:IP)<-[:HAS_ASSIGNED]-(n:Node)
+                WHERE n.\`Risk Score\` IS NOT NULL ${whereClause}
+                SET n.${formatPropertyName(neo4jProperty)} = ${setValue}
+                RETURN count(n) as updatedNodes, avg(n.${formatPropertyName(neo4jProperty)}) as avgValue
+                `;
+            }
+
+        } else if (method === 'weighted_avg') {
+            const weightedTerms = components.map(comp => {
+                const propName = formatPropertyName(comp.neo4jProperty);
+                const value = comp.currentValue || 0;
+                return `${value} * ${comp.weight}`;
+            }).join(' + ');
+            
+            const totalWeights = components.reduce((sum, comp) => sum + comp.weight, 0);
+            
+            if (targetType === 'all') {
+                query = `
+                MATCH (n:Node)
+                WHERE n.\`Risk Score\` IS NOT NULL
+                SET n.${formatPropertyName(neo4jProperty)} = (${weightedTerms}) / ${totalWeights}
+                RETURN count(n) as updatedNodes, avg(n.${formatPropertyName(neo4jProperty)}) as avgValue
+                `;
+            } else {
+                query = `
+                MATCH (subnet:Subnet)<-[:PART_OF]-(ip:IP)<-[:HAS_ASSIGNED]-(n:Node)
+                WHERE n.\`Risk Score\` IS NOT NULL ${whereClause}
+                SET n.${formatPropertyName(neo4jProperty)} = (${weightedTerms}) / ${totalWeights}
+                RETURN count(n) as updatedNodes, avg(n.${formatPropertyName(neo4jProperty)}) as avgValue
+                `;
+            }
+
+        } else if (method === 'max') {
+            const maxTerms = components.map(comp => comp.currentValue || 0).join(', ');
+            
+            if (targetType === 'all') {
+                query = `
+                MATCH (n:Node)
+                WHERE n.\`Risk Score\` IS NOT NULL
+                SET n.${formatPropertyName(neo4jProperty)} = apoc.coll.max([${maxTerms}])
+                RETURN count(n) as updatedNodes, avg(n.${formatPropertyName(neo4jProperty)}) as avgValue
+                `;
+            } else {
+                query = `
+                MATCH (subnet:Subnet)<-[:PART_OF]-(ip:IP)<-[:HAS_ASSIGNED]-(n:Node)
+                WHERE n.\`Risk Score\` IS NOT NULL ${whereClause}
+                SET n.${formatPropertyName(neo4jProperty)} = apoc.coll.max([${maxTerms}])
+                RETURN count(n) as updatedNodes, avg(n.${formatPropertyName(neo4jProperty)}) as avgValue
+                `;
+            }
+
+        } else if (method === 'sum') {
+            const sumTerms = components.map(comp => comp.currentValue || 0).join(' + ');
+            
+            if (targetType === 'all') {
+                query = `
+                MATCH (n:Node)
+                WHERE n.\`Risk Score\` IS NOT NULL
+                SET n.${formatPropertyName(neo4jProperty)} = ${sumTerms}
+                RETURN count(n) as updatedNodes, avg(n.${formatPropertyName(neo4jProperty)}) as avgValue
+                `;
+            } else {
+                query = `
+                MATCH (subnet:Subnet)<-[:PART_OF]-(ip:IP)<-[:HAS_ASSIGNED]-(n:Node)
+                WHERE n.\`Risk Score\` IS NOT NULL ${whereClause}
+                SET n.${formatPropertyName(neo4jProperty)} = ${sumTerms}
+                RETURN count(n) as updatedNodes, avg(n.${formatPropertyName(neo4jProperty)}) as avgValue
+                `;
+            }
+
+        } else if (method === 'geometric_mean') {
+    // Add geometric mean calculation support
+    const safeComponents = components.map(comp => {
+        const value = comp.currentValue || 0;
+        return `CASE WHEN ${value} <= 0 THEN 0.1 ELSE ${value} END`;
+    });
+    const geometricFormula = `(${safeComponents.join(' * ')}) ^ (1.0/${components.length})`;
+    
+    if (targetType === 'all') {
+        query = `
+        MATCH (n:Node)
+        WHERE n.\`Risk Score\` IS NOT NULL
+        SET n.${formatPropertyName(neo4jProperty)} = ${geometricFormula}
+        RETURN count(n) as updatedNodes, avg(n.${formatPropertyName(neo4jProperty)}) as avgValue
+        `;
+    } else {
+        query = `
+        MATCH (subnet:Subnet)<-[:PART_OF]-(ip:IP)<-[:HAS_ASSIGNED]-(n:Node)
+        WHERE n.\`Risk Score\` IS NOT NULL ${whereClause}
+        SET n.${formatPropertyName(neo4jProperty)} = ${geometricFormula}
+        RETURN count(n) as updatedNodes, avg(n.${formatPropertyName(neo4jProperty)}) as avgValue
+        `;
+    }
+} else if (method === 'custom_formula') {
+            let formulaExpression = formula;
+            
+            components.forEach(comp => {
+                const value = comp.currentValue || 0;
+                const regex = new RegExp(comp.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+                formulaExpression = formulaExpression.replace(regex, value.toString());
+            });
+            
+            if (targetType === 'all') {
+                query = `
+                MATCH (n:Node)
+                WHERE n.\`Risk Score\` IS NOT NULL
+                SET n.${formatPropertyName(neo4jProperty)} = ${formulaExpression}
+                RETURN count(n) as updatedNodes, avg(n.${formatPropertyName(neo4jProperty)}) as avgValue
+                `;
+            } else {
+                query = `
+                MATCH (subnet:Subnet)<-[:PART_OF]-(ip:IP)<-[:HAS_ASSIGNED]-(n:Node)
+                WHERE n.\`Risk Score\` IS NOT NULL ${whereClause}
+                SET n.${formatPropertyName(neo4jProperty)} = ${formulaExpression}
+                RETURN count(n) as updatedNodes, avg(n.${formatPropertyName(neo4jProperty)}) as avgValue
+                `;
+            }
+
+        } else {
+            throw new Error(`Unsupported method: ${method}`);
+        }
+
+        console.log('Executing Node query:', query);
+        const result = await session.run(query);
+        const record = result.records[0];
+        const updatedNodes = record.get('updatedNodes').toNumber();
+        const avgValue = record.get('avgValue');
+
+        console.log(`Successfully updated ${updatedNodes} Node objects`);
+
+        res.json({
+            success: true,
+            message: `Property '${neo4jProperty}' updated on Node objects`,
+            results: {
+                updatedNodes,
+                avgValue: parseFloat(avgValue?.toFixed(2) || '0'),
+                neo4jProperty,
+                method,
+                componentCount: components.length,
+                targetType,
+                targetCount: targetValues.length,
+                calculationMode
+            }
+        });
+
+    } catch (error) {
+        console.error('Error updating Node property:', error);
+        res.status(500).json({ 
+            success: false,
+            error: 'Failed to update Node property',
+            details: error.message 
+        });
+    } finally {
+        await session.close();
+    }
+});
+
 // Start the server and load virtual network
 app.listen(port, async () => {
     console.log(`App listening at http://localhost:${port}`);

@@ -1,4 +1,4 @@
-//D3
+//D3 -- no subnet limit
 const express = require('express');
 const neo4j = require('neo4j-driver');
 const path = require('path');
@@ -39,173 +39,185 @@ const virtualNetworkFilePath = path.join(__dirname, 'data', 'virtualNetwork.json
 // initial data from Neo4j database
 
 async function getInitialData() {
-    console.log("Beginning Data Collection")
+    console.log("====== Beginning Data Collection ======");
+    console.time("Total Data Collection");
+    
     const session = driver.session();
 
-    ipPrefix = "147.251";
-
     try {
+        console.log("Step 1: Executing main Neo4j query...");
+        console.time("Main Neo4j Query");
+        
+        // Remove the IP prefix filter to get all subnets
+const query = `MATCH (o:OrganizationUnit)-[r]-(s:Subnet), (s)-[r2]-(i:IP) ` +
+             `RETURN o, r, s, i;`;  // Remove the WHERE clause entirely
 
-	const query = `MATCH (o:OrganizationUnit)-[r]-(s:Subnet), (s)-[r2]-(i:IP) ` +
-			`WHERE o.name in ["FF"] AND s.range STARTS WITH "${ipPrefix}" ` +
-			`RETURN o, r, s, i;`;
-
-        // Run a query to fetch nodes (adjust the query as needed)
         const result = await session.run(query);
+        console.timeEnd("Main Neo4j Query");
+        
+        console.log(`Step 2: Processing ${result.records.length} records...`);
+        console.time("Record Processing");
 
-	const elements = [];
-	const ranges = [];
+        const elements = [];
+        const ranges = [];
 
         let orgNodeId = null;
-	let nodeType = null;
-	let orgNodeDetails = null;
-	let orgNodeLabel = null;
+        let nodeType = null;
+        let orgNodeDetails = null;
+        let orgNodeLabel = null;
 
-	let nodeRanges = [];
-	let nodeHosts = [];
-	let vulnNodeHosts = [];
-	let nodeRels = [];
+        let nodeRanges = [];
+        let nodeHosts = [];
+        let vulnNodeHosts = [];
+        let nodeRels = [];
 
-	let cidr_rangeId = null;
+        let cidr_rangeId = null;
 
-	const uniqueOrgUnitIds = new Set();
+        const uniqueOrgUnitIds = new Set();
 
-	let noRels = 0;
-	let noSubnets = 0;
+        let noRels = 0;
+        let noSubnets = 0;
 
-	result.records.forEach(record => {
-    	    record.keys.forEach(key => {
+        result.records.forEach(record => {
+            record.keys.forEach(key => {
+                const value = record.get(key);
 
-        	const value = record.get(key); // Use 'value' instead of 'node' for clarity
+                if (value.labels) {
+                    if (value.labels.includes('Subnet')) {
+                        nodeRanges.push(value);
+                        noSubnets++;
+                    } else if (value.labels.includes('OrganizationUnit')) {
+                        orgNodeId = value.identity.low;
+                        cidr_rangeId = `CIDR_range-${orgNodeId}`;
 
-        	if (value.labels) { // Check if it's a Node
-            	    if (value.labels.includes('Subnet')) {
+                        if (!uniqueOrgUnitIds.has(orgNodeId)) {
+                            uniqueOrgUnitIds.add(orgNodeId);
+                            nodeType = value.labels[0];
+                            orgNodeLabel = value.properties.name;
+                            orgNodeDetails = "N/A";
+                        }
+                    } else if (value.labels.includes('IP')){
+                        const ipNodeAddress = value.properties.address;
+                        if (!nodeHosts.includes(ipNodeAddress)){
+                            nodeHosts.push(ipNodeAddress);
+                        }
+                    }
+                } else if (value.type) {
+                    nodeRels.push(value);
+                    noRels++;
+                }
+            });
+        });
 
-                	nodeRanges.push(value);
+        console.timeEnd("Record Processing");
+        console.log(`  - Found ${noSubnets} subnets`);
+        console.log(`  - Found ${nodeHosts.length} unique IP addresses`);
+        console.log(`  - Found ${noRels} relationships`);
 
-            	    } else if (value.labels.includes('OrganizationUnit')) {
-                	orgNodeId = value.identity.low;
-                	cidr_rangeId = `CIDR_range-${orgNodeId}`;
-
-                	// Ensure uniqueness for OrganizationUnit nodes
-                	if (!uniqueOrgUnitIds.has(orgNodeId)) {
-                    	    uniqueOrgUnitIds.add(orgNodeId);
-                    	    nodeType = value.labels[0];
-                    	    orgNodeLabel = value.properties.name;
-                    	    orgNodeDetails = "N/A";
-                	}
-            	    } else if (value.labels.includes('IP')){
-
-			const ipNodeAddress = value.properties.address;
-
-			// add the node to the array but prevent duplicates
-			if (!nodeHosts.includes(ipNodeAddress)){
-
-			    nodeHosts.push(ipNodeAddress);
-			}
-		    }
-        	} else if (value.type) { // Check if it's a Relationship
-
-            	    nodeRels.push(value);
-        	}
-    	    });
-	});
-
-	// make a second query to check whether any resulting IPs have vulnerabilities
-	const query2 = `MATCH (i:IP)-[r]-(n:Node), (n)-[r2]-(h:Host), ` +
-			`(h)-[r3]-(sv:SoftwareVersion), (sv)-[r4]-(v:Vulnerability) ` +
-			`WHERE i.address STARTS WITH "${ipPrefix}.96" ` +
-			`OR i.address STARTS WITH "${ipPrefix}.97" ` +
-			`OR i.address STARTS WITH "${ipPrefix}.98" ` +
-			`OR i.address STARTS WITH "${ipPrefix}.99" ` +
-			`OR i.address STARTS WITH "${ipPrefix}.100" ` +
-			`OR i.address STARTS WITH "${ipPrefix}.101" ` +
-			`OR i.address STARTS WITH "${ipPrefix}.102" ` +
-			`OR i.address STARTS WITH "${ipPrefix}.103" ` +
-			`RETURN i, count(v);`;
-
+        console.log("Step 3: Executing vulnerability query...");
+        console.time("Vulnerability Query");
+        
+        // Remove IP prefix filter from vulnerability query
+        const query2 = `MATCH (i:IP)-[r]-(n:Node), (n)-[r2]-(h:Host), ` +
+                      `(h)-[r3]-(sv:SoftwareVersion), (sv)-[r4]-(v:Vulnerability) ` +
+                      `RETURN i, count(v);`;
 
         const vulnResult = await session.run(query2);
+        console.timeEnd("Vulnerability Query");
+        
+        console.log(`Step 4: Processing ${vulnResult.records.length} vulnerability records...`);
+        console.time("Vulnerability Processing");
 
-	vulnResult.records.forEach(vulnRecord => {
-    	    // Initialize variables to track IP and count values
-    	    let ipNodeAddress = null;
+        vulnResult.records.forEach(vulnRecord => {
+            let ipNodeAddress = null;
 
-    	    vulnRecord.keys.forEach(vulnKey => {
-        	const vulnValue = vulnRecord.get(vulnKey);
+            vulnRecord.keys.forEach(vulnKey => {
+                const vulnValue = vulnRecord.get(vulnKey);
 
-        	// Check if vulnValue is a Node
-        	if (vulnValue.labels) {
-            	    if (vulnValue.labels.includes('IP')) {
+                if (vulnValue.labels) {
+                    if (vulnValue.labels.includes('IP')) {
+                        ipNodeAddress = vulnValue.properties.address;
+                    }
+                } else if (vulnValue.low !== undefined) {
+                    if (ipNodeAddress) {
+                        vulnNodeHosts.push(ipNodeAddress);
+                    } else {
+                        console.error("ipNodeAddress is null when processing count(v).");
+                    }
+                }
+            });
 
-                	ipNodeAddress = vulnValue.properties.address;
-            	    }
-            	} else if (vulnValue.low !== undefined) {
+            if (!ipNodeAddress) {
+                console.error("No IP node was found in the record.");
+            }
+        });
 
-            	    if (ipNodeAddress) {
+        console.timeEnd("Vulnerability Processing");
+        console.log(`  - Found ${vulnNodeHosts.length} IPs with vulnerabilities`);
 
-			vulnNodeHosts.push(ipNodeAddress);
-            	    } else {
-                    	console.error("ipNodeAddress is null when processing count(v).");
-            	    }
-            	}
-    	    });
+        console.log("Step 5: Building data structure...");
+        console.time("Data Structure Building");
 
-    	    // Handle case where ipNodeAddress is null after processing
-    	    if (!ipNodeAddress) {
-            	console.error("No IP node was found in the record.");
-    	    }
-    	});
+        // Process Neo4j results exactly like the original
+        const ipHosts = nodeHosts.map(element => `${element}/32`);
+        const vulnHosts = vulnNodeHosts.map(element => `${element}/32`);
 
-	//process Neo4j results
-	const ipHosts = nodeHosts.map(element => `${element}/32`);
-	const vulnHosts = vulnNodeHosts.map(element => `${element}/32`);
+        // Helper function to process results (keep original logic)
+        function processDuplicates(myArray){
+            const results = [];
+            const recordedEleIds = new Set();
 
-	// helper function to process results
-	function processDuplicates(myArray){
+            myArray.forEach(ele => {
+                const idValue = ele.identity.low;
+                if (!recordedEleIds.has(idValue)){
+                    recordedEleIds.add(idValue);
+                    results.push(ele);
+                }
+            });
 
-	    const results = [];
-	    const recordedEleIds = new Set();
+            return results;
+        }
 
-	    myArray.forEach(ele => {
+        const netRanges = processDuplicates(nodeRanges);
 
-		const idValue = ele.identity.low;
-		if (!recordedEleIds.has(idValue)){
-		    recordedEleIds.add(idValue);
-		    results.push(ele);
-		}
-
-	    });
-
-	    return results;
-	}
-
-	netRanges = processDuplicates(nodeRanges);
-
-	netRanges.forEach(ele => {
+        netRanges.forEach(ele => {
             const value = ele.properties['range'];
-	    ranges.push(value);
-	});
+            ranges.push(value);
+        });
 
-	const netNodeValues = Array.from(new Set([...ranges, ...ipHosts]));
+        const netNodeValues = Array.from(new Set([...ranges, ...ipHosts]));
 
-	elements.push({
-	    data : {
-		id: orgNodeId,
-		type: 'CIDR_Values',
-		label: orgNodeLabel,
-	        details: netNodeValues,
-		vulns: vulnHosts
-	    }
-	});
+        // Create the single CIDR_Values node (exactly like original)
+        elements.push({
+            data : {
+                id: orgNodeId,
+                type: 'CIDR_Values',
+                label: orgNodeLabel,
+                details: netNodeValues,
+                vulns: vulnHosts
+            }
+        });
 
-	return elements;
+        console.timeEnd("Data Structure Building");
+        console.timeEnd("Total Data Collection");
+        
+        console.log("====== Data Collection Complete ======");
+        console.log(`Final Results:`);
+        console.log(`  - Total elements: ${elements.length}`);
+        console.log(`  - Subnets: ${noSubnets}`);
+        console.log(`  - IPs: ${nodeHosts.length}`);
+        console.log(`  - Vulnerable IPs: ${vulnNodeHosts.length}`);
+        console.log(`  - Network ranges in details: ${netNodeValues.length}`);
+
+        return elements;
 
     } catch (error) {
-	console.error('Error fetching initial CIDR notation from Neo4j:', error);
-	return [];
+        console.timeEnd("Total Data Collection");
+        console.error('Error fetching initial CIDR notation from Neo4j:', error);
+        return [];
     } finally {
-	await session.close();
+        console.log("Step 6: Closing Neo4j session...");
+        await session.close();
     }
 }
 

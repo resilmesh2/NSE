@@ -1,7 +1,7 @@
 <div class="risk-calculator-designer">
   <div class="designer-header">
     <h3>Risk Calculation Configurator</h3>
-    <p>Customize how risk scores are calculated by dragging components and selecting calculation methods</p>
+    <p>Customize how risk scores are calculated using ISIM data components</p>
     <div class="designer-actions">
       <button class="btn btn-secondary" (click)="clearFormula()">Clear Formula</button>
       <button class="btn btn-primary" (click)="saveConfiguration()">Save Configuration</button>
@@ -13,29 +13,55 @@
     <!-- Components Palette -->
     <div class="components-palette">
       <h4>Available Risk Components</h4>
+      
+      <!-- Components from ISIM -->
       <div class="component-list" 
-           cdkDropList 
-           #componentList="cdkDropList"
-           [cdkDropListData]="availableComponents"
-           [cdkDropListConnectedTo]="[formulaArea]"
-           (cdkDropListDropped)="drop($event)">
+          cdkDropList 
+          #componentList="cdkDropList"
+          [cdkDropListData]="availableComponents"
+          [cdkDropListConnectedTo]="[formulaArea]"
+          (cdkDropListDropped)="drop($event)">
         
-        <div *ngFor="let component of availableComponents" 
-             class="component-item" 
-             [attr.data-type]="component.type"
-             cdkDrag>
-          <div class="component-preview">
-            <span class="component-icon">{{component.icon}}</span>
-            <div class="component-info">
-              <span class="component-name">{{component.name}}</span>
-              <span class="component-desc">{{component.description}}</span>
-              <span class="component-type">{{component.type}}</span>
+        <!-- Show loading message inside the drop list -->
+        <div *ngIf="isLoadingComponents" style="text-align: center; padding: 20px; color: #666;">
+          <div class="loading-spinner"></div>
+          <div style="font-size: 14px; margin-top: 10px;">Loading ISIM Components...</div>
+        </div>
+
+        <!-- Components - use ng-container to separate the conditions -->
+        <ng-container *ngIf="!isLoadingComponents">
+          <div *ngFor="let component of availableComponents" 
+              class="component-item" 
+              [attr.data-type]="component.type"
+              cdkDrag>
+            <div class="component-preview">
+              <span class="component-icon">{{component.icon}}</span>
+              <div class="component-info">
+                <span class="component-name">{{component.name}}</span>
+                <span class="component-desc">{{component.description}}</span>
+                <span class="component-type">{{component.type.toUpperCase()}}</span>
+                
+                <!-- Show if composite -->
+                <div *ngIf="component.isComposite" style="font-size: 10px; color: #999; margin-top: 2px;">
+                  Composite: {{component.compositeOf?.join(' + ')}}
+                </div>
+                
+                <!-- Show statistics -->
+                <div style="font-size: 9px; color: #999; margin-top: 2px;">
+                  {{getComponentStatistics(component)}}
+                </div>
+                
+                <!-- Show ISIM property -->
+                <div style="font-size: 9px; color: #007bff; margin-top: 2px;">
+                  Property: {{component.neo4jProperty}}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        </ng-container>
       </div>
 
-      <div class="calculation-methods">
+      <div class="calculation-methods" *ngIf="!isLoadingComponents">
         <h5>Calculation Method</h5>
         <div class="method-selector">
           <div *ngFor="let method of availableMethods" 
@@ -70,37 +96,37 @@
             <button class="remove-btn" (click)="removeFromFormula(i)">×</button>
           </div>
           <div class="component-config">
-          <div class="config-row">
-            <label>Weight:</label>
-            <input type="number" 
-                  [value]="component.weight" 
-                  (input)="updateWeight(component, $event)"
-                  step="0.1" 
-                  min="0" 
-                  max="1"
-                  class="weight-input">
+            <div class="config-row">
+              <label>Weight:</label>
+              <input type="number" 
+                    [value]="component.weight" 
+                    (input)="updateWeight(component, $event)"
+                    step="0.1" 
+                    min="0" 
+                    max="1"
+                    class="weight-input">
+            </div>
+            <div class="config-row">
+              <label>Max Value:</label>
+              <input type="number" 
+                    [value]="component.maxValue" 
+                    (input)="updateMaxValue(component, $event)"
+                    step="0.1" 
+                    min="1" 
+                    [max]="component.statistics?.max || 10"
+                    class="weight-input">
+            </div>
+            <div class="config-row">
+              <label>Current:</label>
+              <input type="number" 
+                    [value]="(component.currentValue || component.statistics?.avg || 0).toFixed(2)" 
+                    (input)="updateCurrentValue(component, $event)"
+                    step="0.1" 
+                    min="0" 
+                    [max]="component.maxValue"
+                    class="weight-input">
+            </div>
           </div>
-          <div class="config-row">
-            <label>Max Value:</label>
-            <input type="number" 
-                  [value]="component.maxValue" 
-                  (input)="updateMaxValue(component, $event)"
-                  step="0.1" 
-                  min="1" 
-                  max="10"
-                  class="weight-input">
-          </div>
-          <div class="config-row">
-            <label>Current:</label>
-            <input type="number" 
-                  [value]="(component.mockValue || 0).toFixed(1)" 
-                  (input)="updateCurrentValue(component, $event)"
-                  step="0.1" 
-                  min="0" 
-                  [max]="component.maxValue"
-                  class="weight-input">
-          </div>
-        </div>
         </div>
 
         <!-- Empty state -->
@@ -118,47 +144,47 @@
           <div class="calculation-display">
             <div class="method-label">{{selectedMethod.replace('_', ' ').toUpperCase()}}:</div>
             <div class="formula-expression">
-            <span *ngIf="selectedMethod === 'weighted_avg'">
+              <span *ngIf="selectedMethod === 'weighted_avg'">
                 {{getWeightedFormulaExpression()}}
-            </span>
-            <span *ngIf="selectedMethod === 'max'">
+              </span>
+              <span *ngIf="selectedMethod === 'max'">
                 {{getMaxFormulaExpression()}}
-            </span>
-            <span *ngIf="selectedMethod === 'sum'">
+              </span>
+              <span *ngIf="selectedMethod === 'sum'">
                 {{getSumFormulaExpression()}}
-            </span>
-            <span *ngIf="selectedMethod === 'custom_formula'">
+              </span>
+              <span *ngIf="selectedMethod === 'custom_formula'">
                 <div class="custom-formula-input">
-                    <label for="customFormulaField">Custom Formula:</label>
-                    <textarea 
+                  <label for="customFormulaField">Custom Formula:</label>
+                  <textarea 
                     id="customFormulaField"
                     [(ngModel)]="customFormula"
                     placeholder="Components will auto-populate when dragged. Edit operators as needed."
                     class="form-control"
                     rows="2"
                     style="margin-top: 5px; font-family: 'Courier New', monospace; resize: vertical;">
-                    </textarea>
-                    
-                    <div class="formula-hint" style="font-size: 11px; color: #666; margin-top: 5px;">
+                  </textarea>
+                  
+                  <div class="formula-hint" style="font-size: 11px; color: #666; margin-top: 5px;">
                     Components auto-populate with + operators. Edit manually for custom calculations.
                     <br>Example: <code>(CVSS Score * 0.6) + (Threat Score * 0.4)</code>
                     <span *ngIf="isCustomFormulaEdited()" style="color: #007bff; font-weight: bold;">
-                        <br>✏️ Custom formula detected - sample result reflects your changes
+                      <br>✏️ Custom formula detected - sample result reflects your changes
                     </span>
-                    </div>
+                  </div>
                 </div>
-            </span>
-            <span *ngIf="selectedMethod !== 'weighted_avg' && selectedMethod !== 'max' && selectedMethod !== 'sum' && selectedMethod !== 'custom_formula'">
+              </span>
+              <span *ngIf="selectedMethod !== 'weighted_avg' && selectedMethod !== 'max' && selectedMethod !== 'sum' && selectedMethod !== 'custom_formula'">
                 {{getGenericFormulaExpression()}}
-            </span>
+              </span>
             </div>
           </div>
           <div class="result-preview">
-          <span class="result-label">Sample Result:</span>
-          <span class="result-value" [ngClass]="getResultRiskClass(calculatePreviewRisk())">
-            {{calculatePreviewRisk().toFixed(2)}}
-          </span>
-        </div>
+            <span class="result-label">Sample Result:</span>
+            <span class="result-value" [ngClass]="getResultRiskClass(calculatePreviewRisk())">
+              {{calculatePreviewRisk().toFixed(2)}}
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -215,6 +241,15 @@
       </div>
 
       <div class="config-section">
+        <label>Target Property:</label>
+        <select class="form-control" [(ngModel)]="targetProperty">
+          <option value="Risk Score">Risk Score</option>
+          <option value="Custom Risk">Custom Risk</option>
+          <option *ngFor="let comp of riskFormula" [value]="comp.neo4jProperty">{{comp.name}}</option>
+        </select>
+      </div>
+
+      <div class="config-section">
         <label>Custom Components:</label>
         <button class="btn btn-outline" (click)="addCustomComponent()">+ Add Custom</button>
       </div>
@@ -249,7 +284,6 @@
     </div>
     <div class="config-modal-content">
       <p>Choose where to apply your custom risk calculation:</p>
-      
       <div class="apply-options">
         <div class="apply-option" (click)="selectApplyOption('network')">
           <div class="option-icon">🌐</div>
@@ -267,6 +301,14 @@
           </div>
         </div>
         
+        <div class="apply-option" (click)="selectApplyOption('ip')">
+          <div class="option-icon">💻</div>
+          <div class="option-info">
+            <div class="option-title">Specific IP Address</div>
+            <div class="option-desc">Apply to individual IP addresses/devices</div>
+          </div>
+        </div>
+        
         <div class="apply-option" (click)="selectApplyOption('sample')">
           <div class="option-icon">🎲</div>
           <div class="option-info">
@@ -275,13 +317,13 @@
           </div>
         </div>
       </div>
-      
-      <div class="modal-actions">
-        <button (click)="closeConfigModal()" class="btn btn-secondary">Cancel</button>
+            
+            <div class="modal-actions">
+              <button (click)="closeConfigModal()" class="btn btn-secondary">Cancel</button>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
-  </div>
-</div>
 
 <!-- Network Selection Modal -->
 <div class="modal-overlay" *ngIf="showNetworkModal" (click)="closeNetworkModal()">
@@ -350,6 +392,66 @@
              (click)="applyToSubnet(subnet)">
           <div class="subnet-name">{{subnet.subnet}}</div>
           <div class="subnet-stats">{{subnet.deviceCount}} devices, Current Risk: {{subnet.riskScore.toFixed(1)}}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- IP Selection Modal -->
+<div class="modal-overlay" *ngIf="showIpModal" (click)="closeIpModal()">
+  <div class="selector-modal" (click)="$event.stopPropagation()">
+    <div class="selector-modal-header">
+      <h3>Select Specific IP Addresses</h3>
+      <button (click)="closeIpModal()" class="close-btn">×</button>
+    </div>
+    <div class="selector-modal-content">
+      <p>Choose specific IP addresses to apply your risk calculation (showing first 50 IPs):</p>
+      
+      <div style="margin-bottom: 15px;">
+        <input type="text" 
+               [(ngModel)]="ipSearchTerm" 
+               (input)="filterIpAddresses()"
+               placeholder="Search IP addresses..." 
+               style="width: 100%; padding: 8px; border: 1px solid #dee2e6; border-radius: 4px;">
+      </div>
+      
+      <div style="margin-bottom: 15px;">
+        <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer;">
+          <input type="checkbox" 
+                 [(ngModel)]="selectAllIps" 
+                 [indeterminate]="isSelectAllIpsIndeterminate()"
+                 (change)="toggleAllIps($event)" 
+                 style="margin: 0; transform: scale(1.2);">
+          <strong>Select All IPs</strong>
+        </label>
+      </div>
+      
+      <div class="ip-options" style="max-height: 300px; overflow-y: auto;">
+        <label *ngFor="let ip of filteredIpAddresses; let i = index" 
+               class="ip-option-checkbox" 
+               [class.selected]="selectedIps[i]"
+               style="display: flex; align-items: center; gap: 12px; padding: 10px; border: 1px solid #dee2e6; border-radius: 6px; margin-bottom: 6px; cursor: pointer; transition: all 0.2s ease;"
+               [style.border-color]="selectedIps[i] ? '#007bff' : '#dee2e6'"
+               [style.background-color]="selectedIps[i] ? '#f8f9fa' : 'white'">
+          <input type="checkbox" 
+                 [(ngModel)]="selectedIps[i]"
+                 (change)="updateIpSelection()"
+                 style="margin: 0; transform: scale(1.1);">
+          <div style="flex: 1;">
+            <div class="ip-address" style="font-weight: 600; color: #333; font-family: 'Courier New', monospace;">{{ip.ip}}</div>
+            <div class="ip-details" style="font-size: 11px; color: #666;">{{ip.subnet}} | Risk: {{ip.riskScore?.toFixed(1) || '0.0'}}</div>
+          </div>
+        </label>
+      </div>
+      
+      <div class="modal-actions" style="margin-top: 20px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #eee; padding-top: 15px;">
+        <span class="selection-count" style="font-size: 14px; color: #666;">{{getSelectedIpsCountText()}}</span>
+        <div>
+          <button (click)="closeIpModal()" class="btn btn-secondary" style="margin-right: 10px;">Cancel</button>
+          <button (click)="applyToSelectedIps()" 
+                  [disabled]="getSelectedIpsCount() === 0" 
+                  class="btn btn-primary">Apply Configuration</button>
         </div>
       </div>
     </div>
@@ -442,5 +544,52 @@
         </div>
       </form>
     </div>
+  </div>
+</div>
+
+<!-- Confirmation Modal -->
+<div class="modal-overlay" *ngIf="showConfirmModal" (click)="closeConfirmModal()">
+  <div class="confirmation-modal" (click)="$event.stopPropagation()">
+    <div class="confirmation-modal-header">
+      <h3>{{confirmModalData.title}}</h3>
+    </div>
+    <div class="confirmation-modal-content">
+      <div class="confirmation-message" [innerHTML]="confirmModalData.message"></div>
+    </div>
+    <div class="confirmation-modal-actions">
+      <button (click)="confirmModalData.onCancel()" class="btn btn-secondary">{{confirmModalData.cancelText}}</button>
+      <button *ngIf="confirmModalData.thirdButtonText" (click)="confirmModalData.onThirdButton?.()" class="btn btn-outline">{{confirmModalData.thirdButtonText}}</button>
+      <button (click)="confirmModalData.onConfirm()" class="btn btn-primary">{{confirmModalData.confirmText}}</button>
+    </div>
+  </div>
+</div>
+
+<!-- Alert Modal -->
+<div class="modal-overlay" *ngIf="showAlertModal" (click)="closeAlertModal()">
+  <div class="alert-modal" (click)="$event.stopPropagation()">
+    <div class="alert-modal-header">
+      <h3>{{alertModalData.title}}</h3>
+    </div>
+    <div class="alert-modal-content">
+      <div class="alert-message" [innerHTML]="alertModalData.message"></div>
+    </div>
+    <div class="alert-modal-actions">
+      <button (click)="alertModalData.onClose()" class="btn btn-primary">{{alertModalData.buttonText}}</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast Notifications -->
+<div class="notification-container">
+  <div *ngFor="let notification of notifications" 
+       class="notification"
+       [ngClass]="'notification-' + notification.type"
+       [@slideIn]>
+    <div class="notification-header">
+      <span class="notification-icon">{{getNotificationIcon(notification.type)}}</span>
+      <span class="notification-title">{{notification.title}}</span>
+      <button class="notification-close" (click)="dismissNotification(notification.id)">×</button>
+    </div>
+    <div class="notification-message">{{notification.message}}</div>
   </div>
 </div>
