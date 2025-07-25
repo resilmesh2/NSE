@@ -88,12 +88,15 @@
   box-shadow: 0 2px 8px rgba(0,123,255,0.2);
 }
 
-.component-item[data-type="vulnerability"] { border-left: 4px solid #dc3545; }
+.component-item[data-type="composite"] { border-left: 4px solid #dc3545; }
 .component-item[data-type="metric"] { border-left: 4px solid #007bff; }
 .component-item[data-type="custom"] { border-left: 4px solid #28a745; }
 .component-item[data-type="compliance"] { border-left: 4px solid #ffc107; }
 .component-item[data-type="business"] { border-left: 4px solid #6f42c1; }
 .component-item[data-type="maintenance"] { border-left: 4px solid #fd7e14; }
+.component-item[data-type="centrality"] { border-left: 4px solid #17a2b8; }    /* Teal for centrality */
+.component-item[data-type="vulnerability"] { border-left: 4px solid #6f42c1; }     /* Purple for composite */
+.component-item[data-type="threat"] { border-left: 4px solid #fd7e14; }        /* Orange for threat */
 
 .component-preview {
   display: flex;

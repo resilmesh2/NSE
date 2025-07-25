@@ -2,13 +2,12 @@
   "name": "network-visualisation-dashboard",
   "version": "0.0.0",
   "scripts": {
-    "start": "concurrently --names \"ANGULAR,CYTOSCAPE,D3\" --colors \"blue,green,yellow\" \"ng serve\" \"npm run start:cytoscape\" \"npm run start:d3\"",
+    "start": "concurrently --names \"ANGULAR,CYTOSCAPE\" --colors \"blue,green\" \"ng serve\" \"npm run start:cytoscape\"",
     "start:angular": "ng serve",
     "start:cytoscape": "cd src/app/servers/cytoscape && node server.js",
-    "start:d3": "cd src/app/servers/D3 && node server.js",
-    "start:servers": "concurrently --names \"CYTOSCAPE,D3\" --colors \"green,yellow\" \"npm run start:cytoscape\" \"npm run start:d3\"",
+    "start:servers": "concurrently --names \"CYTOSCAPE\" --colors \"green\" \"npm run start:cytoscape\"",
     "build": "ng build",
-    "dev": "concurrently --names \"ANGULAR,CYTOSCAPE,D3\" --colors \"blue,green,yellow\" \"ng serve --open\" \"npm run start:cytoscape\" \"npm run start:d3\""
+    "dev": "concurrently --names \"ANGULAR,CYTOSCAPE\" --colors \"blue,green\" \"ng serve --open\" \"npm run start:cytoscape\""
   },
   "private": true,
   "dependencies": {

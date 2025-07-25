@@ -8,7 +8,7 @@ import { ApiResponse } from '../models/network-data';
   providedIn: 'root'
 })
 export class ApiService {
-  private readonly API_BASE_URL = 'http://localhost:3001/api';
+  private readonly API_BASE_URL = 'http://localhost:3000/api';
   private readonly API_DEVICE_DETAILS_URL = 'http://localhost:3000/api';
   private readonly REQUEST_TIMEOUT = 30000;
 
