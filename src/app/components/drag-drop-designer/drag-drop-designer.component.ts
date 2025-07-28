@@ -99,7 +99,7 @@ private notificationId = 0;
   showCustomComponentModal = false;
   customComponent = {
     name: '',
-    description: '',
+    category: '',
     maxValue: 10
   };
 
@@ -671,6 +671,24 @@ closeAlertModal() {
     );
   }
 
+getCategoryIcon(category: string): string {
+  const icons: { [key: string]: string } = {
+    'security': '🔒',
+    'performance': '⚡',
+    'compliance': '📋',
+    'business': '💼',
+    'technical': '⚙️',
+    'custom': '🔧'
+  };
+  return icons[category] || '🔧';
+}
+
+getAutoDescription(): string {
+  if (!this.customComponent.category) return 'Component description...';
+  const category = this.customComponent.category.charAt(0).toUpperCase() + this.customComponent.category.slice(1);
+  return `${category} component for risk assessment`;
+}
+
   getTotalWeight(): number {
     return this.riskFormula.reduce((sum, c) => sum + (c.weight || 0), 0);
   }
@@ -1075,7 +1093,7 @@ async refreshComponents() {
   addCustomComponent() {
     this.customComponent = {
       name: '',
-      description: '',
+      category: '',
       maxValue: 10
     };
     this.showCustomComponentModal = true;
@@ -1085,19 +1103,19 @@ async refreshComponents() {
     this.showCustomComponentModal = false;
     this.customComponent = {
       name: '',
-      description: '',
+      category: '',
       maxValue: 10
     };
   }
-
+  
   saveCustomComponent() {
   if (!this.customComponent.name.trim()) {
     this.showWarning('Validation Error', 'Please enter a component name');
     return;
   }
   
-  if (!this.customComponent.description.trim()) {
-    this.showWarning('Validation Error', 'Please enter a component description');
+  if (!this.customComponent.category) {
+    this.showWarning('Validation Error', 'Please select a component category');
     return;
   }
   
@@ -1106,16 +1124,29 @@ async refreshComponents() {
     return;
   }
   
+  // Generate description based on category
+  const autoDescription = `${this.customComponent.category.charAt(0).toUpperCase() + this.customComponent.category.slice(1)} component for risk assessment`;
+  
+  // Set appropriate icon based on category
+  const categoryIcons: { [key: string]: string } = {
+    'security': '🔒',
+    'performance': '⚡',
+    'compliance': '📋',
+    'business': '💼',
+    'technical': '⚙️',
+    'custom': '🔧'
+  };
+  
   const newComponent: RiskComponent = {
     id: Date.now(),
     name: this.customComponent.name.trim(),
     type: 'custom',
-    icon: '🔧',
-    description: this.customComponent.description.trim(),
+    icon: categoryIcons[this.customComponent.category] || '🔧',
+    description: autoDescription,
     weight: 0.2,
     maxValue: this.customComponent.maxValue,
     currentValue: Math.random() * this.customComponent.maxValue,
-    neo4jProperty: this.customComponent.name.trim(), // Use exact name as ISIM property
+    neo4jProperty: this.customComponent.name.trim(),
     isComposite: false
   };
   

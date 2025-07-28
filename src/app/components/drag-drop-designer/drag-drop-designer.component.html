@@ -486,20 +486,25 @@
         </div>
 
         <div class="form-group">
-          <label for="componentDescription">Description *</label>
-          <textarea 
-            id="componentDescription"
-            name="componentDescription"
-            [(ngModel)]="customComponent.description"
-            #componentDescription="ngModel"
+          <label for="componentCategory">Component Category *</label>
+          <select 
+            id="componentCategory"
+            name="componentCategory"
+            [(ngModel)]="customComponent.category"
+            #componentCategory="ngModel"
             required
-            maxlength="200"
-            rows="3"
-            placeholder="e.g., Measures network response time and connectivity issues"
-            class="form-textarea"></textarea>
-          <div class="form-hint">Explain what this component measures and how it affects risk</div>
-          <div *ngIf="componentDescription.invalid && componentDescription.touched" class="form-error">
-            Description is required
+            class="form-input">
+            <option value="">Select Category</option>
+            <option value="security">Security Risk</option>
+            <option value="performance">Performance Impact</option>
+            <option value="compliance">Compliance Score</option>
+            <option value="business">Business Impact</option>
+            <option value="technical">Technical Metric</option>
+            <option value="custom">Custom Calculation</option>
+          </select>
+          <div class="form-hint">Categorize this component for better organization</div>
+          <div *ngIf="componentCategory.invalid && componentCategory.touched" class="form-error">
+            Category is required
           </div>
         </div>
 
@@ -523,20 +528,20 @@
         </div>
 
         <div class="preview-section">
-          <h5>Component Preview</h5>
-          <div class="component-preview-card">
-            <div class="preview-icon">🔧</div>
-            <div class="preview-details">
-              <div class="preview-name">{{customComponent.name || 'Component Name'}}</div>
-              <div class="preview-desc">{{customComponent.description || 'Component description...'}}</div>
-              <div class="preview-type">CUSTOM</div>
-            </div>
-            <div class="preview-values">
-              <div class="preview-value">Max: {{customComponent.maxValue}}</div>
-              <div class="preview-value">Weight: 0.2</div>
-            </div>
+        <h5>Component Preview</h5>
+        <div class="component-preview-card">
+          <div class="preview-icon">{{getCategoryIcon(customComponent.category)}}</div>
+          <div class="preview-details">
+            <div class="preview-name">{{customComponent.name || 'Component Name'}}</div>
+            <div class="preview-desc">{{getAutoDescription()}}</div>
+            <div class="preview-type">{{(customComponent.category || 'CATEGORY').toUpperCase()}}</div>
+          </div>
+          <div class="preview-values">
+            <div class="preview-value">Max: {{customComponent.maxValue}}</div>
+            <div class="preview-value">Weight: 0.2</div>
           </div>
         </div>
+      </div>
 
         <div class="modal-actions">
           <button type="button" (click)="closeCustomComponentModal()" class="btn btn-secondary">Cancel</button>

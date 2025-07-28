@@ -8,7 +8,7 @@ services:
     environment:
       - NEO4J_SERVER_URL=bolt://host.docker.internal:7687
       - NEO4J_USERNAME=neo4j
-      - NEO4J_PASSWORD=supertestovaciheslo
+      - NEO4J_PASSWORD=myNeo4jPassword
     volumes:
       - ./servers/data:/app/data
     networks:

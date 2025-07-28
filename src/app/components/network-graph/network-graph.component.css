@@ -116,3 +116,99 @@
     max-width: 280px;
   }
 }
+
+.search-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-input {
+  padding-right: 30px; /* Make room for clear button */
+}
+
+.clear-search-btn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #666;
+  cursor: pointer;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.clear-search-btn:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+/* Enhanced search input styling */
+.search-input {
+  min-width: 250px;
+  padding: 8px 30px 8px 12px;
+  border: 2px solid #dee2e6;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
+}
+
+.search-input:not(:placeholder-shown) {
+  border-color: #28a745;
+  background-color: #f8fff9;
+}
+
+/* Mobile responsive search */
+@media (max-width: 768px) {
+  .search-container {
+    width: 100%;
+  }
+  
+  .search-input {
+    min-width: auto;
+    width: 100%;
+  }
+}
+
+/* Add to network-graph.component.css */
+.search-hint {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: #333;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  white-space: nowrap;
+  z-index: 1000;
+  margin-top: 2px;
+  opacity: 0.9;
+}
+
+.search-hint::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 12px;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-bottom: 4px solid #333;
+}

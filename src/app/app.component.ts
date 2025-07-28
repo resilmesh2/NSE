@@ -141,47 +141,60 @@ ngOnDestroy() {
   }
 
   private async showSubnetDetails(subnetData: SubnetData) {
-  if (this.devicePopup) {
-    this.devicePopup.showLoadingPopup(subnetData.subnet);
-  }
+    if (this.activeView === 'graph') {
+      this.pauseGraphSimulation();
+    }
 
-  try {
-    const details = await this.networkDataService.getSubnetDetails(
-      subnetData.subnet, 
-      (message: string) => {
-        if (this.devicePopup) {
-          this.devicePopup.updateLoadingProgress(subnetData.subnet, message);
+    if (this.devicePopup) {
+      this.devicePopup.showLoadingPopup(subnetData.subnet);
+    }
+
+    try {
+      const details = await this.networkDataService.getSubnetDetails(
+        subnetData.subnet, 
+        (message: string) => {
+          if (this.devicePopup) {
+            this.devicePopup.updateLoadingProgress(subnetData.subnet, message);
+          }
         }
+      );
+      
+      // Update the subnet data with devices and device count
+      subnetData.devices = details.devices;
+      subnetData.deviceCount = details.devices.length;
+      subnetData.hasDetailedData = true;
+      
+      // Update the main network data array to reflect the new device count
+      const currentData = this.networkData;
+      const subnetIndex = currentData.findIndex(s => s.subnet === subnetData.subnet);
+      if (subnetIndex !== -1) {
+        currentData[subnetIndex] = subnetData;
+        this.networkData = [...currentData]; // Trigger change detection
+        this.updateStats(); // Recalculate stats
       }
-    );
-    
-    // Update the subnet data with devices and device count
-    subnetData.devices = details.devices;
-    subnetData.deviceCount = details.devices.length;
-    subnetData.hasDetailedData = true;
-    
-    // Update the main network data array to reflect the new device count
-    const currentData = this.networkData;
-    const subnetIndex = currentData.findIndex(s => s.subnet === subnetData.subnet);
-    if (subnetIndex !== -1) {
-      currentData[subnetIndex] = subnetData;
-      this.networkData = [...currentData]; // Trigger change detection
-      this.updateStats(); // Recalculate stats
-    }
-    
-    if (this.devicePopup) {
-      this.devicePopup.showPopup(subnetData);
-    }
+      
+      if (this.devicePopup) {
+        this.devicePopup.showPopup(subnetData);
+      }
 
-  } catch (error) {
-    console.error('Error loading subnet details:', error);
-    if (this.devicePopup) {
-      subnetData.devices = [];
-      subnetData.deviceCount = 0;
-      this.devicePopup.showPopup(subnetData);
+    } catch (error) {
+      console.error('Error loading subnet details:', error);
+      if (this.devicePopup) {
+        subnetData.devices = [];
+        subnetData.deviceCount = 0;
+        this.devicePopup.showPopup(subnetData);
+      }
     }
   }
-}
+
+  private pauseGraphSimulation(): void {
+    // Get reference to network graph component
+    const networkGraphComponent = document.querySelector('app-network-graph');
+    if (networkGraphComponent) {
+      // Dispatch a custom event to pause simulation
+      networkGraphComponent.dispatchEvent(new CustomEvent('pauseSimulation'));
+    }
+  }
 
   // Navigation methods using Angular Router
   navigateToDeviceTable(subnetData: SubnetData): void {

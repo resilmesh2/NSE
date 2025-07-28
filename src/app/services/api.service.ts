@@ -10,16 +10,17 @@ import { ApiResponse } from '../models/network-data';
 export class ApiService {
   private readonly API_BASE_URL = 'http://localhost:3000/api';
   private readonly API_DEVICE_DETAILS_URL = 'http://localhost:3000/api';
-  private readonly REQUEST_TIMEOUT = 30000;
+  private readonly REQUEST_TIMEOUT = 120000;
+  private readonly HEALTH_CHECK_TIMEOUT = 10000;
 
   constructor(private http: HttpClient) {}
 
   // Health check
   checkApiHealth(): Observable<boolean> {
     return this.http.get(`${this.API_BASE_URL}/get-virtual-network-data`).pipe(
-      timeout(5000),
-      map(() => true), // If request succeeds, return true
-      catchError(() => of(false)) // If request fails, return false
+      timeout(this.HEALTH_CHECK_TIMEOUT), // Use shorter timeout for health checks
+      map(() => true),
+      catchError(() => of(false))
     );
   }
 
@@ -86,6 +87,14 @@ getNodeAttributes(): Observable<any> {
 // Add this method to ApiService class
 writeCustomRiskComponent(componentData: any): Observable<any> {
   return this.http.post<any>(`${this.API_DEVICE_DETAILS_URL}/write-custom-risk-component`, componentData)
+    .pipe(
+      timeout(this.REQUEST_TIMEOUT),
+      catchError(this.handleError)
+    );
+}
+
+getSubnetDevicesDirect(subnetCidr: string): Observable<any> {
+  return this.http.get<any>(`${this.API_DEVICE_DETAILS_URL}/get-subnet-devices/${encodeURIComponent(subnetCidr)}`)
     .pipe(
       timeout(this.REQUEST_TIMEOUT),
       catchError(this.handleError)

@@ -15,7 +15,7 @@ let virtualNetwork = new graphlib.Graph();
 // Neo4j credentials
 const uri = process.env.NEO4J_SERVER_URL || 'bolt://localhost:7687';
 const user = process.env.NEO4J_USERNAME || 'neo4j';
-const password = process.env.NEO4J_PASSWORD || 'supertestovaciheslo';
+const password = process.env.NEO4J_PASSWORD || 'myNeo4jPassword';
 const driver = neo4j.driver(uri, neo4j.auth.basic(user, password));
 
 // Initialize Express.js
@@ -37,172 +37,75 @@ const virtualNetworkFilePath = path.join(__dirname, 'data', 'virtualNetwork.json
 // Configuration
 const CACHE_MAX_AGE_HOURS = 24;
 
-// Neo4j query functions from both servers
-
-// From port 3001 server - comprehensive data loading
 async function getInitialData() {
-    console.log("====== Beginning Data Collection ======");
-    console.time("Total Data Collection");
+    console.log("====== Beginning Simple Subnet Collection ======");
+    console.time("Simple Subnet Collection");
     
     const session = driver.session();
 
     try {
-        console.log("Step 1: Executing main Neo4j query...");
-        console.time("Main Neo4j Query");
+        console.log("Step 1: Getting organization and subnet ranges...");
         
-        const query = `MATCH (o:OrganizationUnit)-[r]-(s:Subnet), (s)-[r2]-(i:IP) ` +
-                     `RETURN o, r, s, i;`;
+        // Simple query - just get the subnets for visualization
+        const query = `
+        MATCH (o:OrganizationUnit)-[r]-(s:Subnet)
+        RETURN o.name as orgName,
+               id(o) as orgId,
+               collect(DISTINCT s.range) as subnetRanges
+        `;
 
         const result = await session.run(query);
-        console.timeEnd("Main Neo4j Query");
         
-        console.log(`Step 2: Processing ${result.records.length} records...`);
-        console.time("Record Processing");
-
-        const elements = [];
-        const ranges = [];
-        let orgNodeId = null;
-        let nodeType = null;
-        let orgNodeDetails = null;
-        let orgNodeLabel = null;
-        let nodeRanges = [];
-        let nodeHosts = [];
-        let vulnNodeHosts = [];
-        let nodeRels = [];
-        let cidr_rangeId = null;
-        const uniqueOrgUnitIds = new Set();
-        let noRels = 0;
-        let noSubnets = 0;
-
-        result.records.forEach(record => {
-            record.keys.forEach(key => {
-                const value = record.get(key);
-
-                if (value.labels) {
-                    if (value.labels.includes('Subnet')) {
-                        nodeRanges.push(value);
-                        noSubnets++;
-                    } else if (value.labels.includes('OrganizationUnit')) {
-                        orgNodeId = value.identity.low;
-                        cidr_rangeId = `CIDR_range-${orgNodeId}`;
-
-                        if (!uniqueOrgUnitIds.has(orgNodeId)) {
-                            uniqueOrgUnitIds.add(orgNodeId);
-                            nodeType = value.labels[0];
-                            orgNodeLabel = value.properties.name;
-                            orgNodeDetails = "N/A";
-                        }
-                    } else if (value.labels.includes('IP')){
-                        const ipNodeAddress = value.properties.address;
-                        if (!nodeHosts.includes(ipNodeAddress)){
-                            nodeHosts.push(ipNodeAddress);
-                        }
-                    }
-                } else if (value.type) {
-                    nodeRels.push(value);
-                    noRels++;
-                }
-            });
-        });
-
-        console.timeEnd("Record Processing");
-        console.log(`  - Found ${noSubnets} subnets`);
-        console.log(`  - Found ${nodeHosts.length} unique IP addresses`);
-        console.log(`  - Found ${noRels} relationships`);
-
-        console.log("Step 3: Executing vulnerability query...");
-        console.time("Vulnerability Query");
-        
-        const query2 = `MATCH (i:IP)-[r]-(n:Node), (n)-[r2]-(h:Host), ` +
-                      `(h)-[r3]-(sv:SoftwareVersion), (sv)-[r4]-(v:Vulnerability) ` +
-                      `RETURN i, count(v);`;
-
-        const vulnResult = await session.run(query2);
-        console.timeEnd("Vulnerability Query");
-        
-        console.log(`Step 4: Processing ${vulnResult.records.length} vulnerability records...`);
-        console.time("Vulnerability Processing");
-
-        vulnResult.records.forEach(vulnRecord => {
-            let ipNodeAddress = null;
-
-            vulnRecord.keys.forEach(vulnKey => {
-                const vulnValue = vulnRecord.get(vulnKey);
-
-                if (vulnValue.labels) {
-                    if (vulnValue.labels.includes('IP')) {
-                        ipNodeAddress = vulnValue.properties.address;
-                    }
-                } else if (vulnValue.low !== undefined) {
-                    if (ipNodeAddress) {
-                        vulnNodeHosts.push(ipNodeAddress);
-                    }
-                }
-            });
-        });
-
-        console.timeEnd("Vulnerability Processing");
-        console.log(`  - Found ${vulnNodeHosts.length} IPs with vulnerabilities`);
-
-        console.log("Step 5: Building data structure...");
-        console.time("Data Structure Building");
-
-        const ipHosts = nodeHosts.map(element => `${element}/32`);
-        const vulnHosts = vulnNodeHosts.map(element => `${element}/32`);
-
-        function processDuplicates(myArray){
-            const results = [];
-            const recordedEleIds = new Set();
-
-            myArray.forEach(ele => {
-                const idValue = ele.identity.low;
-                if (!recordedEleIds.has(idValue)){
-                    recordedEleIds.add(idValue);
-                    results.push(ele);
-                }
-            });
-
-            return results;
+        if (result.records.length === 0) {
+            console.log("No organization units found");
+            return [];
         }
 
-        const netRanges = processDuplicates(nodeRanges);
+        // Process all organization units, not just the first one
+        const allSubnetRanges = [];
+        let combinedOrgName = '';
+        let primaryOrgId = null;
 
-        netRanges.forEach(ele => {
-            const value = ele.properties['range'];
-            ranges.push(value);
-        });
-
-        const netNodeValues = Array.from(new Set([...ranges, ...ipHosts]));
-
-        elements.push({
-            data : {
-                id: orgNodeId,
-                type: 'CIDR_Values',
-                label: orgNodeLabel,
-                details: netNodeValues,
-                vulns: vulnHosts
+        result.records.forEach((record, index) => {
+            const orgName = record.get('orgName');
+            const orgId = record.get('orgId').low;
+            const subnetRanges = record.get('subnetRanges') || [];
+            
+            console.log(`Processing org ${index + 1}: ${orgName} with ${subnetRanges.length} subnets`);
+            
+            allSubnetRanges.push(...subnetRanges);
+            
+            if (index === 0) {
+                primaryOrgId = orgId;
+                combinedOrgName = orgName;
+            } else {
+                combinedOrgName += ` + ${orgName}`;
             }
         });
 
-        console.timeEnd("Data Structure Building");
-        console.timeEnd("Total Data Collection");
-        
-        console.log("====== Data Collection Complete ======");
-        console.log(`Final Results:`);
-        console.log(`  - Total elements: ${elements.length}`);
-        console.log(`  - Subnets: ${noSubnets}`);
-        console.log(`  - IPs: ${nodeHosts.length}`);
-        console.log(`  - Vulnerable IPs: ${vulnNodeHosts.length}`);
-        console.log(`  - Network ranges in details: ${netNodeValues.length}`);
+        console.log(`Total subnets across all organizations: ${allSubnetRanges.length}`);
+
+        // Just return the subnet ranges - no device details, no vulnerabilities
+        const elements = [{
+            data: {
+                id: primaryOrgId,
+                type: 'CIDR_Values',
+                label: combinedOrgName,
+                details: allSubnetRanges, // All subnet ranges from all orgs
+                vulns: [] // Empty - will be populated when user clicks subnets
+            }
+        }];
+
+        console.timeEnd("Simple Subnet Collection");
+        console.log(`====== Simple Collection Complete: ${allSubnetRanges.length} subnets ======`);
 
         return elements;
 
     } catch (error) {
-        console.timeEnd("Total Data Collection");
-        console.error('Error fetching initial CIDR notation from Neo4j:', error);
+        console.timeEnd("Simple Subnet Collection");
+        console.error('Error fetching subnets from Neo4j:', error);
         return [];
     } finally {
-        console.log("Step 6: Closing Neo4j session...");
         await session.close();
     }
 }
@@ -427,22 +330,53 @@ async function populateVirtualNetwork(data) {
     }
 }
 
+// Replace the existing getVirtualNetworkData function in server.js
 async function getVirtualNetworkData() {
     try {
         const elements = [];
+        const subnetDeviceData = {}; // Track which subnets have device data
 
         virtualNetwork.nodes().forEach(nodeId => {
+            const node = virtualNetwork.node(nodeId);
             const nodeData = {
                 id: nodeId,
-                label: virtualNetwork.node(nodeId).label,
-                type: virtualNetwork.node(nodeId).type,
-                details: virtualNetwork.node(nodeId).details,
-                hosts: virtualNetwork.node(nodeId).hosts,
-                vulns: virtualNetwork.node(nodeId).vulns
+                label: node.label,
+                type: node.type,
+                details: node.details,
+                hosts: node.hosts,
+                vulns: node.vulns
             };
 
-            if (virtualNetwork.node(nodeId).parent) {
-                nodeData.parent = virtualNetwork.node(nodeId).parent;
+            if (node.parent) {
+                nodeData.parent = node.parent;
+            }
+            
+            // Include device data if it exists
+            if (node.deviceData) {
+                nodeData.deviceData = node.deviceData;
+            }
+
+            // Track subnets that have associated device data
+            if (node.type === 'IP' && node.deviceData) {
+                const ipAddress = node.label;
+                const subnetPrefix = ipAddress.split('.').slice(0, 3).join('.') + '.0/24';
+                
+                if (!subnetDeviceData[subnetPrefix]) {
+                    subnetDeviceData[subnetPrefix] = {
+                        deviceCount: 0,
+                        devices: [],
+                        hasRiskScores: false,
+                        totalRiskScore: 0
+                    };
+                }
+                
+                subnetDeviceData[subnetPrefix].deviceCount++;
+                subnetDeviceData[subnetPrefix].devices.push(node.deviceData);
+                
+                if (node.deviceData.hasRiskScore) {
+                    subnetDeviceData[subnetPrefix].hasRiskScores = true;
+                    subnetDeviceData[subnetPrefix].totalRiskScore += node.deviceData.riskScore;
+                }
             }
 
             elements.push({ data: nodeData });
@@ -459,7 +393,21 @@ async function getVirtualNetworkData() {
             });
         });
 
-        return elements;
+        // Add subnet device summary to the response
+        const enrichedElements = elements.map(element => {
+            if (element.data.type === 'CIDR_Values') {
+                return {
+                    ...element,
+                    data: {
+                        ...element.data,
+                        subnetDeviceData: subnetDeviceData
+                    }
+                };
+            }
+            return element;
+        });
+
+        return enrichedElements;
     } catch (error) {
         console.error('Error sending virtual network data:', error);
         return [];
@@ -880,6 +828,323 @@ app.get('/api/expand-virtual-network/:nodeId/:nodeType', async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch neighbor data.' });
     }
 });
+
+// Direct subnet data retrieval without expansion
+app.get('/api/get-subnet-devices/:subnetCidr', async (req, res) => {
+  const { subnetCidr } = req.params;
+  const session = driver.session();
+  
+  try {
+    console.log(`Direct query for subnet devices: ${subnetCidr}`);
+    
+    const networkPrefix = subnetCidr.split('/')[0].split('.').slice(0, 3).join('.');
+    
+    const query = `
+      MATCH (subnet:Subnet {range: $subnetCidr})
+      OPTIONAL MATCH (subnet)<-[:PART_OF]-(ip:IP)
+      WHERE ip.address STARTS WITH $networkPrefix + '.'
+      OPTIONAL MATCH (ip)<-[:HAS_ASSIGNED]-(node:Node)
+      OPTIONAL MATCH (node)-[:IS_A]->(host:Host)
+      OPTIONAL MATCH (ip)-[:RESOLVES_TO]->(domain:DomainName)
+      OPTIONAL MATCH (host)<-[:ON]-(software:SoftwareVersion)
+      OPTIONAL MATCH (software)<-[:IN]-(vuln:Vulnerability)
+      OPTIONAL MATCH (vuln)-[:REFERS_TO]->(cve:CVE)
+      RETURN 
+        subnet,
+        ip,
+        node,
+        host,
+        domain,
+        collect(DISTINCT software) as software_versions,
+        collect(DISTINCT vuln) as vulnerabilities,
+        collect(DISTINCT cve) as cves
+      ORDER BY ip.address
+    `;
+    
+    const result = await session.run(query, {
+      subnetCidr: subnetCidr,
+      networkPrefix: networkPrefix
+    });
+    
+    const devices = [];
+    const processedIPs = new Set();
+    let subnetInfo = null;
+    
+    result.records.forEach(record => {
+      const subnet = record.get('subnet');
+      const ip = record.get('ip');
+      const node = record.get('node');
+      const host = record.get('host');
+      const domain = record.get('domain');
+      const software_versions = record.get('software_versions') || [];
+      const vulnerabilities = record.get('vulnerabilities') || [];
+      const cves = record.get('cves') || [];
+      
+      if (subnet && !subnetInfo) {
+        subnetInfo = {
+          range: subnet.properties.range,
+          riskScore: subnet.properties['Risk Score'] || 0,
+          note: subnet.properties.note || ''
+        };
+        
+        // Update virtual network with subnet node if not exists
+        const subnetNodeId = subnet.identity.low.toString();
+        if (!virtualNetwork.hasNode(subnetNodeId)) {
+          virtualNetwork.setNode(subnetNodeId, {
+            label: subnet.properties.range,
+            type: 'Subnet',
+            details: subnet.properties['Risk Score'] ? subnet.properties['Risk Score'].toString() : (subnet.properties.note || 'N/A')
+          });
+        }
+      }
+      
+      if (ip && !processedIPs.has(ip.properties.address)) {
+        processedIPs.add(ip.properties.address);
+        
+        const device = {
+          id: `device-${ip.identity.low}`,
+          ip: ip.properties.address,
+          hostname: '',
+          deviceType: 'Network Device',
+          os: 'Unknown',
+          riskScore: 0,
+          vulnerabilities: [],
+          hasRiskScore: false
+        };
+
+        if (domain && domain.properties && domain.properties.domain_name) {
+          device.hostname = String(domain.properties.domain_name);
+        } else {
+          device.hostname = `host-${ip.properties.address.split('.').pop()}`;
+        }
+
+        if (node && node.properties && node.properties['Risk Score']) {
+          device.riskScore = parseFloat(node.properties['Risk Score']);
+          device.hasRiskScore = true;
+        } else {
+          device.riskScore = 0;
+          device.hasRiskScore = false;
+        }
+
+        if (software_versions.length > 0) {
+          const firstSoftware = software_versions[0];
+          if (firstSoftware && firstSoftware.properties) {
+            device.os = extractOSFromSoftware(firstSoftware.properties.version || firstSoftware.properties.tag || '');
+          }
+        }
+
+        const vulnList = [];
+        if (cves.length > 0) {
+          cves.forEach(cve => {
+            if (cve && cve.properties) {
+              const cveId = cve.properties.cve_id || cve.properties.identifier || `CVE-${cve.identity.low}`;
+              vulnList.push(cveId);
+            }
+          });
+        }
+        if (vulnerabilities.length > 0) {
+          vulnerabilities.forEach(vuln => {
+            if (vuln && vuln.properties) {
+              const vulnDesc = vuln.properties.description || vuln.properties.name || `Vulnerability-${vuln.identity.low}`;
+              vulnList.push(vulnDesc);
+            }
+          });
+        }
+        device.vulnerabilities = vulnList;
+
+        const hostnameStr = String(device.hostname || '').toLowerCase();
+        if (hostnameStr.includes('win-')) {
+          device.deviceType = 'Windows Workstation';
+          device.os = 'Windows';
+        } else if (hostnameStr.includes('server')) {
+          device.deviceType = 'Server';
+        } else if (hostnameStr.includes('linux')) {
+          device.deviceType = 'Linux Server';
+          device.os = 'Linux';
+        }
+
+        device.openPorts = generatePortsForDevice(device.deviceType, device.os);
+        device.lastSeen = getRandomRecentDate();
+        device.status = getRandomStatus();
+        
+        devices.push(device);
+        
+        // Add nodes to virtual network graph
+        const ipNodeId = ip.identity.low.toString();
+        if (!virtualNetwork.hasNode(ipNodeId)) {
+          virtualNetwork.setNode(ipNodeId, {
+            label: ip.properties.address,
+            type: 'IP',
+            details: null,
+            deviceData: device // Store device data in the node
+          });
+        }
+        
+        if (node) {
+          const nodeId = node.identity.low.toString();
+          if (!virtualNetwork.hasNode(nodeId)) {
+            const riskScore = node.properties['Risk Score'] || 0;
+            virtualNetwork.setNode(nodeId, {
+              label: riskScore.toString(),
+              type: 'Node',
+              details: (node.properties.topology_betweenness || 0).toString()
+            });
+          }
+          
+          // Add edge between IP and Node if not exists
+          if (!virtualNetwork.hasEdge(ipNodeId, nodeId)) {
+            virtualNetwork.setEdge(ipNodeId, nodeId, {
+              id: `${ipNodeId}-${nodeId}`,
+              type: 'HAS_ASSIGNED'
+            });
+          }
+        }
+        
+        if (domain) {
+          const domainNodeId = domain.identity.low.toString();
+          if (!virtualNetwork.hasNode(domainNodeId)) {
+            virtualNetwork.setNode(domainNodeId, {
+              label: domain.properties.domain_name || 'N/A',
+              type: 'DomainName',
+              details: domain.properties.tag || 'N/A'
+            });
+          }
+          
+          // Add edge between IP and Domain if not exists
+          if (!virtualNetwork.hasEdge(ipNodeId, domainNodeId)) {
+            virtualNetwork.setEdge(ipNodeId, domainNodeId, {
+              id: `${ipNodeId}-${domainNodeId}`,
+              type: 'RESOLVES_TO'
+            });
+          }
+        }
+      }
+    });
+    
+    // Save the updated virtual network to JSON file
+    saveVirtualNetwork();
+    
+    console.log(`Found ${devices.length} devices for subnet ${subnetCidr} and updated virtual network cache`);
+    
+    res.json({
+        subnet: subnetCidr,
+        subnetRiskScore: subnetInfo ? parseFloat(subnetInfo.riskScore) : 0,
+        subnetInfo: subnetInfo,
+        devices: devices,
+        deviceCount: devices.length,
+        vulnerabilities: [...new Set(devices.flatMap(d => d.vulnerabilities))]
+    });
+    
+  } catch (error) {
+    console.error('Error fetching subnet devices:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch subnet devices',
+      details: error.message,
+      subnet: subnetCidr,
+      devices: [],
+      deviceCount: 0,
+      vulnerabilities: []
+    });
+  } finally {
+    await session.close();
+  }
+});
+
+// Helper functions for the new endpoint
+function getStoredDeviceData(subnetCidr) {
+    const networkPrefix = subnetCidr.split('/')[0].split('.').slice(0, 3).join('.');
+    const storedDevices = [];
+    
+    virtualNetwork.nodes().forEach(nodeId => {
+        const nodeData = virtualNetwork.node(nodeId);
+        if (nodeData.type === 'IP' && nodeData.label && nodeData.label.startsWith(networkPrefix + '.') && nodeData.deviceData) {
+            storedDevices.push(nodeData.deviceData);
+        }
+    });
+    
+    return storedDevices;
+}
+
+function extractOSFromSoftware(softwareLabel) {
+  if (!softwareLabel) return 'Unknown';
+  
+  const lower = softwareLabel.toLowerCase();
+  
+  if (lower.includes('windows_10') || lower.includes('win-10')) return 'Windows 10';
+  if (lower.includes('windows_server_2019')) return 'Windows Server 2019';
+  if (lower.includes('windows_server_2016')) return 'Windows Server 2016';
+  if (lower.includes('windows_server')) return 'Windows Server';
+  if (lower.includes('windows') || lower.includes('win-')) return 'Windows';
+  if (lower.includes('ubuntu')) return 'Ubuntu Linux';
+  if (lower.includes('centos')) return 'CentOS Linux';
+  if (lower.includes('redhat')) return 'Red Hat Linux';
+  if (lower.includes('linux')) return 'Linux';
+  if (lower.includes('macos')) return 'macOS';
+  
+  return 'Unknown';
+}
+
+function determineDeviceType(os, hostname) {
+  const osLower = String(os || '').toLowerCase();
+  const hostLower = String(hostname || '').toLowerCase();
+  
+  if (hostLower.includes('server') || hostLower.includes('srv')) return 'Server';
+  if (hostLower.includes('win-') && !hostLower.includes('server')) return 'Windows Workstation';
+  if (hostLower.includes('router') || hostLower.includes('gw')) return 'Router';
+  if (hostLower.includes('switch') || hostLower.includes('sw')) return 'Switch';
+  if (hostLower.includes('printer')) return 'Printer';
+  if (hostLower.includes('firewall') || hostLower.includes('fw')) return 'Firewall';
+  
+  if (osLower.includes('server')) return 'Server';
+  if (osLower.includes('windows') && !osLower.includes('server')) return 'Workstation';
+  if (osLower.includes('linux') || osLower.includes('ubuntu') || osLower.includes('centos')) return 'Server';
+  
+  return 'Network Device';
+}
+
+function generatePortsForDevice(deviceType, os) {
+  const basePortsByType = {
+    'Server': [22, 80, 443, 3389, 21, 25, 993, 995, 143, 110],
+    'Windows Workstation': [3389, 135, 139, 445, 5985],
+    'Web Server': [80, 443, 8080, 8443, 22],
+    'Mail Server': [25, 143, 993, 995, 587, 110, 22],
+    'Database Server': [3306, 5432, 1433, 1521, 27017, 22],
+    'Workstation': [22, 3389, 5985, 135, 139, 445],
+    'Router': [22, 23, 80, 443, 161, 162],
+    'Switch': [22, 23, 80, 443, 161, 162],
+    'Firewall': [22, 443, 161, 162],
+    'Printer': [80, 443, 515, 631, 9100],
+    'Network Device': [22, 80, 443, 161]
+  };
+  
+  let basePorts = basePortsByType[deviceType] || basePortsByType['Network Device'];
+  
+  const osLower = (os || '').toLowerCase();
+  if (osLower.includes('windows')) {
+    basePorts = [...basePorts, 135, 139, 445, 3389, 5985];
+  } else if (osLower.includes('linux') || osLower.includes('ubuntu') || osLower.includes('centos')) {
+    basePorts = [...basePorts, 22, 80, 443];
+  }
+  
+  const uniquePorts = [...new Set(basePorts)];
+  const numPorts = Math.min(Math.max(3, Math.floor(Math.random() * 5) + 3), uniquePorts.length);
+  return uniquePorts.slice(0, numPorts).sort((a, b) => a - b);
+}
+
+function getRandomRecentDate() {
+  const now = new Date();
+  const hoursAgo = Math.floor(Math.random() * 168);
+  
+  if (hoursAgo < 1) return 'Just now';
+  if (hoursAgo < 24) return `${hoursAgo}h ago`;
+  const daysAgo = Math.floor(hoursAgo / 24);
+  return `${daysAgo}d ago`;
+}
+
+function getRandomStatus() {
+  const statuses = ['Online', 'Online', 'Online', 'Offline'];
+  return statuses[Math.floor(Math.random() * statuses.length)];
+}
 
 app.post('/api/collapse-virtual-network', async (req, res) => {
     try {

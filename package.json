@@ -4,7 +4,7 @@
   "scripts": {
     "start": "concurrently --names \"ANGULAR,CYTOSCAPE\" --colors \"blue,green\" \"ng serve\" \"npm run start:cytoscape\"",
     "start:angular": "ng serve",
-    "start:cytoscape": "cd src/app/servers/cytoscape && node server.js",
+    "start:cytoscape": "cd servers && node server.js",
     "start:servers": "concurrently --names \"CYTOSCAPE\" --colors \"green\" \"npm run start:cytoscape\"",
     "build": "ng build",
     "dev": "concurrently --names \"ANGULAR,CYTOSCAPE\" --colors \"blue,green\" \"ng serve --open\" \"npm run start:cytoscape\""

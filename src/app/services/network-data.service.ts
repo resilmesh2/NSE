@@ -25,7 +25,7 @@ export class NetworkDataService {
   private lastExpandedTime: number | null = null;
 
   constructor(private apiService: ApiService) {}
-
+  
   async loadNetworkData(): Promise<SubnetData[]> {
   try {
     console.log('Loading network data...');
@@ -54,10 +54,10 @@ export class NetworkDataService {
     // Process virtual network data to create subnet objects
     let processedData = this.processVirtualNetworkData(networkData || []);
     
-    // Check for existing subnet details and update nodes accordingly
-    processedData = await this.checkExistingSubnetDetails(processedData);
+    // Check for existing subnet details and device data from cache
+    processedData = await this.loadCachedSubnetData(processedData, networkData);
     
-    // Update network data with subnet information
+    // Update network data
     this.updateNetworkData(processedData);
     
     return processedData;
@@ -128,6 +128,121 @@ private async checkExistingSubnetDetails(subnets: SubnetData[]): Promise<SubnetD
     console.warn('Error checking existing subnet details:', error);
     return subnets;
   }
+}
+
+private async loadCachedSubnetData(subnets: SubnetData[], virtualNetworkData: any[]): Promise<SubnetData[]> {
+  try {
+    console.log('Loading cached subnet data...');
+    
+    // Find the CIDR_Values node which now contains subnet device data
+    const cidrValuesNode = virtualNetworkData.find(item => 
+      item.data && item.data.type === 'CIDR_Values'
+    );
+    
+    if (!cidrValuesNode || !cidrValuesNode.data.subnetDeviceData) {
+      console.log('No cached device data found');
+      return subnets;
+    }
+    
+    const cachedSubnetData = cidrValuesNode.data.subnetDeviceData;
+    console.log('Found cached data for subnets:', Object.keys(cachedSubnetData));
+    
+    // Extract all IP nodes with device data from the virtual network
+    const ipNodesWithDevices = virtualNetworkData.filter(item => 
+      item.data && 
+      item.data.type === 'IP' && 
+      item.data.deviceData
+    );
+    
+    // Group devices by subnet
+    const devicesBySubnet: { [subnet: string]: any[] } = {};
+    ipNodesWithDevices.forEach(ipNode => {
+      const deviceData = ipNode.data.deviceData;
+      const ipAddress = deviceData.ip;
+      const subnetCidr = this.getSubnetFromIP(ipAddress);
+      
+      if (!devicesBySubnet[subnetCidr]) {
+        devicesBySubnet[subnetCidr] = [];
+      }
+      devicesBySubnet[subnetCidr].push(deviceData);
+    });
+    
+    // Also check for Subnet nodes with direct risk scores
+    const subnetNodes = virtualNetworkData.filter(item => 
+      item.data && item.data.type === 'Subnet' && item.data.label && item.data.label.includes('/24')
+    );
+    
+    const directSubnetRisks: { [subnet: string]: number } = {};
+    subnetNodes.forEach(subnetNode => {
+      const subnetCidr = subnetNode.data.label;
+      if (subnetNode.data.details && !isNaN(parseFloat(subnetNode.data.details))) {
+        directSubnetRisks[subnetCidr] = parseFloat(subnetNode.data.details);
+      }
+    });
+    
+    let updatedCount = 0;
+    
+    // Update subnets with cached data
+    subnets.forEach(subnet => {
+      const devices = devicesBySubnet[subnet.subnet] || [];
+      const directRiskScore = directSubnetRisks[subnet.subnet];
+      
+      if (devices.length > 0 || directRiskScore !== undefined) {
+        // Update device information
+        subnet.devices = devices;
+        subnet.deviceCount = devices.length;
+        subnet.hasDetailedData = devices.length > 0;
+        
+        // Determine risk score priority: Direct subnet risk > calculated from devices > default
+        if (directRiskScore !== undefined) {
+          subnet.riskScore = directRiskScore;
+          subnet.hasSubnetRiskScore = true;
+          subnet.subnetRiskSource = 'cached_subnet_node';
+          console.log(`Using cached subnet risk score for ${subnet.subnet}: ${directRiskScore}`);
+        } else if (devices.length > 0) {
+          const devicesWithRisk = devices.filter(d => d.hasRiskScore && d.riskScore > 0);
+          if (devicesWithRisk.length > 0) {
+            const avgRisk = devicesWithRisk.reduce((sum, d) => sum + d.riskScore, 0) / devicesWithRisk.length;
+            subnet.riskScore = avgRisk;
+            subnet.hasSubnetRiskScore = true;
+            subnet.subnetRiskSource = 'cached_device_average';
+            console.log(`Calculated risk score from cached devices for ${subnet.subnet}: ${avgRisk.toFixed(2)}`);
+          }
+        }
+        
+        // Update risk level based on risk score
+        subnet.riskLevel = this.determineRiskLevel(subnet.riskScore);
+        
+        // Calculate additional statistics
+        if (devices.length > 0) {
+          subnet.vulnerableDeviceCount = devices.filter(d => d.vulnerabilities && d.vulnerabilities.length > 0).length;
+          const deviceRiskScores = devices.filter(d => d.hasRiskScore).map(d => d.riskScore);
+          if (deviceRiskScores.length > 0) {
+            subnet.avgDeviceRiskScore = deviceRiskScores.reduce((sum, score) => sum + score, 0) / deviceRiskScores.length;
+            subnet.maxDeviceRiskScore = Math.max(...deviceRiskScores);
+          }
+        }
+        
+        console.log(`Loaded cached data for ${subnet.subnet}: ${devices.length} devices, risk ${subnet.riskScore.toFixed(1)} (${subnet.riskLevel})`);
+        updatedCount++;
+      }
+    });
+    
+    console.log(`Updated ${updatedCount} subnets with cached data`);
+    return subnets;
+    
+  } catch (error) {
+    console.warn('Error loading cached subnet data:', error);
+    return subnets;
+  }
+}
+
+private getSubnetFromIP(ipAddress: string): string {
+  const parts = ipAddress.split('.');
+  if (parts.length === 4) {
+    return `${parts[0]}.${parts[1]}.${parts[2]}.0/24`;
+  }
+  return ipAddress;
 }
 
 // Extract subnet details from existing Cytoscape data
@@ -267,113 +382,90 @@ private convertIpNodeToDevice(ipNode: any, allNodes: any[], allData: any[]): any
   return this.extractDeviceFromIP(ipNode.data, nodeIndex, edgesBySource, edgesByTarget);
 }
 
-  async getSubnetDetails(subnetCidr: string, progressCallback?: (message: string) => void): Promise<{ devices: DeviceData[], nodes: any[], vulnerabilities: string[] }> {
+async getSubnetDetails(subnetCidr: string, progressCallback?: (message: string) => void): Promise<{ devices: DeviceData[], nodes: any[], vulnerabilities: string[] }> {
   const updateProgress = (message: string) => {
     console.log(` ${message}`);
     if (progressCallback) progressCallback(message);
   };
 
   try {
-    // Check cache first
-    if (this.isCacheValid() && this.lastExpandedSubnet === subnetCidr) {
-      updateProgress('Using cached data - almost instant...');
-      await this.delay(300);
-      return this.processSubnetDetailData(this.lastExpandedData!, subnetCidr);
+    // First check if we already have this data cached
+    const currentNetworkData = this.getCurrentNetworkData();
+    const existingSubnet = currentNetworkData.find(s => s.subnet === subnetCidr);
+    
+    if (existingSubnet && existingSubnet.hasDetailedData && existingSubnet.devices && existingSubnet.devices.length > 0) {
+      updateProgress(`Loading cached data for ${existingSubnet.devices.length} devices...`);
+      await this.delay(300); // Brief delay for UX
+      
+      console.log(`Using cached device data for ${subnetCidr}: ${existingSubnet.devices.length} devices`);
+      
+      return {
+        devices: existingSubnet.devices,
+        nodes: [],
+        vulnerabilities: existingSubnet.devices.flatMap(d => d.vulnerabilities || [])
+      };
     }
-
-    // Check if expansion is already in progress
-    if (this.currentlyExpanding.has(subnetCidr)) {
-      updateProgress('Expansion already in progress, waiting...');
-      await this.waitForExpansion(subnetCidr);
-      return this.processSubnetDetailData(this.lastExpandedData!, subnetCidr);
+    
+    // If no cached data, query from Neo4j
+    updateProgress('Querying subnet devices from database...');
+    
+    const result = await firstValueFrom(this.apiService.getSubnetDevicesDirect(subnetCidr));
+    
+    updateProgress('Processing device data...');
+    await this.delay(500);
+    
+    const devices: DeviceData[] = result.devices.map((device: any) => ({
+      id: device.id,
+      ip: device.ip,
+      hostname: device.hostname,
+      deviceType: device.deviceType,
+      os: device.os,
+      riskScore: device.riskScore || 0,
+      vulnerabilities: device.vulnerabilities || [],
+      isDevice: true,
+      hasRiskScore: device.hasRiskScore,
+      sourceData: device,
+      openPorts: device.openPorts,
+      lastSeen: device.lastSeen,
+      status: device.status
+    }));
+    
+    updateProgress(`Found ${devices.length} devices`);
+    
+    // Update the subnet in current network data
+    const subnetToUpdate = currentNetworkData.find(s => s.subnet === subnetCidr);
+    if (subnetToUpdate) {
+      subnetToUpdate.deviceCount = devices.length;
+      subnetToUpdate.devices = devices;
+      subnetToUpdate.hasDetailedData = true;
+      
+      if (result.subnetRiskScore !== undefined && result.subnetRiskScore > 0) {
+        subnetToUpdate.riskScore = result.subnetRiskScore;
+        subnetToUpdate.hasSubnetRiskScore = true;
+        subnetToUpdate.subnetRiskSource = 'neo4j_query';
+        subnetToUpdate.riskLevel = this.determineRiskLevel(result.subnetRiskScore);
+        console.log(`Updated subnet ${subnetCidr} risk score to ${result.subnetRiskScore} from Neo4j`);
+      }
+      
+      this.updateNetworkData(currentNetworkData);
     }
-
-    this.currentlyExpanding.add(subnetCidr);
-
-    updateProgress('Step 1: Checking if data is already populated...');
     
-    let currentData = await firstValueFrom(this.apiService.getDeviceDetails());
-    const isAlreadyPopulated = this.checkIfDeviceDataIsPopulated(currentData || [], subnetCidr);
-    
-    if (isAlreadyPopulated) {
-      updateProgress('Data already populated - using existing device information...');
-      
-      // Cache the data
-      this.lastExpandedData = currentData || [];
-      this.lastExpandedSubnet = subnetCidr;
-      this.lastExpandedTime = Date.now();
-      
-      return this.processSubnetDetailData(currentData || [], subnetCidr);
-    }
-
-    updateProgress('Step 2: Triggering subnet search...');
-    
-    // Step 1: Trigger subnet search
-    await firstValueFrom(this.apiService.fetchSubnetDetails(subnetCidr));
-    
-    updateProgress('Step 3: Expanding subnet node...');
-    
-    // Step 2: Get initial data and expand nodes
-    await this.delay(1500);
-    currentData = await firstValueFrom(this.apiService.getDeviceDetails());
-    
-    // Step 3: Expand subnet nodes
-    const subnetNode = (currentData || []).find((el: any) => 
-      el.data && el.data.type === 'Subnet' && el.data.label === subnetCidr
-    );
-
-    if (subnetNode) {
-      await firstValueFrom(this.apiService.expandVirtualNetwork(subnetNode.data.id, 'Subnet'));
-      await this.delay(1500);
-      currentData = await firstValueFrom(this.apiService.getDeviceDetails());
-
-      updateProgress('Step 4: Expanding /32 subnets...');
-      
-      // Step 4: Expand all /32 subnet nodes WITH progress tracking
-      await this.expandAllSubnetNodes(currentData || [], progressCallback);
-      
-      updateProgress('Step 5: Expanding IP nodes...');
-      
-      // Step 5: Expand all IP nodes WITH progress tracking
-      await this.expandAllIpNodes(currentData || [], subnetCidr, progressCallback);
-      
-      updateProgress('Step 6: Loading device details...');
-      
-      // Final fetch
-      await this.delay(2000);
-      const finalData = await firstValueFrom(this.apiService.getDeviceDetails());
-      
-      // Cache the data
-      this.lastExpandedData = finalData || [];
-      this.lastExpandedSubnet = subnetCidr;
-      this.lastExpandedTime = Date.now();
-      
-      updateProgress('Processing device data...');
-      
-      return this.processSubnetDetailData(finalData || [], subnetCidr);
-    }
-
-    return { devices: [], nodes: [], vulnerabilities: [] };
+    return {
+      devices: devices,
+      nodes: [],
+      vulnerabilities: result.vulnerabilities || []
+    };
 
   } catch (error) {
     console.error('Error fetching subnet details:', error);
-    updateProgress('Error loading data - using available information');
-    return { devices: [], nodes: [], vulnerabilities: [] };
-  }finally {
-  this.currentlyExpanding.delete(subnetCidr);
-  
-  const currentNetworkData = this.getCurrentNetworkData();
-  const subnetToUpdate = currentNetworkData.find(s => s.subnet === subnetCidr);
-  if (subnetToUpdate && this.lastExpandedData) {
-    const deviceCount = this.processSubnetDetailData(this.lastExpandedData, subnetCidr).devices.length;
-    subnetToUpdate.deviceCount = deviceCount;
-    subnetToUpdate.hasDetailedData = true;
+    updateProgress('Error loading data - no devices found');
     
-    // Update the network data to trigger UI refresh
-    this.updateNetworkData(currentNetworkData);
-    console.log(`Updated ${subnetCidr} device count to ${deviceCount}`);
+    return {
+      devices: [],
+      nodes: [],
+      vulnerabilities: []
+    };
   }
-}
 }
 
 private checkIfDeviceDataIsPopulated(apiData: any[], subnetCidr: string): boolean {
@@ -417,10 +509,24 @@ private checkIfDeviceDataIsPopulated(apiData: any[], subnetCidr: string): boolea
   const allSubnets = cidrValuesNode.data.details || [];
   const subnets = allSubnets.filter((subnet: string) => {
     if (!subnet || typeof subnet !== 'string' || !subnet.includes('/')) return false;
-    const [, cidrPart] = subnet.split('/');
+    const [networkPart, cidrPart] = subnet.split('/');
     const cidr = parseInt(cidrPart);
-    return cidr >= 16 && cidr <= 30;
-  });
+    
+    // More inclusive range to capture all valid subnets
+    // /8 to /32 covers all typical subnet sizes
+    if (cidr < 8 || cidr > 32) return false;
+    
+    // Basic IP validation
+    const octets = networkPart.split('.');
+    if (octets.length !== 4) return false;
+    
+    return octets.every(octet => {
+        const num = parseInt(octet);
+        return !isNaN(num) && num >= 0 && num <= 255;
+    });
+});
+
+console.log(`Filtered subnets: ${subnets.length} from ${allSubnets.length} total`);
 
   const vulnerableSubnets = cidrValuesNode.data.vulns || [];
 

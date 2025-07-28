@@ -1,8 +1,10 @@
-import { Component, Input, OnInit, OnChanges, SimpleChanges, ElementRef, ViewChild, Output, EventEmitter, AfterViewInit } from '@angular/core';
+import { Component, Input, OnInit, OnChanges, SimpleChanges, ElementRef, ViewChild, Output, EventEmitter, AfterViewInit, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SubnetData } from '../../models/network-data';
 import { TooltipService } from '../../services/tooltip.service';
+import { Subject } from 'rxjs';
+import { debounceTime } from 'rxjs/operators';
 
 declare var d3: any;
 
@@ -25,11 +27,31 @@ export class NetworkGraphComponent implements OnInit, OnChanges, AfterViewInit {
   g: any = null;
   nodes: any[] = [];
   links: any[] = [];
+  zoom: any = null;
+  
+  // Add these new properties
+  private searchSubject = new Subject<string>();
+  private isSimulationReady = false;
 
-  constructor(private tooltipService: TooltipService) {}
+  constructor(private tooltipService: TooltipService) {
+    // Set up search debouncing
+    this.searchSubject.pipe(
+      debounceTime(1000) // Wait 1 second after user stops typing
+    ).subscribe(searchTerm => {
+      this.performZoomSearch(searchTerm);
+    });
+  }
 
   ngOnInit() {
   console.log('NetworkGraphComponent initialized');
+  
+  // Listen for pause simulation events
+  this.graphContainer.nativeElement.addEventListener('pauseSimulation', () => {
+    if (this.simulation) {
+      this.simulation.stop();
+      console.log('Graph simulation paused');
+    }
+  });
   
   // Add window resize listener for responsive legend
   window.addEventListener('resize', () => {
@@ -43,6 +65,12 @@ export class NetworkGraphComponent implements OnInit, OnChanges, AfterViewInit {
   });
 }
 
+ngOnDestroy() {
+  if (this.searchSubject) {
+    this.searchSubject.complete();
+  }
+}
+
   ngAfterViewInit() {
   // Increased delay to ensure data loading completes
   setTimeout(() => {
@@ -53,183 +81,264 @@ export class NetworkGraphComponent implements OnInit, OnChanges, AfterViewInit {
 ngOnChanges(changes: SimpleChanges) {
   if (changes['networkData']) {
     if (!changes['networkData'].firstChange) {
-      console.log('Network data changed, reinitializing graph with updated risk scores');
-      // Log a few subnet risk scores to verify data
-      if (this.networkData && this.networkData.length > 0) {
-        console.log('Sample risk scores:', this.networkData.slice(0, 3).map(s => `${s.subnet}: ${s.riskScore.toFixed(1)}`));
+      // Check if this is a structural change or just data updates
+      const previousData = changes['networkData'].previousValue || [];
+      const currentData = changes['networkData'].currentValue || [];
+      
+      // Only reinitialize if subnet count changed or subnets added/removed
+      const structuralChange = this.hasStructuralChanges(previousData, currentData);
+      
+      if (structuralChange) {
+        console.log('Structural network changes detected, reinitializing graph');
+        setTimeout(() => {
+          this.initGraph();
+        }, 50);
+      } else {
+        console.log('Only data updates detected, updating node colors and sizes without restarting simulation');
+        this.updateExistingNodes(currentData);
       }
+    } else {
+      // First change - always initialize
+      setTimeout(() => {
+        this.initGraph();
+      }, 50);
     }
-    setTimeout(() => {
-      this.initGraph();
-    }, 50);
   }
 }
 
-  initGraph() {
-    if (!this.networkData || this.networkData.length === 0) {
-      console.log('No network data available for graph');
-      return;
+private hasStructuralChanges(previousData: SubnetData[], currentData: SubnetData[]): boolean {
+  // Check if subnet count changed
+  if (previousData.length !== currentData.length) {
+    return true;
+  }
+  
+  // Check if any subnet IDs are different (subnets added/removed)
+  const prevIds = new Set(previousData.map(s => s.id));
+  const currentIds = new Set(currentData.map(s => s.id));
+  
+  for (const id of currentIds) {
+    if (!prevIds.has(id)) return true;
+  }
+  
+  for (const id of prevIds) {
+    if (!currentIds.has(id)) return true;
+  }
+  
+  return false;
+}
+
+private updateExistingNodes(updatedData: SubnetData[]): void {
+  if (!this.svg || !this.nodes) return;
+  
+  // Create a map for quick lookup of updated data
+  const dataMap = new Map(updatedData.map(item => [item.id, item]));
+  
+  // Update the nodes array with new data
+  this.nodes.forEach(node => {
+    const updatedItem = dataMap.get(node.id);
+    if (updatedItem) {
+      node.deviceCount = updatedItem.deviceCount;
+      node.riskScore = updatedItem.riskScore;
+      node.threatLevel = updatedItem.riskLevel;
+      node.isVulnerable = updatedItem.isVulnerable;
     }
+  });
+  
+  // Update visual elements without restarting simulation
+  const sizeScale = d3.scaleLinear()
+    .domain(d3.extent(this.nodes, (d: any) => d.deviceCount))
+    .range([8, 25]);
 
-    if (typeof d3 === 'undefined') {
-      console.error('D3 not loaded');
-      return;
-    }
+  const colorScale = d3.scaleLinear()
+    .domain([0, 2, 4, 6, 8, 10])
+    .range(['#00e676', '#4caf50', '#ffeb3b', '#ff9800', '#ff5722', '#ff0000']);
+  
+  // Update node sizes and colors
+  this.svg.selectAll('.nodes circle')
+    .data(this.nodes, (d: any) => d.id)
+    .transition()
+    .duration(300)
+    .attr('r', (d: any) => sizeScale(d.deviceCount))
+    .attr('fill', (d: any) => colorScale(d.riskScore));
+}
 
-    // Clear any existing content
-    const container = this.graphContainer.nativeElement;
-    d3.select(container).selectAll('*').remove();
+initGraph() {
+  if (!this.networkData || this.networkData.length === 0) {
+    console.log('No network data available for graph');
+    return;
+  }
 
-    // Set up dimensions
-    const containerWidth = container.clientWidth || 800;
-    const containerHeight = container.clientHeight || 500;
+  if (typeof d3 === 'undefined') {
+    console.error('D3 not loaded');
+    return;
+  }
 
-    // Create legend
-    this.createLegend(containerWidth);
+  // Clear any existing content
+  const container = this.graphContainer.nativeElement;
+  d3.select(container).selectAll('*').remove();
 
-    // Transform network data to D3 format
-    const { nodes, links } = this.transformNetworkDataForD3();
-    this.nodes = nodes;
-    this.links = links;
+  // Set up dimensions
+  const containerWidth = container.clientWidth || 800;
+  const containerHeight = container.clientHeight || 500;
 
-    // Create size scale for device count
-    const sizeScale = d3.scaleLinear()
-      .domain(d3.extent(nodes, (d: any) => d.deviceCount))
-      .range([8, 25]);
+  // Create legend
+  this.createLegend(containerWidth);
 
-    // Create color scale
-    const colorScale = d3.scaleLinear()
-      .domain([0, 2, 4, 6, 8, 10])
-      .range(['#00e676', '#4caf50', '#ffeb3b', '#ff9800', '#ff5722', '#ff0000']);
+  // Transform network data to D3 format
+  const { nodes, links } = this.transformNetworkDataForD3();
+  this.nodes = nodes;
+  this.links = links;
 
-    // Create the force simulation
-    this.simulation = d3.forceSimulation(nodes)
-      .force("link", d3.forceLink(links).id((d: any) => d.id).distance(80))
-      .force("charge", d3.forceManyBody().strength(-200))
-      .force("center", d3.forceCenter(containerWidth / 2, containerHeight / 2))
-      .force("collision", d3.forceCollide().radius((d: any) => sizeScale(d.deviceCount) + 2));
+  // Create size scale for device count
+  const sizeScale = d3.scaleLinear()
+    .domain(d3.extent(nodes, (d: any) => d.deviceCount))
+    .range([8, 25]);
 
-    // Create SVG
-    this.svg = d3.select(container)
-      .append('svg')
-      .attr('width', containerWidth)
-      .attr('height', containerHeight)
-      .attr('viewBox', [0, 0, containerWidth, containerHeight])
-      .style('max-width', '100%')
-      .style('height', 'auto')
-      .style('border', '1px solid #dee2e6')
-      .style('border-radius', '8px')
-      .style('background', '#fafafa');
+  // Create color scale
+  const colorScale = d3.scaleLinear()
+    .domain([0, 2, 4, 6, 8, 10])
+    .range(['#00e676', '#4caf50', '#ffeb3b', '#ff9800', '#ff5722', '#ff0000']);
 
-    this.g = this.svg.append('g');
+  // Create the force simulation
+  this.simulation = d3.forceSimulation(nodes)
+    .force("link", d3.forceLink(links).id((d: any) => d.id).distance(80))
+    .force("charge", d3.forceManyBody().strength(-200))
+    .force("center", d3.forceCenter(containerWidth / 2, containerHeight / 2))
+    .force("collision", d3.forceCollide().radius((d: any) => sizeScale(d.deviceCount) + 2));
 
-    const zoom = d3.zoom()
-      .scaleExtent([0.1, 4])
-      .on('zoom', (event: any) => {
-        this.g.attr('transform', event.transform);
-      });
+  // Create SVG
+  this.svg = d3.select(container)
+    .append('svg')
+    .attr('width', containerWidth)
+    .attr('height', containerHeight)
+    .attr('viewBox', [0, 0, containerWidth, containerHeight])
+    .style('max-width', '100%')
+    .style('height', 'auto')
+    .style('border', '1px solid #dee2e6')
+    .style('border-radius', '8px')
+    .style('background', '#fafafa');
 
-    this.svg.call(zoom);
+  this.g = this.svg.append('g');
 
-    // Set initial zoom level
-    const initialScale = 0.8;
-    const centerX = containerWidth / 2;
-    const centerY = containerHeight / 2;
-    const initialTransform = d3.zoomIdentity
-      .translate(centerX, centerY)
-      .scale(initialScale)
-      .translate(-centerX, -centerY);
-
-    this.svg.call(zoom.transform, initialTransform);
-    this.g.attr('transform', initialTransform);
-
-    // Create links
-    const link = this.g.append('g')
-      .attr('class', 'links')
-      .selectAll('line')
-      .data(links)
-      .join('line')
-      .attr('stroke', '#999')
-      .attr('stroke-opacity', 0.6)
-      .attr('stroke-width', 1);
-
-    // Create nodes
-    const node = this.g.append('g')
-      .attr('class', 'nodes')
-      .selectAll('circle')
-      .data(nodes)
-      .join('circle')
-      .attr('r', (d: any) => sizeScale(d.deviceCount))
-      .attr('fill', (d: any) => colorScale(d.riskScore))
-      .attr('stroke', '#fff')
-      .attr('stroke-width', 1.5)
-      .style('cursor', 'pointer');
-
-    // Add labels for larger nodes
-    const labels = this.g.append('g')
-      .attr('class', 'labels')
-      .selectAll('text')
-      .data(nodes) // Show labels for all nodes
-      .join('text')
-      .attr('text-anchor', 'middle')
-      .attr('dy', '.35em')
-      .attr('font-size', '8px')
-      .attr('font-weight', 'bold')
-      .attr('fill', '#333')
-      .attr('pointer-events', 'none')
-      .text((d: any) => {
-        const parts = d.subnet.split('.');
-        return parts.length >= 3 ? `${parts[2]}.${parts[3]}` : d.subnet;
-      });
-
-    // Add tooltips and interactions
-    node
-      .on('mouseover', (event: any, d: any) => {
-        d3.select(event.currentTarget)
-          .attr('stroke-width', 3)
-          .attr('stroke', '#007bff');
-        
-        this.showSubnetTooltip(event, d);
-      })
-      .on('mouseout', (event: any, d: any) => {
-        d3.select(event.currentTarget)
-          .attr('stroke-width', 1.5)
-          .attr('stroke', '#fff');
-        
-        this.hideTooltip();
-      })
-      .on('click', (event: any, d: any) => {
-        const subnetData = this.networkData.find(item => item.id === d.id);
-        if (subnetData) {
-          this.subnetClick.emit(subnetData);
-        }
-      });
-
-    // Add drag behavior
-    node.call(d3.drag()
-      .on('start', (event: any, d: any) => this.dragstarted(event, d))
-      .on('drag', (event: any, d: any) => this.dragged(event, d))
-      .on('end', (event: any, d: any) => this.dragended(event, d)));
-
-    // Update positions on each tick
-    this.simulation.on('tick', () => {
-      link
-        .attr('x1', (d: any) => d.source.x)
-        .attr('y1', (d: any) => d.source.y)
-        .attr('x2', (d: any) => d.target.x)
-        .attr('y2', (d: any) => d.target.y);
-      
-      node
-        .attr('cx', (d: any) => d.x)
-        .attr('cy', (d: any) => d.y);
-      
-      labels
-        .attr('x', (d: any) => d.x)
-        .attr('y', (d: any) => d.y);
+  // Set up zoom behavior
+  this.zoom = d3.zoom()
+    .scaleExtent([0.1, 4])
+    .on('zoom', (event: any) => {
+      this.g.attr('transform', event.transform);
     });
 
-    console.log('D3 force-directed graph initialized');
-  }
+  this.svg.call(this.zoom);
+
+  // Set initial zoom level
+  const initialScale = 0.8;
+  const centerX = containerWidth / 2;
+  const centerY = containerHeight / 2;
+  const initialTransform = d3.zoomIdentity
+    .translate(centerX, centerY)
+    .scale(initialScale)
+    .translate(-centerX, -centerY);
+
+  this.svg.call(this.zoom.transform, initialTransform);
+  this.g.attr('transform', initialTransform);
+
+  // Create links
+  const link = this.g.append('g')
+    .attr('class', 'links')
+    .selectAll('line')
+    .data(links)
+    .join('line')
+    .attr('stroke', '#999')
+    .attr('stroke-opacity', 0.6)
+    .attr('stroke-width', 1);
+
+  // Create nodes
+  const node = this.g.append('g')
+    .attr('class', 'nodes')
+    .selectAll('circle')
+    .data(nodes)
+    .join('circle')
+    .attr('r', (d: any) => sizeScale(d.deviceCount))
+    .attr('fill', (d: any) => colorScale(d.riskScore))
+    .attr('stroke', '#fff')
+    .attr('stroke-width', 1.5)
+    .style('cursor', 'pointer');
+
+  // Add labels for larger nodes
+  const labels = this.g.append('g')
+    .attr('class', 'labels')
+    .selectAll('text')
+    .data(nodes)
+    .join('text')
+    .attr('text-anchor', 'middle')
+    .attr('dy', '.35em')
+    .attr('font-size', '8px')
+    .attr('font-weight', 'bold')
+    .attr('fill', '#333')
+    .attr('pointer-events', 'none')
+    .text((d: any) => {
+      const parts = d.subnet.split('.');
+      return parts.length >= 3 ? `${parts[2]}.${parts[3]}` : d.subnet;
+    });
+
+  // Add tooltips and interactions
+  node
+    .on('mouseover', (event: any, d: any) => {
+      d3.select(event.currentTarget)
+        .attr('stroke-width', 3)
+        .attr('stroke', '#007bff');
+      
+      this.showSubnetTooltip(event, d);
+    })
+    .on('mouseout', (event: any, d: any) => {
+      d3.select(event.currentTarget)
+        .attr('stroke-width', 1.5)
+        .attr('stroke', '#fff');
+      
+      this.hideTooltip();
+    })
+    .on('click', (event: any, d: any) => {
+      const subnetData = this.networkData.find(item => item.id === d.id);
+      if (subnetData) {
+        this.subnetClick.emit(subnetData);
+      }
+    });
+
+  // Add drag behavior
+  node.call(d3.drag()
+    .on('start', (event: any, d: any) => this.dragstarted(event, d))
+    .on('drag', (event: any, d: any) => this.dragged(event, d))
+    .on('end', (event: any, d: any) => this.dragended(event, d)));
+
+  // Update positions on each tick
+  this.simulation.on('tick', () => {
+    link
+      .attr('x1', (d: any) => d.source.x)
+      .attr('y1', (d: any) => d.source.y)
+      .attr('x2', (d: any) => d.target.x)
+      .attr('y2', (d: any) => d.target.y);
+    
+    node
+      .attr('cx', (d: any) => d.x)
+      .attr('cy', (d: any) => d.y);
+    
+    labels
+      .attr('x', (d: any) => d.x)
+      .attr('y', (d: any) => d.y);
+  });
+
+  // Mark simulation as ready after it settles
+  this.simulation.on('end', () => {
+    this.isSimulationReady = true;
+    console.log('Simulation ready for zooming');
+  });
+
+  // Also mark as ready after a few seconds regardless
+  setTimeout(() => {
+    this.isSimulationReady = true;
+  }, 3000);
+
+  console.log('D3 force-directed graph initialized');
+}
 
   private transformNetworkDataForD3() {
     const nodes: any[] = [];
@@ -465,22 +574,199 @@ private createLegendContent(legendSvg: any, legendWidth: number, legendBarHeight
     d3.selectAll('.tooltip').remove();
   }
 
-  onSearchChange() {
-    // Filter nodes based on search term
-    if (this.nodes && this.svg) {
-      const searchLower = this.searchTerm.toLowerCase();
-      
-      this.svg.selectAll('.nodes circle')
-        .style('opacity', (d: any) => {
-          if (!this.searchTerm) return 1;
-          return d.subnet.toLowerCase().includes(searchLower) ? 1 : 0.3;
-        });
+onSearchChange() {
+  if (this.nodes && this.svg) {
+    const searchLower = this.searchTerm.toLowerCase();
+    
+    // Update node and label opacity immediately
+    this.svg.selectAll('.nodes circle')
+      .style('opacity', (d: any) => {
+        if (!this.searchTerm) return 1;
+        return d.subnet.toLowerCase().includes(searchLower) ? 1 : 0.2;
+      });
 
-      this.svg.selectAll('.labels text')
-        .style('opacity', (d: any) => {
-          if (!this.searchTerm) return 1;
-          return d.subnet.toLowerCase().includes(searchLower) ? 1 : 0.3;
-        });
+    this.svg.selectAll('.labels text')
+      .style('opacity', (d: any) => {
+        if (!this.searchTerm) return 1;
+        return d.subnet.toLowerCase().includes(searchLower) ? 1 : 0.2;
+      });
+
+    // Also fade the links for better focus
+    this.svg.selectAll('.links line')
+      .style('opacity', (d: any) => {
+        if (!this.searchTerm) return 0.6;
+        
+        const sourceMatch = d.source.subnet?.toLowerCase().includes(searchLower);
+        const targetMatch = d.target.subnet?.toLowerCase().includes(searchLower);
+        
+        return (sourceMatch || targetMatch) ? 0.6 : 0.1;
+      });
+
+    // Trigger debounced zoom if search term exists
+    if (this.searchTerm.trim()) {
+      this.searchSubject.next(this.searchTerm);
+    } else {
+      // Reset zoom immediately when search is cleared
+      this.resetZoom();
     }
   }
+}
+
+// Add keyboard event handler for Enter key
+@HostListener('document:keydown', ['$event'])
+onKeyDown(event: KeyboardEvent) {
+  // Enter key triggers immediate zoom to search results
+  if (event.key === 'Enter' && this.searchTerm.trim()) {
+    this.performZoomSearch(this.searchTerm);
+    event.preventDefault();
+  }
+  
+  // Escape key clears search
+  if (event.key === 'Escape' && this.searchTerm) {
+    this.clearSearch();
+    event.preventDefault();
+  }
+}
+
+performZoomSearch(searchTerm: string) {
+  if (!this.isSimulationReady) {
+    console.log('Simulation not ready, waiting...');
+    // Retry after simulation settles
+    setTimeout(() => {
+      if (this.isSimulationReady) {
+        this.performZoomSearch(searchTerm);
+      }
+    }, 1000);
+    return;
+  }
+
+  console.log('Performing zoom search for:', searchTerm);
+  this.zoomToMatchingNodes(searchTerm);
+}
+
+private zoomToMatchingNodes(searchTerm: string) {
+  if (!this.nodes || !this.svg || !this.zoom || !searchTerm.trim()) {
+    return;
+  }
+
+  const searchLower = searchTerm.toLowerCase();
+  const matchingNodes = this.nodes.filter(node => 
+    node.subnet.toLowerCase().includes(searchLower)
+  );
+
+  console.log(`Found ${matchingNodes.length} matching nodes for search: ${searchTerm}`);
+
+  if (matchingNodes.length === 0) {
+    return;
+  }
+
+  // Calculate bounding box of matching nodes
+  const bounds = this.calculateNodesBounds(matchingNodes);
+  
+  if (bounds) {
+    console.log('Zooming to bounds:', bounds);
+    this.animateZoomToBounds(bounds, matchingNodes.length);
+  }
+}
+
+private calculateNodesBounds(nodes: any[]) {
+  if (nodes.length === 0) return null;
+
+  // Make sure nodes have valid positions
+  const validNodes = nodes.filter(node => 
+    node.x !== undefined && node.y !== undefined && 
+    !isNaN(node.x) && !isNaN(node.y)
+  );
+
+  if (validNodes.length === 0) {
+    console.log('No valid positioned nodes found');
+    return null;
+  }
+
+  let minX = Infinity, minY = Infinity;
+  let maxX = -Infinity, maxY = -Infinity;
+
+  validNodes.forEach(node => {
+    minX = Math.min(minX, node.x);
+    minY = Math.min(minY, node.y);
+    maxX = Math.max(maxX, node.x);
+    maxY = Math.max(maxY, node.y);
+  });
+
+  // Add padding around the bounds
+  const padding = validNodes.length === 1 ? 150 : 100;
+  
+  return {
+    x: minX - padding,
+    y: minY - padding,
+    width: (maxX - minX) + (padding * 2),
+    height: (maxY - minY) + (padding * 2),
+    centerX: (minX + maxX) / 2,
+    centerY: (minY + maxY) / 2
+  };
+}
+
+private animateZoomToBounds(bounds: any, nodeCount: number) {
+  const container = this.graphContainer.nativeElement;
+  const containerWidth = container.clientWidth || 800;
+  const containerHeight = container.clientHeight || 500;
+
+  // Calculate scale to fit the bounds in the container
+  const scaleX = containerWidth / bounds.width;
+  const scaleY = containerHeight / bounds.height;
+  let scale = Math.min(scaleX, scaleY);
+
+  // Limit scale to reasonable bounds
+  scale = Math.max(0.3, Math.min(scale, 4.0));
+
+  // For single nodes, use a higher zoom level
+  if (nodeCount === 1) {
+    scale = Math.min(2.0, scale * 1.5);
+  }
+
+  // Calculate translation to center the bounds
+  const translateX = containerWidth / 2 - bounds.centerX * scale;
+  const translateY = containerHeight / 2 - bounds.centerY * scale;
+
+  // Create the transform
+  const transform = d3.zoomIdentity
+    .translate(translateX, translateY)
+    .scale(scale);
+
+  console.log('Applying zoom transform:', { scale, translateX, translateY });
+
+  // Animate to the new transform
+  this.svg.transition()
+    .duration(1000)
+    .ease(d3.easeQuadInOut)
+    .call(this.zoom.transform, transform);
+}
+
+private resetZoom() {
+  if (!this.svg || !this.zoom) return;
+
+  const container = this.graphContainer.nativeElement;
+  const containerWidth = container.clientWidth || 800;
+  const containerHeight = container.clientHeight || 500;
+
+  // Reset to initial zoom level
+  const initialScale = 0.8;
+  const centerX = containerWidth / 2;
+  const centerY = containerHeight / 2;
+  
+  const initialTransform = d3.zoomIdentity
+    .translate(centerX, centerY)
+    .scale(initialScale)
+    .translate(-centerX, -centerY);
+
+  this.svg.transition()
+    .duration(750)
+    .ease(d3.easeQuadInOut)
+    .call(this.zoom.transform, initialTransform);
+}
+
+clearSearch() {
+  this.searchTerm = '';
+  this.onSearchChange();
+}
 }
