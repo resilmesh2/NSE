@@ -15,8 +15,11 @@ let virtualNetwork = new graphlib.Graph();
 // Neo4j credentials
 const uri = process.env.NEO4J_SERVER_URL || 'bolt://localhost:7687';
 const user = process.env.NEO4J_USERNAME || 'neo4j';
-const password = process.env.NEO4J_PASSWORD || 'myNeo4jPassword';
+const password = process.env.NEO4J_PASSWORD || 'supertestovaciheslo';
 const driver = neo4j.driver(uri, neo4j.auth.basic(user, password));
+
+const ISIM_API_BASE = 'http://localhost:5000/api';
+
 
 // Initialize Express.js
 const app = express();
@@ -27,7 +30,7 @@ app.use(express.json());
 
 app.use(cors({
     origin: '*',
-    methods: 'GET,POST',
+    methods: 'GET,POST,PUT, DELETE, OPTIONS',
     allowedHeaders: 'Content-Type,Authorization'
 }));
 
@@ -38,15 +41,14 @@ const virtualNetworkFilePath = path.join(__dirname, 'data', 'virtualNetwork.json
 const CACHE_MAX_AGE_HOURS = 24;
 
 async function getInitialData() {
-    console.log("====== Beginning Simple Subnet Collection ======");
-    console.time("Simple Subnet Collection");
+    console.log("====== Beginning Individual Organization Collection ======");
+    console.time("Individual Organization Collection");
     
     const session = driver.session();
 
     try {
-        console.log("Step 1: Getting organization and subnet ranges...");
+        console.log("Step 1: Getting individual organizations and their subnet ranges...");
         
-        // Simple query - just get the subnets for visualization
         const query = `
         MATCH (o:OrganizationUnit)-[r]-(s:Subnet)
         RETURN o.name as orgName,
@@ -61,10 +63,7 @@ async function getInitialData() {
             return [];
         }
 
-        // Process all organization units, not just the first one
-        const allSubnetRanges = [];
-        let combinedOrgName = '';
-        let primaryOrgId = null;
+        const elements = [];
 
         result.records.forEach((record, index) => {
             const orgName = record.get('orgName');
@@ -73,37 +72,27 @@ async function getInitialData() {
             
             console.log(`Processing org ${index + 1}: ${orgName} with ${subnetRanges.length} subnets`);
             
-            allSubnetRanges.push(...subnetRanges);
-            
-            if (index === 0) {
-                primaryOrgId = orgId;
-                combinedOrgName = orgName;
-            } else {
-                combinedOrgName += ` + ${orgName}`;
-            }
+            // Create individual organization element
+            elements.push({
+                data: {
+                    id: orgId,
+                    type: 'Organization',
+                    label: orgName,
+                    details: subnetRanges,
+                    vulns: [],
+                    subnetCount: subnetRanges.length
+                }
+            });
         });
 
-        console.log(`Total subnets across all organizations: ${allSubnetRanges.length}`);
-
-        // Just return the subnet ranges - no device details, no vulnerabilities
-        const elements = [{
-            data: {
-                id: primaryOrgId,
-                type: 'CIDR_Values',
-                label: combinedOrgName,
-                details: allSubnetRanges, // All subnet ranges from all orgs
-                vulns: [] // Empty - will be populated when user clicks subnets
-            }
-        }];
-
-        console.timeEnd("Simple Subnet Collection");
-        console.log(`====== Simple Collection Complete: ${allSubnetRanges.length} subnets ======`);
+        console.timeEnd("Individual Organization Collection");
+        console.log(`====== Individual Collection Complete: ${elements.length} organizations ======`);
 
         return elements;
 
     } catch (error) {
-        console.timeEnd("Simple Subnet Collection");
-        console.error('Error fetching subnets from Neo4j:', error);
+        console.timeEnd("Individual Organization Collection");
+        console.error('Error fetching organizations from Neo4j:', error);
         return [];
     } finally {
         await session.close();
@@ -1648,4 +1637,110 @@ process.on('SIGINT', () => {
 process.on('exit', () => {
     console.log('Exited');
     driver.close();
+});
+
+app.get('/api/risk/formulas/predefined', async (req, res) => {
+  try {
+    console.log('Fetching predefined formulas from ISIM...');
+    const response = await fetch(`${ISIM_API_BASE}/formulas/predefined`);
+    const data = await response.json();
+    console.log('Received predefined formulas:', data);
+    res.json(data);
+  } catch (error) {
+    console.error('Error fetching predefined formulas:', error);
+    res.status(500).json({ error: 'Failed to fetch predefined formulas' });
+  }
+});
+
+app.get('/api/risk/formulas/custom', async (req, res) => {
+  try {
+    const response = await fetch(`${ISIM_API_BASE}/formulas/custom`);
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('Error fetching custom formulas:', error);
+    res.status(500).json({ error: 'Failed to fetch custom formulas' });
+  }
+});
+
+app.get('/api/risk/formulas/active', async (req, res) => {
+  try {
+    const response = await fetch(`${ISIM_API_BASE}/formulas/active`);
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('Error fetching active formula:', error);
+    res.status(500).json({ error: 'Failed to fetch active formula' });
+  }
+});
+
+app.get('/api/risk/components/available', async (req, res) => {
+  try {
+    const response = await fetch(`${ISIM_API_BASE}/components/available`);
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('Error fetching available components:', error);
+    res.status(500).json({ error: 'Failed to fetch available components' });
+  }
+});
+
+app.post('/api/risk/formulas/custom', async (req, res) => {
+  try {
+    const response = await fetch(`${ISIM_API_BASE}/formulas/custom`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(req.body)
+    });
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('Error creating custom formula:', error);
+    res.status(500).json({ error: 'Failed to create custom formula' });
+  }
+});
+
+app.put('/api/risk/formulas/active', async (req, res) => {
+  try {
+    const response = await fetch(`${ISIM_API_BASE}/formulas/active`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(req.body)
+    });
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    console.error('Error setting active formula:', error);
+    res.status(500).json({ error: 'Failed to set active formula' });
+  }
+});
+
+// Add this to your NETWORK-VISUALISATION/servers/ Node.js file
+
+app.delete('/api/risk/formulas/custom/:formulaId', async (req, res) => {
+  try {
+    console.log('Deleting custom formula:', req.params.formulaId);
+    const response = await fetch(`${ISIM_API_BASE}/formulas/custom/${req.params.formulaId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      return res.status(response.status).json(errorData);
+    }
+    
+    const data = await response.json();
+    console.log('Formula deleted successfully:', data);
+    res.json(data);
+  } catch (error) {
+    console.error('Error deleting custom formula:', error);
+    res.status(500).json({ error: 'Failed to delete custom formula' });
+  }
 });

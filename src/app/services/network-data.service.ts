@@ -134,18 +134,33 @@ private async loadCachedSubnetData(subnets: SubnetData[], virtualNetworkData: an
   try {
     console.log('Loading cached subnet data...');
     
-    // Find the CIDR_Values node which now contains subnet device data
-    const cidrValuesNode = virtualNetworkData.find(item => 
-      item.data && item.data.type === 'CIDR_Values'
+    // Find Organization nodes which contain subnet device data
+    const organizationNodes = virtualNetworkData.filter(item => 
+      item.data && item.data.type === 'Organization'
     );
     
-    if (!cidrValuesNode || !cidrValuesNode.data.subnetDeviceData) {
+    // Also check for any nodes that might have subnetDeviceData
+    const nodesWithDeviceData = virtualNetworkData.filter(item =>
+      item.data && item.data.subnetDeviceData
+    );
+    
+    if (organizationNodes.length === 0 && nodesWithDeviceData.length === 0) {
       console.log('No cached device data found');
       return subnets;
     }
     
-    const cachedSubnetData = cidrValuesNode.data.subnetDeviceData;
-    console.log('Found cached data for subnets:', Object.keys(cachedSubnetData));
+    let cachedSubnetData: any = {};
+    
+    // Extract cached data from nodes that have it
+    nodesWithDeviceData.forEach(node => {
+      if (node.data.subnetDeviceData) {
+        cachedSubnetData = { ...cachedSubnetData, ...node.data.subnetDeviceData };
+      }
+    });
+    
+    if (Object.keys(cachedSubnetData).length > 0) {
+      console.log('Found cached data for subnets:', Object.keys(cachedSubnetData));
+    }
     
     // Extract all IP nodes with device data from the virtual network
     const ipNodesWithDevices = virtualNetworkData.filter(item => 
@@ -223,7 +238,7 @@ private async loadCachedSubnetData(subnets: SubnetData[], virtualNetworkData: an
           }
         }
         
-        console.log(`Loaded cached data for ${subnet.subnet}: ${devices.length} devices, risk ${subnet.riskScore.toFixed(1)} (${subnet.riskLevel})`);
+        console.log(`Loaded cached data for ${subnet.subnet}: ${devices.length} devices, risk ${subnet.riskScore.toFixed(1)} (${subnet.riskLevel}), org: ${subnet.organizationName}`);
         updatedCount++;
       }
     });
@@ -497,26 +512,42 @@ private checkIfDeviceDataIsPopulated(apiData: any[], subnetCidr: string): boolea
     return [];
   }
 
-  const cidrValuesNode = virtualNetworkData.find(item => 
-    item.data && item.data.type === 'CIDR_Values'
+  // Look for Organization nodes instead of CIDR_Values
+  const organizationNodes = virtualNetworkData.filter(item => 
+    item.data && item.data.type === 'Organization'
   );
 
-  if (!cidrValuesNode) {
-    console.warn('No CIDR_Values node found');
+  if (organizationNodes.length === 0) {
+    console.warn('No Organization nodes found');
     return [];
   }
 
-  const allSubnets = cidrValuesNode.data.details || [];
+  // Collect all subnets from all organizations
+  let allSubnets: string[] = [];
+  const orgContext: { [subnet: string]: { name: string, id: string } } = {};
+
+  organizationNodes.forEach(orgNode => {
+    const orgName = orgNode.data.label;
+    const orgId = orgNode.data.id;
+    const subnets = orgNode.data.details || [];
+    
+    console.log(`Processing organization: ${orgName} with ${subnets.length} subnets`);
+    
+    subnets.forEach((subnet: string) => {
+      orgContext[subnet] = { name: orgName, id: orgId };
+    });
+    
+    allSubnets.push(...subnets);
+  });
+
+  // Filter valid subnets
   const subnets = allSubnets.filter((subnet: string) => {
     if (!subnet || typeof subnet !== 'string' || !subnet.includes('/')) return false;
     const [networkPart, cidrPart] = subnet.split('/');
     const cidr = parseInt(cidrPart);
     
-    // More inclusive range to capture all valid subnets
-    // /8 to /32 covers all typical subnet sizes
     if (cidr < 8 || cidr > 32) return false;
     
-    // Basic IP validation
     const octets = networkPart.split('.');
     if (octets.length !== 4) return false;
     
@@ -524,17 +555,15 @@ private checkIfDeviceDataIsPopulated(apiData: any[], subnetCidr: string): boolea
         const num = parseInt(octet);
         return !isNaN(num) && num >= 0 && num <= 255;
     });
-});
+  });
 
-console.log(`Filtered subnets: ${subnets.length} from ${allSubnets.length} total`);
-
-  const vulnerableSubnets = cidrValuesNode.data.vulns || [];
+  console.log(`Filtered subnets: ${subnets.length} from ${allSubnets.length} total across ${organizationNodes.length} organizations`);
 
   // Extract existing subnet risk scores from ISIM data
   const existingSubnetScores = this.extractSubnetRiskScores(virtualNetworkData);
 
   return subnets.map((subnet: string, index: number) => {
-    const isVulnerable = vulnerableSubnets.includes(subnet);
+    const isVulnerable = false; // Will be updated when vulnerability data is loaded
     const [networkPart, cidrPart] = subnet.split('/');
     const cidr = parseInt(cidrPart);
     const maxPossibleDevices = Math.pow(2, 32 - cidr) - 2;
@@ -544,12 +573,15 @@ console.log(`Filtered subnets: ${subnets.length} from ${allSubnets.length} total
     const riskLevel = neoRiskData?.riskLevel || this.determineRiskLevel(riskScore);
     const hasSubnetRiskScore = !!neoRiskData;
 
-    console.log(`Processing subnet ${subnet}: ISIM risk score = ${riskScore} (${riskLevel}), source = ${hasSubnetRiskScore ? 'ISIM' : 'default'}`);
+    // Get organization context for this subnet
+    const orgInfo = orgContext[subnet];
+
+    console.log(`Processing subnet ${subnet}: ISIM risk score = ${riskScore} (${riskLevel}), org = ${orgInfo?.name || 'Unknown'}`);
 
     return {
       id: `subnet-${index}`,
       subnet,
-      deviceCount: 0, // Will be updated when device data is loaded
+      deviceCount: 0,
       riskScore,
       riskLevel,
       devices: [],
@@ -559,7 +591,9 @@ console.log(`Filtered subnets: ${subnets.length} from ${allSubnets.length} total
       networkPart,
       hasDetailedData: false,
       hasSubnetRiskScore,
-      subnetRiskSource: hasSubnetRiskScore ? 'ISIM' : 'default'
+      subnetRiskSource: hasSubnetRiskScore ? 'ISIM' : 'default',
+      organizationName: orgInfo?.name || 'Unknown Organization',
+      organizationId: orgInfo?.id || null
     } as SubnetData;
   });
 }

@@ -6,13 +6,14 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NEO4J_SERVER_URL=bolt://host.docker.internal:7687
+      - NEO4J_SERVER_URL=bolt://neo4j:7687  # Use service name instead of host.docker.internal
       - NEO4J_USERNAME=neo4j
-      - NEO4J_PASSWORD=myNeo4jPassword
+      - NEO4J_PASSWORD=supertestovaciheslo  # Match ISIM's password
+      - ISIM_API_URL=http://risk-api:5000   # Connect to ISIM's risk-api service
     volumes:
       - ./servers/data:/app/data
     networks:
-      - app-network
+      - casm_isim_test_network  # Use ISIM's network
 
   frontend:
     build:
@@ -23,8 +24,8 @@ services:
     depends_on:
       - backend
     networks:
-      - app-network
+      - casm_isim_test_network  # Use ISIM's network
 
 networks:
-  app-network:
-    driver: bridge
+  casm_isim_test_network:
+    external: true  # Connect to ISIM's existing network

@@ -2,7 +2,11 @@
   <div class="designer-header">
     <h3>Risk Calculation Configurator</h3>
     <p>Customize how risk scores are calculated using ISIM data components</p>
+    
     <div class="designer-actions">
+      <button class="btn btn-outline" (click)="saveCurrentFormulaAsCustom()" [disabled]="riskFormula.length === 0">
+        Save as Custom Formula
+      </button>
       <button class="btn btn-secondary" (click)="clearFormula()">Clear Formula</button>
       <button class="btn btn-primary" (click)="saveConfiguration()">Save Configuration</button>
       <button class="btn btn-success" (click)="testConfiguration()">Test on Sample Data</button>
@@ -10,68 +14,183 @@
   </div>
 
   <div class="designer-workspace">
-    <!-- Components Palette -->
+    <!-- Enhanced Components Palette with Toggle -->
     <div class="components-palette">
-      <h4>Available Risk Components</h4>
-      
-      <!-- Components from ISIM -->
-      <div class="component-list" 
-          cdkDropList 
-          #componentList="cdkDropList"
-          [cdkDropListData]="availableComponents"
-          [cdkDropListConnectedTo]="[formulaArea]"
-          (cdkDropListDropped)="drop($event)">
+      <!-- Dynamic Header with Toggle -->
+      <div class="palette-header">
+        <h4>{{ showingFormulas ? 'Available Formulas' : 'Available Risk Components' }}</h4>
+        <button 
+          class="btn btn-outline btn-sm toggle-view-btn" 
+          (click)="toggleView()">
+          {{ toggleButtonText }}
+        </button>
+      </div>
+
+      <!-- Loading State -->
+      <div *ngIf="(showingFormulas && isLoadingFormulas) || (!showingFormulas && isLoadingComponents)" 
+           class="loading-state">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">
+          {{ showingFormulas ? 'Loading Formulas...' : 'Loading Components...' }}
+        </div>
+      </div>
+
+      <!-- FORMULAS VIEW -->
+      <div *ngIf="showingFormulas && !isLoadingFormulas" class="formulas-list">
         
-        <!-- Show loading message inside the drop list -->
-        <div *ngIf="isLoadingComponents" style="text-align: center; padding: 20px; color: #666;">
-          <div class="loading-spinner"></div>
-          <div style="font-size: 14px; margin-top: 10px;">Loading ISIM Components...</div>
+        <!-- Active Formula Display -->
+        <div class="active-formula-indicator" *ngIf="activeFormula">
+          <div class="active-label">Currently Active:</div>
+          <div class="active-formula-name">{{ activeFormula.name }}</div>
+          <div class="active-formula-type">{{ activeFormula.type.toUpperCase() }}</div>
         </div>
 
-        <!-- Components - use ng-container to separate the conditions -->
-        <ng-container *ngIf="!isLoadingComponents">
-          <div *ngFor="let component of availableComponents" 
-              class="component-item" 
-              [attr.data-type]="component.type"
-              cdkDrag>
-            <div class="component-preview">
-              <span class="component-icon">{{component.icon}}</span>
-              <div class="component-info">
-                <span class="component-name">{{component.name}}</span>
-                <span class="component-desc">{{component.description}}</span>
-                <span class="component-type">{{component.type.toUpperCase()}}</span>
-                
-                <!-- Show if composite -->
-                <div *ngIf="component.isComposite" style="font-size: 10px; color: #999; margin-top: 2px;">
-                  Composite: {{component.compositeOf?.join(' + ')}}
-                </div>
-                
-                <!-- Show statistics -->
-                <div style="font-size: 9px; color: #999; margin-top: 2px;">
-                  {{getComponentStatistics(component)}}
-                </div>
-                
-                <!-- Show ISIM property -->
-                <div style="font-size: 9px; color: #007bff; margin-top: 2px;">
-                  Property: {{component.neo4jProperty}}
+        <!-- Predefined Formulas -->
+        <div class="formula-category" *ngIf="predefinedFormulas.length > 0">
+          <h5>Predefined Formulas</h5>
+          <div 
+            *ngFor="let formula of predefinedFormulas" 
+            class="formula-item"
+            [class.active-formula]="isActiveFormula(formula)"
+            (click)="loadFormulaFromLeftPanel(formula)">
+            
+            <div class="formula-header">
+              <div class="formula-name">{{ formula.name }}</div>
+              <div class="formula-badge predefined">PREDEFINED</div>
+            </div>
+            
+            <div class="formula-description">{{ formula.description }}</div>
+            
+            <div class="formula-components-mini">
+              <span *ngFor="let component of getFormulaComponentsArray(formula)" 
+                    class="component-mini">
+                {{ getComponentDisplayName(component.key) }}: {{ (component.value * 100).toFixed(0) }}%
+              </span>
+            </div>
+            
+            <div class="formula-actions">
+              <button 
+                class="btn btn-success btn-xs" 
+                (click)="setActiveFormula(formula); $event.stopPropagation()"
+                [disabled]="isActiveFormula(formula)">
+                {{ isActiveFormula(formula) ? 'Active' : 'Set Active' }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Custom Formulas -->
+        <div class="formula-category" *ngIf="customFormulas.length > 0">
+          <h5>Custom Formulas</h5>
+          <div 
+            *ngFor="let formula of customFormulas" 
+            class="formula-item custom-formula"
+            [class.active-formula]="isActiveFormula(formula)"
+            (click)="loadFormulaFromLeftPanel(formula)">
+            
+            <div class="formula-header">
+              <div class="formula-name">{{ formula.name }}</div>
+              <div class="formula-badge custom">CUSTOM</div>
+            </div>
+            
+            <div class="formula-description">{{ formula.description }}</div>
+            
+            <div class="formula-components-mini">
+              <span *ngFor="let component of getFormulaComponentsArray(formula)" 
+                    class="component-mini">
+                {{ getComponentDisplayName(component.key) }}: {{ (component.value * 100).toFixed(0) }}%
+              </span>
+            </div>
+            
+            <div class="formula-actions">
+              <button 
+                class="btn btn-success btn-xs" 
+                (click)="setActiveFormula(formula); $event.stopPropagation()"
+                [disabled]="isActiveFormula(formula)">
+                {{ isActiveFormula(formula) ? 'Active' : 'Set Active' }}
+              </button>
+              <button 
+                class="btn btn-danger btn-xs" 
+                (click)="deleteCustomFormula(formula); $event.stopPropagation()">
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- No Formulas State -->
+        <div *ngIf="predefinedFormulas.length === 0 && customFormulas.length === 0" class="no-formulas">
+          <div class="empty-icon">📋</div>
+          <p>No formulas available</p>
+          <button class="btn btn-outline btn-sm" (click)="toggleView()">
+            Create Custom Formula
+          </button>
+        </div>
+      </div>
+
+      <!-- COMPONENTS VIEW - Always render but hide when showing formulas -->
+      <div [style.display]="showingFormulas ? 'none' : 'block'" class="components-list">
+        
+        <!-- Show loading in components view -->
+        <div *ngIf="isLoadingComponents" class="loading-state">
+          <div class="loading-spinner"></div>
+          <div class="loading-text">Loading Components...</div>
+        </div>
+
+        <!-- Components Grid -->
+        <div class="component-list" 
+            cdkDropList 
+            #componentList="cdkDropList"
+            [cdkDropListData]="availableComponents"
+            [cdkDropListConnectedTo]="[formulaArea]"
+            (cdkDropListDropped)="drop($event)">
+          
+          <!-- Show components only when not loading -->
+          <ng-container *ngIf="!isLoadingComponents">
+            <div *ngFor="let component of availableComponents" 
+                class="component-item" 
+                [attr.data-type]="component.type"
+                cdkDrag>
+              <div class="component-preview">
+                <span class="component-icon">{{component.icon}}</span>
+                <div class="component-info">
+                  <span class="component-name">{{component.name}}</span>
+                  <span class="component-desc">{{component.description}}</span>
+                  <span class="component-type">{{component.type.toUpperCase()}}</span>
+                  
+                  <!-- Show if composite -->
+                  <div *ngIf="component.isComposite" class="component-composite">
+                    Composite: {{component.compositeOf?.join(' + ')}}
+                  </div>
+                  
+                  <!-- Show statistics -->
+                  <div class="component-stats">
+                    {{getComponentStatistics(component)}}
+                  </div>
+                  
+                  <!-- Show ISIM property -->
+                  <div class="component-property">
+                    Property: {{component.neo4jProperty}}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </ng-container>
-      </div>
+          </ng-container>
+        </div>
 
-      <div class="calculation-methods" *ngIf="!isLoadingComponents">
-        <h5>Calculation Method</h5>
-        <div class="method-selector">
-          <div *ngFor="let method of availableMethods" 
-               class="method-option"
-               [class.selected]="selectedMethod === method.id"
-               (click)="onMethodChange(method.id)">
-            <span class="method-icon">{{method.icon}}</span>
-            <div class="method-info">
-              <span class="method-name">{{method.name}}</span>
-              <span class="method-desc">{{method.description}}</span>
+        <!-- Calculation Methods - RESTORED! -->
+        <div *ngIf="!isLoadingComponents" class="calculation-methods">
+          <h5>Calculation Method</h5>
+          <div class="method-selector">
+            <div *ngFor="let method of availableMethods" 
+                 class="method-option"
+                 [class.selected]="selectedMethod === method.id"
+                 (click)="onMethodChange(method.id)">
+              <span class="method-icon">{{method.icon}}</span>
+              <div class="method-info">
+                <span class="method-name">{{method.name}}</span>
+                <span class="method-desc">{{method.description}}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -134,6 +253,7 @@
           <div class="empty-icon">🧮</div>
           <h5>Build Your Risk Formula</h5>
           <p>Drag risk components from the left panel to create your custom calculation</p>
+          <p class="empty-hint">Or load a predefined formula from above</p>
         </div>
       </div>
 
@@ -183,6 +303,19 @@
             <span class="result-label">Sample Result:</span>
             <span class="result-value" [ngClass]="getResultRiskClass(calculatePreviewRisk())">
               {{calculatePreviewRisk().toFixed(2)}}
+            </span>
+          </div>
+        </div>
+        
+        <!-- Formula Summary -->
+        <div class="formula-summary" *ngIf="riskFormula.length > 0">
+          <div class="total-weight">
+            <strong>Total Weight: {{ getTotalWeight().toFixed(3) }}</strong>
+            <span 
+              class="weight-status" 
+              [class.valid]="isValidWeight()" 
+              [class.invalid]="!isValidWeight()">
+              {{ isValidWeight() ? 'Valid' : 'Must equal 1.0' }}
             </span>
           </div>
         </div>
@@ -275,6 +408,7 @@
   </div>
 </div>
 
+<!-- All your existing modals stay the same... -->
 <!-- Configuration Application Modal -->
 <div class="modal-overlay" *ngIf="showConfigModal" (click)="closeConfigModal()">
   <div class="config-modal" (click)="$event.stopPropagation()">
@@ -318,12 +452,12 @@
         </div>
       </div>
             
-            <div class="modal-actions">
-              <button (click)="closeConfigModal()" class="btn btn-secondary">Cancel</button>
-            </div>
-          </div>
-        </div>
+      <div class="modal-actions">
+        <button (click)="closeConfigModal()" class="btn btn-secondary">Cancel</button>
       </div>
+    </div>
+  </div>
+</div>
 
 <!-- Network Selection Modal -->
 <div class="modal-overlay" *ngIf="showNetworkModal" (click)="closeNetworkModal()">
@@ -512,7 +646,7 @@
           <label for="componentMaxValue">Maximum Value *</label>
           <input 
             type="number" 
-            id="componentMaxValue"
+            id="componentMaxValue"path
             name="componentMaxValue"
             [(ngModel)]="customComponent.maxValue"
             #componentMaxValue="ngModel"
@@ -588,8 +722,7 @@
 <div class="notification-container">
   <div *ngFor="let notification of notifications" 
        class="notification"
-       [ngClass]="'notification-' + notification.type"
-       [@slideIn]>
+       [ngClass]="'notification-' + notification.type">
     <div class="notification-header">
       <span class="notification-icon">{{getNotificationIcon(notification.type)}}</span>
       <span class="notification-title">{{notification.title}}</span>

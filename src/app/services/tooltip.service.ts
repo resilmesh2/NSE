@@ -164,31 +164,31 @@ showDeviceTooltip(event: MouseEvent, device: any): void {
 
   // Network group tooltip with comprehensive statistics
   showNetworkGroupTooltip(event: MouseEvent, group: any): void {
-    const content = `
-      <div class="tooltip-content">
-        <div class="tooltip-title">${group.name}.x Network</div>
-        <div class="tooltip-body">
-          <div class="tooltip-grid">
-            <span>Subnets:</span> <span>${group.children?.length || 0}</span>
-            <span>Total Devices:</span> <span>${group.totalDevices?.toLocaleString() || 0}</span>
-            <span>Average Risk:</span> <span class="risk-score">${group.avgRisk?.toFixed(2) || '0.00'}</span>
-            <span>Vulnerable Subnets:</span> <span class="${group.vulnerableCount > 0 ? 'vulnerable' : 'secure'}">${group.vulnerableCount > 0 ? `⚠ ${group.vulnerableCount}` : '✓ None'}</span>
-            <span>Network Range:</span> <span>${group.name}.0.0/16</span>
-            <span>Security Status:</span> <span class="${group.vulnerableCount > 0 ? 'vulnerable' : 'secure'}">${group.vulnerableCount > 0 ? 'HIGH RISK' : 'SECURE'}</span>
-          </div>
-          ${group.vulnerableCount > 0 ? `
-            <div class="tooltip-section">
-              <div class="tooltip-section-title">⚠ Security Alert:</div>
-              <div class="security-alert">
-                ${group.vulnerableCount} subnet${group.vulnerableCount > 1 ? 's' : ''} in this network ${group.vulnerableCount > 1 ? 'have' : 'has'} security vulnerabilities requiring attention.
-              </div>
-            </div>
-          ` : ''}
+  const content = `
+    <div class="tooltip-content">
+      <div class="tooltip-title">${group.name} Organization</div>
+      <div class="tooltip-body">
+        <div class="tooltip-grid">
+          <span>Subnets:</span> <span>${group.children?.length || 0}</span>
+          <span>Total Devices:</span> <span>${group.totalDevices?.toLocaleString() || 0}</span>
+          <span>Average Risk:</span> <span class="risk-score">${group.avgRisk?.toFixed(2) || '0.00'}</span>
+          <span>Vulnerable Subnets:</span> <span class="${group.vulnerableCount > 0 ? 'vulnerable' : 'secure'}">${group.vulnerableCount > 0 ? `⚠ ${group.vulnerableCount}` : '✓ None'}</span>
+          <span>Organization ID:</span> <span>${group.organizationId || 'Unknown'}</span>
+          <span>Security Status:</span> <span class="${group.vulnerableCount > 0 ? 'vulnerable' : 'secure'}">${group.vulnerableCount > 0 ? 'HIGH RISK' : 'SECURE'}</span>
         </div>
+        ${group.vulnerableCount > 0 ? `
+          <div class="tooltip-section">
+            <div class="tooltip-section-title">⚠ Security Alert:</div>
+            <div class="security-alert">
+              ${group.vulnerableCount} subnet${group.vulnerableCount > 1 ? 's' : ''} in this organization ${group.vulnerableCount > 1 ? 'have' : 'has'} security vulnerabilities requiring attention.
+            </div>
+          </div>
+        ` : ''}
       </div>
-    `;
-    this.show(event, content);
-  }
+    </div>
+  `;
+  this.show(event, content);
+}
 
   private getRiskClass(riskScore: number, hasRiskScore?: boolean): string {
   if (hasRiskScore === false) return 'no-score';

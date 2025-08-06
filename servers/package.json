@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node --max-old-space-size=8192 server.js"
   },
   "dependencies": {
     "@types/cytoscape": "^3.21.8",

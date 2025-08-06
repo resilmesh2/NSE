@@ -18,6 +18,8 @@ export interface SubnetData {
   maxDeviceRiskScore?: number;
   vulnerableDeviceCount?: number;
   statsRecalculated?: boolean;
+  organizationName?: string;
+  organizationId?: string;
 }
 
 export interface DeviceData {

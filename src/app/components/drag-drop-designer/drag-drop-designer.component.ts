@@ -5,6 +5,7 @@ import { DragDropModule } from '@angular/cdk/drag-drop';
 import { CdkDragDrop, moveItemInArray, transferArrayItem } from '@angular/cdk/drag-drop';
 import { NetworkDataService } from '../../services/network-data.service';
 import { RiskComponentsService, RiskComponent } from '../../services/risk-components.service';
+import { RiskConfigService, RiskFormula } from '../../services/risk-config.service';
 
 interface CalculationMethod {
   id: string;
@@ -33,6 +34,14 @@ export class DragDropDesignerComponent implements OnInit {
   selectedIps: boolean[] = [];
   selectAllIps = false;
   ipSearchTerm = '';
+
+  predefinedFormulas: RiskFormula[] = [];
+  customFormulas: RiskFormula[] = [];
+  activeFormula: RiskFormula | null = null;
+  showFormulaSelector = false;
+  isLoadingFormulas = false;
+  showingFormulas = true;
+  toggleButtonText = 'Switch to Components';
 
   showConfirmModal = false;
   showAlertModal = false;
@@ -105,29 +114,36 @@ private notificationId = 0;
 
   constructor(
     private networkDataService: NetworkDataService,
-    private riskComponentsService: RiskComponentsService
+    private riskComponentsService: RiskComponentsService,
+    private riskConfigService: RiskConfigService
   ) {}
 
   async ngOnInit() {
-    this.isLoadingComponents = true;
-    
-    try {
-      this.availableComponents = await this.riskComponentsService.loadComponents();
-      console.log('Loaded ISIM components:', this.availableComponents.length);
-      
-      // Log each component for debugging
-      this.availableComponents.forEach(comp => {
-        console.log(`Component: ${comp.name}, ISIM Property: ${comp.neo4jProperty}, Current Value: ${comp.currentValue}`);
-      });
-      
-    } catch (error) {
-      console.error('Failed to load ISIM components, using fallbacks:', error);
-      this.availableComponents = this.riskComponentsService.getComponents();
-    }
-    
-    this.isLoadingComponents = false;
-    this.loadNetworkData();
+  this.isLoadingComponents = true;
+  
+  // Load components from config instead of Neo4j
+  this.loadComponentsFromConfig();
+  
+  this.loadNetworkData();
+  this.loadFormulas(); // This will auto-load the active formula
+  
+  // Switch to components view when active formula is loaded
+  this.showingFormulas = false;
+  this.toggleButtonText = 'Switch to Formulas';
+}
+
+// Add toggle method
+toggleView(): void {
+  this.showingFormulas = !this.showingFormulas;
+  this.toggleButtonText = this.showingFormulas ? 'Switch to Components' : 'Switch to Formulas';
+  
+  // Hide formula selector panel when switching to components view
+  if (!this.showingFormulas) {
+    this.showFormulaSelector = false;
   }
+  
+  console.log('Toggled view to:', this.showingFormulas ? 'Formulas' : 'Components');
+}
   
   private loadNetworkData() {
     const currentData = this.networkDataService.getCurrentNetworkData();
@@ -1077,17 +1093,59 @@ async testConfiguration() {
 
 async refreshComponents() {
   try {
-    console.log('Refreshing components from ISIM...');
+    console.log('Refreshing components from config...');
     this.isLoadingComponents = true;
     
-    this.availableComponents = await this.riskComponentsService.loadComponents();
-    console.log(`Refreshed ${this.availableComponents.length} components`);
+    this.riskConfigService.getAvailableComponents().subscribe({
+      next: (data) => {
+        this.availableComponents = data.available_components || [];
+        console.log(`Refreshed ${this.availableComponents.length} components from config`);
+        this.isLoadingComponents = false;
+        
+        this.showInfo(
+          'Components Refreshed', 
+          `Updated ${this.availableComponents.length} components from configuration`
+        );
+      },
+      error: (error) => {
+        console.error('Error refreshing components from config:', error);
+        this.showError(
+          'Refresh Failed', 
+          'Failed to refresh components from configuration'
+        );
+        this.isLoadingComponents = false;
+      }
+    });
     
-    this.isLoadingComponents = false;
   } catch (error) {
     console.error('Error refreshing components:', error);
     this.isLoadingComponents = false;
   }
+}
+
+private loadComponentsFromConfig(): void {
+  console.log('Loading components from config file...');
+  
+  this.riskConfigService.getAvailableComponents().subscribe({
+    next: (data) => {
+      this.availableComponents = data.available_components || [];
+      console.log('Loaded components from config:', this.availableComponents.length);
+      this.isLoadingComponents = false;
+      
+      this.showSuccess(
+        'Components Loaded', 
+        `Loaded ${this.availableComponents.length} components from configuration`
+      );
+    },
+    error: (error) => {
+      console.error('Error loading components from config:', error);
+      this.showError(
+        'Config Loading Failed', 
+        'Failed to load components from configuration file'
+      );
+      this.isLoadingComponents = false;
+    }
+  });
 }
 
   addCustomComponent() {
@@ -1124,10 +1182,8 @@ async refreshComponents() {
     return;
   }
   
-  // Generate description based on category
   const autoDescription = `${this.customComponent.category.charAt(0).toUpperCase() + this.customComponent.category.slice(1)} component for risk assessment`;
   
-  // Set appropriate icon based on category
   const categoryIcons: { [key: string]: string } = {
     'security': '🔒',
     'performance': '⚡',
@@ -1146,14 +1202,33 @@ async refreshComponents() {
     weight: 0.2,
     maxValue: this.customComponent.maxValue,
     currentValue: Math.random() * this.customComponent.maxValue,
-    neo4jProperty: this.customComponent.name.trim(),
+    neo4jProperty: this.customComponent.name.trim().replace(/[^a-zA-Z0-9]/g, '_'),
     isComposite: false
   };
   
-  this.availableComponents.push(newComponent);
-  this.closeCustomComponentModal();
-  
-  console.log('Added custom component:', newComponent.name);
+  // Save to config file instead of just adding locally
+  this.riskConfigService.saveCustomComponent(newComponent).subscribe({
+    next: (response) => {
+      console.log('Custom component saved to config:', response);
+      
+      // Add to local array
+      this.availableComponents.push(newComponent);
+      
+      this.closeCustomComponentModal();
+      
+      this.showSuccess(
+        'Component Added', 
+        `"${newComponent.name}" has been saved to configuration`
+      );
+    },
+    error: (error) => {
+      console.error('Error saving custom component:', error);
+      this.showError(
+        'Save Failed', 
+        'Failed to save component to configuration file'
+      );
+    }
+  });
 }
 
   // Network selection methods
@@ -1230,5 +1305,274 @@ async refreshComponents() {
       this.applyToRandomSample();
       break;
   }
+}
+
+loadFormulas(): void {
+  this.isLoadingFormulas = true;
+  
+  // Load predefined formulas
+  this.riskConfigService.getPredefinedFormulas().subscribe({
+    next: (data) => {
+      this.predefinedFormulas = data.formulas;
+      console.log('Loaded predefined formulas:', this.predefinedFormulas);
+    },
+    error: (error) => {
+      console.error('Error loading predefined formulas:', error);
+    }
+  });
+
+  // Load custom formulas
+  this.riskConfigService.getCustomFormulas().subscribe({
+    next: (data) => {
+      this.customFormulas = data.formulas;
+      console.log('Loaded custom formulas:', this.customFormulas);
+    },
+    error: (error) => {
+      console.error('Error loading custom formulas:', error);
+    }
+  });
+
+  // Load active formula
+  this.riskConfigService.getActiveFormula().subscribe({
+    next: (data) => {
+      this.activeFormula = data.active_formula;
+      console.log('Active formula:', this.activeFormula);
+      this.isLoadingFormulas = false;
+      
+      this.autoLoadActiveFormula();
+    },
+    error: (error) => {
+      console.error('Error loading active formula:', error);
+      this.isLoadingFormulas = false;
+    }
+  });
+}
+
+loadFormulaFromLeftPanel(formula: RiskFormula): void {
+  this.loadPredefinedFormula(formula);
+  
+  // Switch to components view after loading
+  this.showingFormulas = false;
+  this.toggleButtonText = 'Switch to Formulas';
+  
+  // Show success notification with better message
+  this.showSuccess(
+    'Formula Loaded Successfully', 
+    `"${formula.name}" loaded into designer. You can now modify components or create a custom formula.`
+  );
+}
+
+private autoLoadActiveFormula(): void {
+  if (this.activeFormula && this.riskFormula.length === 0) {
+    console.log('Auto-loading active formula:', this.activeFormula.name);
+    
+    // Show notification
+    this.showInfo(
+      'Active Formula Loaded', 
+      `"${this.activeFormula.name}" has been loaded automatically`
+    );
+    
+    // Load the formula
+    this.loadPredefinedFormula(this.activeFormula);
+    
+    this.showingFormulas = false;
+    this.toggleButtonText = 'Switch to Formulas';
+  }
+}
+
+  setActiveFormula(formula: RiskFormula): void {
+    this.riskConfigService.setActiveFormula(formula.id, formula.type).subscribe({
+      next: () => {
+        this.activeFormula = formula;
+        console.log('Set active formula:', formula);
+        this.loadPredefinedFormula(formula);
+      },
+      error: (error) => {
+        console.error('Error setting active formula:', error);
+      }
+    });
+  }
+
+  isActiveFormula(formula: RiskFormula): boolean {
+    return this.activeFormula?.id === formula.id && this.activeFormula?.type === formula.type;
+  }
+
+  getComponentDisplayName(componentKey: string): string {
+    const component = this.availableComponents.find(c => c.neo4jProperty === componentKey);
+    return component ? component.name : componentKey.replace(/_/g, ' ').toUpperCase();
+  }
+
+getFormulaComponentsArray(formula: RiskFormula): Array<{key: string, value: number}> {
+  if (!formula.components) return [];
+  return Object.entries(formula.components).map(([key, value]) => ({key, value}));
+}
+
+isValidWeight(): boolean {
+  const total = this.getTotalWeight();
+  return Math.abs(total - 1.0) <= 0.01;
+}
+
+onWeightChange(): void {
+  console.log('Weight changed, total:', this.getTotalWeight());
+  
+  if (!this.isValidWeight()) {
+    console.warn('Formula weights do not sum to 1.0:', this.getTotalWeight());
+  }
+}
+
+resetFormula(): void {
+  // Move all formula components back to available components
+  this.availableComponents.push(...this.riskFormula);
+  this.riskFormula = [];
+  
+  // Clear custom formula if using that method
+  if (this.selectedMethod === 'custom_formula') {
+    this.customFormula = '';
+  }
+  
+  console.log('Formula reset');
+}
+
+trackByFn(index: number, item: RiskComponent): any {
+  return item.id || item.neo4jProperty || index;
+}
+
+validateFormula(): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  
+  if (this.riskFormula.length === 0) {
+    errors.push('Formula must contain at least one component');
+  }
+  
+  const total = this.getTotalWeight();
+  if (Math.abs(total - 1.0) > 0.01) {
+    errors.push(`Component weights must sum to 1.0 (currently ${total.toFixed(3)})`);
+  }
+  
+  // Check for duplicate components
+  const componentIds = this.riskFormula.map(c => c.neo4jProperty);
+  const duplicates = componentIds.filter((id, index) => componentIds.indexOf(id) !== index);
+  if (duplicates.length > 0) {
+    errors.push('Formula contains duplicate components');
+  }
+  
+  return {
+    valid: errors.length === 0,
+    errors
+  };
+}
+
+loadPredefinedFormula(formula: RiskFormula): void {
+  // Clear current formula first
+  this.resetFormula();
+  
+  // Load components from the selected formula
+  if (formula.components) {
+    const loadedComponents: RiskComponent[] = [];
+    
+    Object.entries(formula.components).forEach(([componentId, weight]) => {
+      // Find the component in available components
+      const componentIndex = this.availableComponents.findIndex(c => c.neo4jProperty === componentId);
+      if (componentIndex !== -1) {
+        // Remove from available and add to formula with correct weight
+        const component = this.availableComponents.splice(componentIndex, 1)[0];
+        component.weight = weight;
+        loadedComponents.push(component);
+      } else {
+        console.warn(`Component ${componentId} not found in available components`);
+      }
+    });
+    
+    // Add all loaded components to formula
+    this.riskFormula = loadedComponents;
+  }
+  
+  // Close formula selector
+  this.showFormulaSelector = false;
+  
+  // Show success notification
+  this.showSuccess('Formula Loaded', `Loaded "${formula.name}" with ${this.riskFormula.length} components`);
+  
+  console.log('Loaded formula into designer:', formula.name, this.riskFormula);
+}
+
+saveCurrentFormulaAsCustom(): void {
+  const validation = this.validateFormula();
+  if (!validation.valid) {
+    this.showWarning('Formula Validation Failed', validation.errors.join('\n'));
+    return;
+  }
+
+  // Create components object with weights
+  const components: { [key: string]: number } = {};
+  
+  this.riskFormula.forEach(component => {
+    components[component.neo4jProperty] = component.weight;
+  });
+
+  // Get formula name from user
+  const formulaName = prompt('Enter a name for this custom formula:');
+  if (!formulaName?.trim()) return;
+
+  const formulaDescription = prompt('Enter a description:') || 'Custom formula created in designer';
+
+  const customFormula = {
+    name: formulaName.trim(),
+    description: formulaDescription,
+    components: components,
+    created_by: 'user'
+  };
+
+  this.riskConfigService.createCustomFormula(customFormula).subscribe({
+    next: (response) => {
+      console.log('Custom formula saved:', response);
+      this.showSuccess('Formula Saved', `"${formulaName}" saved successfully!`);
+      this.loadFormulas(); // Reload to show the new custom formula
+    },
+    error: (error) => {
+      console.error('Error saving custom formula:', error);
+      this.showError('Save Failed', 'Failed to save custom formula. Please try again.');
+    }
+  });
+}
+
+deleteCustomFormula(formula: RiskFormula): void {
+  const confirmMessage = `Are you sure you want to delete "${formula.name}"?\n\nThis action cannot be undone.`;
+  
+  if (!confirm(confirmMessage)) {
+    return;
+  }
+
+  console.log('Deleting formula:', formula.id, formula.name);
+
+  this.riskConfigService.deleteCustomFormula(formula.id).subscribe({
+    next: (response) => {
+      console.log('Delete response:', response);
+      this.showSuccess(
+        'Formula Deleted', 
+        `"${formula.name}" has been deleted successfully`
+      );
+      
+      // Reload formulas to refresh the list
+      this.loadFormulas();
+      
+      // If this was the active formula, clear it from display
+      if (this.isActiveFormula(formula)) {
+        this.activeFormula = null;
+      }
+    },
+    error: (error) => {
+      console.error('Error deleting custom formula:', error);
+      let errorMessage = 'Failed to delete custom formula';
+      
+      if (error.error && error.error.error) {
+        errorMessage = error.error.error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      this.showError('Delete Failed', errorMessage);
+    }
+  });
 }
 }

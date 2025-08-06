@@ -1,3 +1,45 @@
 <div class="treemap-view">
+  <div class="controls">
+    
+    <!-- Organization pagination info -->
+    <span style="font-size: 12px; color: #666; margin-left: auto;">
+      {{organizationPaginationInfo}}
+    </span>
+  </div>
+  
   <div #treemapContainer class="treemap-container"></div>
+  
+  <!-- Organization pagination controls -->
+  <div class="organization-pagination" style="margin-top: 15px; text-align: center; padding: 10px; border-top: 1px solid #eee;">
+    <div class="pagination-controls" style="display: flex; justify-content: center; align-items: center; gap: 10px;">
+      <button 
+        (click)="prevOrgPage()"
+        [disabled]="currentOrgPage === 1"
+        style="padding: 6px 12px; border: 1px solid #dee2e6; background: white; border-radius: 4px; cursor: pointer;"
+        [style.opacity]="currentOrgPage === 1 ? '0.5' : '1'">
+        ← Previous
+      </button>
+      
+      <button 
+        *ngFor="let page of getOrgPageNumbers()"
+        (click)="goToOrgPage(page)"
+        [style.background]="page === currentOrgPage ? '#007bff' : 'white'"
+        [style.color]="page === currentOrgPage ? 'white' : '#333'"
+        style="padding: 6px 12px; border: 1px solid #dee2e6; border-radius: 4px; cursor: pointer; margin: 0 2px;">
+        {{page}}
+      </button>
+      
+      <button 
+        (click)="nextOrgPage()"
+        [disabled]="currentOrgPage === totalOrgPages"
+        style="padding: 6px 12px; border: 1px solid #dee2e6; background: white; border-radius: 4px; cursor: pointer;"
+        [style.opacity]="currentOrgPage === totalOrgPages ? '0.5' : '1'">
+        Next →
+      </button>
+    </div>
+    
+    <div style="margin-top: 8px; font-size: 12px; color: #666;">
+      Page {{currentOrgPage}} of {{totalOrgPages}}
+    </div>
+  </div>
 </div>
