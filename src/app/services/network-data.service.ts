@@ -68,68 +68,6 @@ export class NetworkDataService {
   }
 }
 
-  // Check for existing subnet details and update node properties
-private async checkExistingSubnetDetails(subnets: SubnetData[]): Promise<SubnetData[]> {
-  try {
-    console.log('Checking for existing subnet details...');
-    
-    // Quick health check first
-    const healthCheck = await firstValueFrom(this.apiService.checkApiHealth());
-    if (!healthCheck) {
-      console.log('Device details API not available, using default values');
-      return subnets;
-    }
-
-    // Get existing device details data
-    const existingData = await firstValueFrom(this.apiService.getDeviceDetails());
-    if (!existingData || existingData.length === 0) {
-      console.log('No existing device details found');
-      return subnets;
-    }
-
-    // Process existing data to extract subnet information
-    const subnetDetails = this.extractSubnetDetailsFromExistingData(existingData);
-    
-    // Update subnet objects with found details
-    let updatedCount = 0;
-    subnets.forEach(subnet => {
-      const details = subnetDetails[subnet.subnet];
-      if (details) {
-        // Update device information
-        subnet.deviceCount = details.deviceCount;
-        subnet.devices = details.devices;
-        subnet.hasDetailedData = details.deviceCount > 0;
-        
-        // Update risk score if found in detailed data
-        if (details.riskScore !== undefined && details.riskScore > 0) {
-          const previousRisk = subnet.riskScore;
-          subnet.riskScore = details.riskScore;
-          subnet.hasSubnetRiskScore = true;
-          subnet.subnetRiskSource = 'existing_data';
-          subnet.riskLevel = this.determineRiskLevel(details.riskScore);
-          
-          console.log(`Updated ${subnet.subnet}: devices ${details.deviceCount}, risk ${previousRisk.toFixed(1)} → ${details.riskScore.toFixed(1)} (${subnet.riskLevel})`);
-        } else {
-          console.log(`Updated ${subnet.subnet}: ${details.deviceCount} devices, risk unchanged: ${subnet.riskScore.toFixed(1)}`);
-        }
-        
-        updatedCount++;
-      }
-    });
-
-    console.log(`Updated ${updatedCount} subnets with existing data`);
-    
-    // Force update to trigger UI refresh
-    this.updateNetworkData([...subnets]);
-    
-    return subnets;
-
-  } catch (error) {
-    console.warn('Error checking existing subnet details:', error);
-    return subnets;
-  }
-}
-
 private async loadCachedSubnetData(subnets: SubnetData[], virtualNetworkData: any[]): Promise<SubnetData[]> {
   try {
     console.log('Loading cached subnet data...');

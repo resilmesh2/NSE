@@ -2,10 +2,10 @@
   max-width: 1400px;
   margin: 0 auto;
   padding: 20px;
-  box-sizing: border-box; /* Add this */
+  box-sizing: border-box;
 }
 
-/* Make container responsive - add this new rule */
+/* Make container responsive */
 @media (max-width: 768px) {
   .container {
     padding: 10px;

@@ -731,3 +731,69 @@
     <div class="notification-message">{{notification.message}}</div>
   </div>
 </div>
+
+<!-- Calculation Mode Modal -->
+<div class="modal-overlay" *ngIf="showCalculationModeModal" (click)="selectCalculationMode(null)">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <h3>Choose Calculation Mode</h3>
+    
+    <div class="calculation-modes">
+      <button class="mode-option" (click)="selectCalculationMode('setValue')">
+        <div class="mode-title">Set Specific Values</div>
+        <div class="mode-description">Use the values you've configured</div>
+      </button>
+      
+      <button class="mode-option" (click)="selectCalculationMode('calculate')">
+        <div class="mode-title">Calculate from Properties</div>
+        <div class="mode-description">Calculate using existing properties</div>
+      </button>
+    </div>
+    
+    <div class="modal-actions">
+      <button class="btn-secondary" (click)="selectCalculationMode(null)">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Frequency Modal -->
+<div class="modal-overlay" *ngIf="showFrequencyModal" (click)="cancelFrequencyModal()">
+  <div class="selector-modal" (click)="$event.stopPropagation()">
+    <div class="selector-modal-header">
+      <h3>How often should this risk calculation run automatically?</h3>
+      <button (click)="cancelFrequencyModal()" class="close-btn">×</button>
+    </div>
+    <div class="selector-modal-content">
+      <div class="frequency-options">
+        <div *ngFor="let freq of updateFrequencies" 
+             class="frequency-option"
+             [class.selected]="updateFrequency === freq.value"
+             (click)="updateFrequency = freq.value">
+          <div class="radio-wrapper">
+            <input 
+              type="radio" 
+              name="frequency" 
+              [value]="freq.value"
+              [checked]="updateFrequency === freq.value"
+              (click)="$event.stopPropagation()">
+          </div>
+          <div class="option-content">
+            <div class="option-label">{{ freq.label }}</div>
+            <div class="option-description" [ngSwitch]="freq.value">
+              <span *ngSwitchCase="'manual'">Run only when triggered by user</span>
+              <span *ngSwitchCase="'minute'">For testing (not recommended for production)</span>
+              <span *ngSwitchCase="'hourly'">Run every hour</span>
+              <span *ngSwitchCase="'daily'">Run once every 24 hours</span>
+              <span *ngSwitchCase="'weekly'">Run once per week</span>
+              <span *ngSwitchCase="'monthly'">Run once per month</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="modal-actions" style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
+        <button (click)="cancelFrequencyModal()" class="btn btn-secondary">Cancel</button>
+        <button (click)="selectUpdateFrequency(updateFrequency)" class="btn btn-primary">OK</button>
+      </div>
+    </div>
+  </div>
+</div>

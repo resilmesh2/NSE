@@ -81,7 +81,6 @@ ngOnDestroy() {
 ngOnChanges(changes: SimpleChanges) {
   if (changes['networkData']) {
     if (!changes['networkData'].firstChange) {
-      // Check if this is a structural change or just data updates
       const previousData = changes['networkData'].previousValue || [];
       const currentData = changes['networkData'].currentValue || [];
       

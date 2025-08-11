@@ -1569,3 +1569,109 @@ input[type="checkbox"]:indeterminate {
 .component-property {
   color: #007bff;
 }
+
+/* Frequency Option Styles */
+.frequency-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.frequency-option {
+  display: flex;
+  align-items: flex-start;
+  padding: 12px;
+  border: 2px solid #e5e5e5;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.frequency-option:hover {
+  background-color: #f8f9fa;
+  border-color: #cbd5e0;
+}
+
+.frequency-option.selected {
+  background-color: #e6f2ff;
+  border-color: #007bff;
+}
+
+.frequency-option .radio-wrapper {
+  margin-right: 12px;
+  padding-top: 2px;
+}
+
+.frequency-option input[type="radio"] {
+  margin: 0;
+  cursor: pointer;
+}
+
+.frequency-option .option-content {
+  flex: 1;
+}
+
+.frequency-option .option-label {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.frequency-option .option-description {
+  font-size: 13px;
+  color: #666;
+  line-height: 1.4;
+}
+
+/* Frequency Option Styles */
+.frequency-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.frequency-option {
+  display: flex;
+  align-items: flex-start;
+  padding: 12px;
+  border: 2px solid #e5e5e5;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.frequency-option:hover {
+  background-color: #f8f9fa;
+  border-color: #cbd5e0;
+}
+
+.frequency-option.selected {
+  background-color: #e6f2ff;
+  border-color: #007bff;
+}
+
+.frequency-option .radio-wrapper {
+  margin-right: 12px;
+  padding-top: 2px;
+}
+
+.frequency-option input[type="radio"] {
+  margin: 0;
+  cursor: pointer;
+}
+
+.frequency-option .option-content {
+  flex: 1;
+}
+
+.frequency-option .option-label {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.frequency-option .option-description {
+  font-size: 13px;
+  color: #666;
+  line-height: 1.4;
+}

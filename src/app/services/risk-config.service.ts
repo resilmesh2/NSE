@@ -20,12 +20,39 @@ export interface CreateFormulaRequest {
   created_by?: string;
 }
 
+export interface ComponentData {
+  name: string;
+  weight: number;
+  currentValue: number;
+  maxValue: number;
+  neo4jProperty?: string;
+}
+
+export interface RiskConfigurationRequest {
+  formulaName: string;
+  components: ComponentData[];
+  targetType: string;
+  targetValues: string[];
+  calculationMode: string;
+  calculationMethod?: string;
+  customFormula?: string;
+  updateFrequency: string;
+  targetProperty: string;
+}
+
+export interface ConfigurationResponse {
+  success: boolean;
+  nodesUpdated: number;
+  avgRiskScore: number;
+  automationEnabled: boolean;
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class RiskConfigService {
   private baseUrl = 'http://localhost:3000/api/risk';
-  private POSTbaseUrl = 'http://localhost:5000/api/risk';
+  private POSTbaseUrl = 'http://localhost:5000/api';
 
   constructor(private http: HttpClient) {}
 
@@ -88,7 +115,10 @@ export class RiskConfigService {
     });
   }
 
-  deleteCustomComponent(componentId: string): Observable<any> {
-    return this.http.delete<any>(`${this.baseUrl}/custom-components/${componentId}`);
+  applyRiskConfiguration(config: RiskConfigurationRequest): Observable<ConfigurationResponse> {
+    return this.http.post<ConfigurationResponse>(
+      `${this.POSTbaseUrl}/risk/apply-configuration`, 
+      config
+    );
   }
 }

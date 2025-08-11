@@ -5,7 +5,7 @@ import { DragDropModule } from '@angular/cdk/drag-drop';
 import { CdkDragDrop, moveItemInArray, transferArrayItem } from '@angular/cdk/drag-drop';
 import { NetworkDataService } from '../../services/network-data.service';
 import { RiskComponentsService, RiskComponent } from '../../services/risk-components.service';
-import { RiskConfigService, RiskFormula } from '../../services/risk-config.service';
+import { RiskConfigService, RiskFormula, RiskConfigurationRequest, ConfigurationResponse, ComponentData  } from '../../services/risk-config.service';
 
 interface CalculationMethod {
   id: string;
@@ -69,6 +69,25 @@ export class DragDropDesignerComponent implements OnInit {
     onClose: () => {}
   };
 
+  currentFormulaName: string = '';
+  selectedSubnets: any[] = [];
+  showCalculationModeModal = false;
+  showFrequencyModal = false;
+  private calculationModeCallback: ((mode: string | null) => void) | null = null;
+  private frequencyCallback: ((frequency: string) => void) | null = null;
+  selectedCalculationMode: 'setValue' | 'calculate' | null = null;
+  updateFrequency = 'manual';
+  updateFrequencies = [
+    { value: 'manual', label: 'Manual Only' },
+    { value: 'hourly', label: 'Every Hour' },
+    { value: 'minute', label: 'Every Minute (Testing)' },
+    { value: 'daily', label: 'Once Daily' },
+    { value: 'weekly', label: 'Once Weekly' },
+    { value: 'monthly', label: 'Once Monthly' }
+  ];
+  private frequencyResolve: ((value: string | null) => void) | null = null;
+
+  
 notifications: Array<{
   id: number;
   type: 'success' | 'info' | 'warning' | 'error';
@@ -121,7 +140,7 @@ private notificationId = 0;
   async ngOnInit() {
   this.isLoadingComponents = true;
   
-  // Load components from config instead of Neo4j
+  // Load components from config
   this.loadComponentsFromConfig();
   
   this.loadNetworkData();
@@ -132,7 +151,6 @@ private notificationId = 0;
   this.toggleButtonText = 'Switch to Formulas';
 }
 
-// Add toggle method
 toggleView(): void {
   this.showingFormulas = !this.showingFormulas;
   this.toggleButtonText = this.showingFormulas ? 'Switch to Components' : 'Switch to Formulas';
@@ -244,26 +262,61 @@ toggleView(): void {
     }
   }
 
-  private async askCalculationMode(): Promise<'setValue' | 'calculate' | null> {
-    const message = `Choose calculation mode:
+ private async askCalculationMode(): Promise<'setValue' | 'calculate' | null> {
+  return new Promise((resolve) => {
+    const result = this.showThreeButtonConfirm(
+      'Choose Calculation Mode',
+      'How should the risk calculation be performed?',
+      'Set Specific Values (Use configured values)',
+      'Calculate from Properties (Use existing Neo4j values)',
+      'Cancel'
+    ).then((buttonResult) => {
+      if (buttonResult === 'button1') {
+        resolve('setValue');
+      } else if (buttonResult === 'button2') {
+        resolve('calculate');
+      } else {
+        resolve(null);
+      }
+    });
+  });
+}
 
-    <strong>Set Specific Values</strong> - Uses the current values you set in the formula
-    <strong>Calculate from Sample Result</strong> - Uses Node property values from ISIM
-
-    For Test2 example:
-    - Set Values: Test2 = 10 (uses your input)
-    - Calculate: Test2 = Risk Score * 0.4`;
-
-      const useSetValues = await this.showConfirm(
-        'Choose Calculation Mode',
-        message,
-        'Set Specific Values',
-        'Calculate from Sample Result'
-      );
-
-      // Return the choice directly without a second confirmation
-      return useSetValues ? 'setValue' : 'calculate';
+  selectCalculationMode(mode: string | null) {
+    this.selectedCalculationMode = mode as 'setValue' | 'calculate' | null;
+    if (this.calculationModeCallback) {
+      this.calculationModeCallback(mode);
+    }
   }
+
+private askUpdateFrequency(): Promise<string | null> { 
+  return new Promise((resolve) => {
+    this.updateFrequency = 'manual'; // Default selection
+    this.showFrequencyModal = true;
+    
+    // Store the resolve function to use when modal closes
+    this.frequencyResolve = resolve;
+  });
+}
+
+selectUpdateFrequency(frequency: string) {
+  this.updateFrequency = frequency;
+  this.showFrequencyModal = false;
+  
+  if (this.frequencyResolve) {
+    this.frequencyResolve(frequency);  // Resolve with the selected frequency
+    this.frequencyResolve = null;
+  }
+}
+
+cancelFrequencyModal() {
+  this.showFrequencyModal = false;
+  
+  if (this.frequencyResolve) {
+    this.frequencyResolve(null);
+    this.frequencyResolve = null;
+  }
+}
 
 filterIpAddresses() {
   if (!this.ipSearchTerm.trim()) {
@@ -540,10 +593,8 @@ private showConfirm(title: string, message: string, confirmText: string = 'OK', 
   });
 }
 
-// Three-button confirmation modal
 private showThreeButtonConfirm(title: string, message: string, button1Text: string, button2Text: string, button3Text: string): Promise<'button1' | 'button2' | 'button3'> {
   return new Promise((resolve) => {
-    // Extend your existing confirmModalData to support three buttons
     this.confirmModalData = {
       title,
       message,
@@ -559,7 +610,6 @@ private showThreeButtonConfirm(title: string, message: string, button1Text: stri
       }
     };
     
-    // Add a third button handler
     this.confirmModalData.thirdButtonText = button3Text;
     this.confirmModalData.onThirdButton = () => {
       this.closeConfirmModal();
@@ -623,38 +673,6 @@ closeAlertModal() {
     if (this.riskFormula.length === 0) return '';
     return this.riskFormula.map(c => c.name).join(' ○ ');
   }
-
-  private async writeCustomComponentsToNodes(targetType: string, targetValues: any[]): Promise<void> {
-  // Find custom components that need to be written to nodes first
-  const customComponents = this.riskFormula.filter(comp => 
-    comp.type === 'custom' && 
-    comp.neo4jProperty !== this.targetProperty
-  );
-  
-  if (customComponents.length === 0) {
-    return; // No custom components to write
-  }
-  
-  console.log(`Writing ${customComponents.length} custom components to nodes first...`);
-  
-  for (const customComp of customComponents) {
-    try {
-      await this.riskComponentsService.writeCustomComponent(
-        customComp.name,
-        customComp.neo4jProperty,
-        customComp.currentValue?.toString() || '0', // Write the current value as a simple value
-        'setValue', // Always use setValue for individual custom components
-        [customComp],
-        targetType,
-        targetValues,
-        'setValue'
-      );
-      console.log(`Successfully wrote custom component: ${customComp.neo4jProperty}`);
-    } catch (error) {
-      console.warn(`Failed to write custom component ${customComp.neo4jProperty}:`, error);
-    }
-  }
-}
 
   private updateCustomFormulaFromComponents(): void {
     if (this.riskFormula.length === 0) {
@@ -739,6 +757,16 @@ saveConfiguration() {
   this.showConfigModal = true;
 }
 
+async applyConfiguration() {
+    if (this.riskFormula.length === 0) {
+      this.showWarning('Configuration Error', 'Please add components to your formula first');
+      return;
+    }
+    
+    // Show the apply options modal
+    this.showConfigModal = true;
+  }
+
 async applyToSelectedNetworks() {
   const selectedNetworkIndices = this.selectedNetworks
     .map((selected, index) => selected ? index : -1)
@@ -757,18 +785,16 @@ async applyToSelectedNetworks() {
     return;
   }
   
-  // Close the network selection modal now that selection is validated
+  // Close the network selection modal
   this.closeNetworkModal();
   
   let calculationMode: 'setValue' | 'calculate' | null = null;
   
   // Loop until user confirms or cancels
   while (true) {
-    // Ask user which mode they want
     calculationMode = await this.askCalculationMode();
-    if (!calculationMode) return; // User cancelled from calculation mode selection
+    if (!calculationMode) return;
     
-    // Show confirmation with details and Back option
     const networkNames = selectedNetworkData.map(n => n.prefix + '.x.x').join(', ');
     let confirmMessage = '';
     if (calculationMode === 'setValue') {
@@ -787,30 +813,40 @@ async applyToSelectedNetworks() {
     );
     
     if (result === 'button1') { // Apply
-      break; // Exit loop and proceed with application
+      break; // Exit loop and proceed
     } else if (result === 'button2') { // Cancel
-      return; // Exit method completely
+      return;
     }
-    // If result === 'button3' (Back), the loop continues and askCalculationMode runs again
   }
+
+  const frequency = await this.askUpdateFrequency();
+  if (!frequency) return;
   
   try {
-    // Write custom components first
-    await this.writeCustomComponentsToNodes('network', selectedNetworkData);
+    const config: RiskConfigurationRequest = {
+      formulaName: this.currentFormulaName || 'Custom Formula',
+      components: this.prepareComponentData(),
+      targetType: 'network',
+      targetValues: selectedNetworkData.map(n => n.prefix),
+      calculationMode: calculationMode,
+      calculationMethod: this.selectedMethod,
+      customFormula: this.customFormula,
+      updateFrequency: frequency,
+      targetProperty: this.targetProperty || 'Risk Score'
+    };
+
+    const response = await this.riskConfigService.applyRiskConfiguration(config).toPromise();
     
-    // Then update the target property with the calculated result
-    const result = await this.riskComponentsService.writeCustomComponent(
-      propertyToUpdate,
-      propertyToUpdate,
-      this.customFormula || this.getSumFormulaExpression(),
-      this.selectedMethod,
-      this.riskFormula,
-      'network',
-      selectedNetworkData,
-      calculationMode
-    );
-    
-    this.showSuccess('Configuration Applied', `Updated ${result.results.updatedNodes} nodes across ${selectedNetworkData.length} networks`);
+    if (response?.success) {
+      this.showSuccess(
+        'Configuration Applied', 
+        `Updated ${response.nodesUpdated} nodes across ${selectedNetworkData.length} networks\nAverage Risk Score: ${response.avgRiskScore.toFixed(2)}`
+      );
+      
+      if (response.automationEnabled) {
+        this.showInfo('Automation Enabled', `Risk calculation will run ${frequency}`);
+      }
+    }
     
     this.selectedNetworks = new Array(this.availableNetworks.length).fill(false);
     this.selectAllNetworks = false;
@@ -846,7 +882,7 @@ async applyToSubnet(subnet: any) {
       const values = this.riskFormula.map(comp => `${comp.name}: ${comp.currentValue || 0}`).join('\n');
       confirmMessage = `Set "${propertyToUpdate}" to calculated value on Node objects in subnet ${subnet.subnet}?\n\nMethod: ${this.selectedMethod.replace('_', ' ')}\nValues to use:\n${values}\n\nThis will set "${propertyToUpdate}" to the calculated result. Continue?`;
     } else {
-      confirmMessage = `Calculate "${propertyToUpdate}" using existing Node property values in subnet ${subnet.subnet}?\n\nMethod: ${this.selectedMethod.replace('_', ' ')}\nComponents: ${this.riskFormula.length}\n\nThis will use  property values from Node objects. Continue?`;
+      confirmMessage = `Calculate "${propertyToUpdate}" using existing Node property values in subnet ${subnet.subnet}?\n\nMethod: ${this.selectedMethod.replace('_', ' ')}\nComponents: ${this.riskFormula.length}\n\nThis will use property values from Node objects. Continue?`;
     }
     
     const result = await this.showThreeButtonConfirm(
@@ -865,22 +901,35 @@ async applyToSubnet(subnet: any) {
     // If result === 'button3' (Back), the loop continues and askCalculationMode runs again
   }
   
-  // Rest of your existing applyToSubnet logic...
+  const frequency = await this.askUpdateFrequency();
+  if (!frequency) return;
+  
   try {
-    await this.writeCustomComponentsToNodes('subnet', [subnet]);
+    const config: RiskConfigurationRequest = {
+      formulaName: this.currentFormulaName || 'Custom Formula',
+      components: this.prepareComponentData(),
+      targetType: 'subnet',
+      targetValues: [subnet.subnet],  // Just the subnet string
+      calculationMode: calculationMode,
+      calculationMethod: this.selectedMethod,
+      customFormula: this.customFormula, 
+      updateFrequency: frequency,
+      targetProperty: propertyToUpdate
+    };
 
-    const result = await this.riskComponentsService.writeCustomComponent(
-      propertyToUpdate,
-      propertyToUpdate,
-      this.customFormula || this.getSumFormulaExpression(),
-      this.selectedMethod,
-      this.riskFormula,
-      'subnet',
-      [subnet],
-      calculationMode
-    );
+    const response = await this.riskConfigService.applyRiskConfiguration(config).toPromise();
     
-    this.showSuccess('Configuration Applied', `Updated ${result.results.updatedNodes} nodes in ${subnet.subnet}`);
+    if (response?.success) {
+      this.showSuccess(
+        'Configuration Applied', 
+        `Updated ${response.nodesUpdated} nodes in ${subnet.subnet}\nAverage Risk Score: ${response.avgRiskScore.toFixed(2)}`
+      );
+      
+      if (response.automationEnabled) {
+        this.showInfo('Automation Enabled', `Risk calculation will run ${frequency}`);
+      }
+    }
+    
     await this.refreshComponents();
     
   } catch (error) {
@@ -889,6 +938,16 @@ async applyToSubnet(subnet: any) {
     this.showError('Update Failed', `Error updating Node property:\n\n${errorMessage}`);
   }
 }
+
+async applyToNetwork() {
+    if (this.riskFormula.length === 0) {
+      this.showWarning('Configuration Error', 'Please add components to your formula first');
+      return;
+    }
+
+    // Show network selection modal
+    this.showNetworkModal = true;
+  }
 
 async applyToSelectedIps() {
   const selectedIpIndices = this.selectedIps
@@ -908,18 +967,16 @@ async applyToSelectedIps() {
     return;
   }
   
-  // Close the IP selection modal now that selection is validated
+  // Close the IP selection modal
   this.closeIpModal();
   
   let calculationMode: 'setValue' | 'calculate' | null = null;
   
   // Loop until user confirms or cancels
   while (true) {
-    // Ask user which mode they want
     calculationMode = await this.askCalculationMode();
-    if (!calculationMode) return; // User cancelled from calculation mode selection
+    if (!calculationMode) return;
     
-    // Show confirmation with details and Back option
     const ipAddresses = selectedIpData.map(ip => ip.ip).join(', ');
     const displayIps = ipAddresses.length > 100 ? ipAddresses.substring(0, 100) + '...' : ipAddresses;
     let confirmMessage = '';
@@ -927,7 +984,7 @@ async applyToSelectedIps() {
       const values = this.riskFormula.map(comp => `${comp.name}: ${comp.currentValue || 0}`).join('\n');
       confirmMessage = `Set "${propertyToUpdate}" to calculated value on Node objects for selected IPs?\n\nIPs: ${displayIps}\nMethod: ${this.selectedMethod.replace('_', ' ')}\nValues to use:\n${values}\n\nThis will set "${propertyToUpdate}" to the calculated result. Continue?`;
     } else {
-      confirmMessage = `Calculate "${propertyToUpdate}" using existing Node property values for selected IPs?\n\nIPs: ${displayIps}\nMethod: ${this.selectedMethod.replace('_', ' ')}\nComponents: ${this.riskFormula.length}\n\nThis will use  property values from Node objects. Continue?`;
+      confirmMessage = `Calculate "${propertyToUpdate}" using existing Node property values for selected IPs?\n\nIPs: ${displayIps}\nMethod: ${this.selectedMethod.replace('_', ' ')}\nComponents: ${this.riskFormula.length}\n\nThis will use property values from Node objects. Continue?`;
     }
     
     const result = await this.showThreeButtonConfirm(
@@ -939,28 +996,40 @@ async applyToSelectedIps() {
     );
     
     if (result === 'button1') { // Apply
-      break; // Exit loop and proceed with application
+      break; // Exit loop and proceed
     } else if (result === 'button2') { // Cancel
-      return; // Exit method completely
+      return;
     }
-    // If result === 'button3' (Back), the loop continues and askCalculationMode runs again
   }
+
+  const frequency = await this.askUpdateFrequency();
+  if (!frequency) return;
   
   try {
-    await this.writeCustomComponentsToNodes('ip', selectedIpData);
+    const config: RiskConfigurationRequest = {
+      formulaName: this.currentFormulaName || 'Custom Formula',
+      components: this.prepareComponentData(),
+      targetType: 'ip',
+      targetValues: selectedIpData.map(ip => ip.ip), // Use local variable
+      calculationMode: calculationMode,
+      calculationMethod: this.selectedMethod,
+      customFormula: this.customFormula,
+      updateFrequency: frequency,
+      targetProperty: this.targetProperty || 'Risk Score'
+    };
 
-    const result = await this.riskComponentsService.writeCustomComponent(
-      propertyToUpdate,
-      propertyToUpdate,
-      this.customFormula || this.getSumFormulaExpression(),
-      this.selectedMethod,
-      this.riskFormula,
-      'ip',
-      selectedIpData,
-      calculationMode
-    );
+    const response = await this.riskConfigService.applyRiskConfiguration(config).toPromise();
     
-    this.showSuccess('Configuration Applied', `Updated ${result.results.updatedNodes} nodes for ${selectedIpData.length} IP addresses`);
+    if (response?.success) {
+      this.showSuccess(
+        'Configuration Applied', 
+        `Updated ${response.nodesUpdated} nodes for ${selectedIpData.length} IP addresses\nAverage Risk Score: ${response.avgRiskScore.toFixed(2)}`
+      );
+      
+      if (response.automationEnabled) {
+        this.showInfo('Automation Enabled', `Risk calculation will run ${frequency}`);
+      }
+    }
     
     this.selectedIps = [];
     this.selectAllIps = false;
@@ -987,17 +1056,15 @@ async applyToRandomSample() {
   
   // Loop until user confirms or cancels
   while (true) {
-    // Ask user which mode they want
     calculationMode = await this.askCalculationMode();
-    if (!calculationMode) return; // User cancelled from calculation mode selection
+    if (!calculationMode) return;
     
-    // Show confirmation with details and Back option
     let confirmMessage = '';
     if (calculationMode === 'setValue') {
       const values = this.riskFormula.map(comp => `${comp.name}: ${comp.currentValue || 0}`).join('\n');
       confirmMessage = `Set "${propertyToUpdate}" to calculated value on Node objects in ${sampleSize} sample subnets?\n\nMethod: ${this.selectedMethod.replace('_', ' ')}\nValues to use:\n${values}\n\nSample subnets: ${sample.slice(0, 3).map(s => s.subnet).join(', ')}${sample.length > 3 ? '...' : ''}\n\nThis will set "${propertyToUpdate}" to the calculated result. Continue?`;
     } else {
-      confirmMessage = `Calculate "${propertyToUpdate}" using existing Node property values in ${sampleSize} sample subnets?\n\nMethod: ${this.selectedMethod.replace('_', ' ')}\nComponents: ${this.riskFormula.length}\n\nSample subnets: ${sample.slice(0, 3).map(s => s.subnet).join(', ')}${sample.length > 3 ? '...' : ''}\n\nThis will use  property values from Node objects. Continue?`;
+      confirmMessage = `Calculate "${propertyToUpdate}" using existing Node property values in ${sampleSize} sample subnets?\n\nMethod: ${this.selectedMethod.replace('_', ' ')}\nComponents: ${this.riskFormula.length}\n\nSample subnets: ${sample.slice(0, 3).map(s => s.subnet).join(', ')}${sample.length > 3 ? '...' : ''}\n\nThis will use property values from Node objects. Continue?`;
     }
     
     const result = await this.showThreeButtonConfirm(
@@ -1009,28 +1076,41 @@ async applyToRandomSample() {
     );
     
     if (result === 'button1') { // Apply
-      break; // Exit loop and proceed with application
+      break;
     } else if (result === 'button2') { // Cancel
-      return; // Exit method completely
+      return;
     }
-    // If result === 'button3' (Back), the loop continues and askCalculationMode runs again
   }
   
+  const frequency = await this.askUpdateFrequency();
+  if (!frequency) return;
+  
   try {
-    await this.writeCustomComponentsToNodes('sample', sample);
+    const config: RiskConfigurationRequest = {
+      formulaName: this.currentFormulaName || 'Custom Formula',
+      components: this.prepareComponentData(),
+      targetType: 'sample',
+      targetValues: sample.map(s => s.subnet),
+      calculationMode: calculationMode,
+      calculationMethod: this.selectedMethod,
+      customFormula: this.customFormula,
+      updateFrequency: frequency,
+      targetProperty: this.targetProperty || 'Risk Score'
+    };
 
-    const result = await this.riskComponentsService.writeCustomComponent(
-      propertyToUpdate,
-      propertyToUpdate,
-      this.customFormula || this.getSumFormulaExpression(),
-      this.selectedMethod,
-      this.riskFormula,
-      'sample',
-      sample,
-      calculationMode
-    );
+    const response = await this.riskConfigService.applyRiskConfiguration(config).toPromise();
     
-    this.showSuccess('Configuration Applied', `Updated ${result.results.updatedNodes} nodes in ${sampleSize} sample subnets`);
+    if (response?.success) {
+      this.showSuccess(
+        'Configuration Applied', 
+        `Updated ${response.nodesUpdated} nodes in ${sampleSize} sample subnets\nAverage Risk Score: ${response.avgRiskScore.toFixed(2)}`
+      );
+      
+      if (response.automationEnabled) {
+        this.showInfo('Automation Enabled', `Risk calculation will run ${frequency}`);
+      }
+    }
+    
     await this.refreshComponents();
     
   } catch (error) {
@@ -1575,4 +1655,162 @@ deleteCustomFormula(formula: RiskFormula): void {
     }
   });
 }
+
+async confirmNetworkApplication() {
+    const selectedNetworks = this.availableNetworks
+      .filter((_, index) => this.selectedNetworks[index])
+      .map(network => network.prefix);
+
+    if (selectedNetworks.length === 0) {
+      this.showWarning('Selection Error', 'Please select at least one network');
+      return;
+    }
+
+    // Ask for calculation mode
+    const calculationMode = await this.askCalculationMode();
+    if (!calculationMode) return;
+
+    // Ask for update frequency
+    const frequency = await this.askUpdateFrequency();
+    if (!frequency) return;
+
+    // Prepare configuration request
+    const config: RiskConfigurationRequest = {
+      formulaName: this.currentFormulaName || 'Custom Formula',
+      components: this.prepareComponentData(),
+      targetType: 'network',
+      targetValues: selectedNetworks,
+      calculationMode: calculationMode,
+      calculationMethod: this.selectedMethod,
+      customFormula: this.customFormula, 
+      updateFrequency: frequency,
+      targetProperty: this.targetProperty || 'Risk Score'
+    };
+
+    try {
+      const response = await this.riskConfigService.applyRiskConfiguration(config).toPromise();
+      
+      if (response?.success) {
+        this.showSuccess(
+          'Configuration Applied',
+          `Updated ${response.nodesUpdated} nodes with average risk score: ${response.avgRiskScore.toFixed(2)}`
+        );
+        
+        if (response.automationEnabled) {
+          this.showInfo('Automation Enabled', `Risk calculation will run ${frequency}`);
+        }
+      }
+      
+      this.showNetworkModal = false;
+    } catch (error) {
+      console.error('Error applying configuration:', error);
+      this.showError('Application Failed', 'Failed to apply risk configuration');
+    }
+  }
+
+  private prepareComponentData(): ComponentData[] {
+    return this.riskFormula.map(comp => ({
+      name: comp.name,
+      weight: comp.weight,
+      currentValue: comp.currentValue || 0,
+      maxValue: comp.maxValue || 10,
+      neo4jProperty: comp.neo4jProperty || comp.name.toLowerCase().replace(/ /g, '_')
+    }));
+  }
+
+  async confirmSubnetApplication() {
+    // Get selected subnets
+    const selectedSubnets = this.selectedSubnets
+      .map(subnet => subnet.subnet);
+
+    if (selectedSubnets.length === 0) {
+      this.showWarning('Selection Error', 'Please select at least one subnet');
+      return;
+    }
+
+    const calculationMode = await this.askCalculationMode();
+    if (!calculationMode) return;
+
+    const frequency = await this.askUpdateFrequency();
+    if (!frequency) return;
+
+    const config: RiskConfigurationRequest = {
+      formulaName: this.currentFormulaName || 'Custom Formula',
+      components: this.prepareComponentData(),
+      targetType: 'subnet',
+      targetValues: selectedSubnets,
+      calculationMode: calculationMode,
+      calculationMethod: this.selectedMethod,
+      customFormula: this.customFormula,
+      updateFrequency: frequency,
+      targetProperty: this.targetProperty || 'Risk Score'
+    };
+
+    try {
+      const response = await this.riskConfigService.applyRiskConfiguration(config).toPromise();
+      
+      if (response?.success) {
+        this.showSuccess(
+          'Configuration Applied',
+          `Updated ${response.nodesUpdated} nodes with average risk score: ${response.avgRiskScore.toFixed(2)}`
+        );
+      }
+      
+      this.showSubnetModal = false;
+    } catch (error) {
+      console.error('Error applying configuration:', error);
+      this.showError('Application Failed', 'Failed to apply risk configuration');
+    }
+  }
+
+  async applyToAll() {
+  if (this.riskFormula.length === 0) {
+    this.showWarning('Configuration Error', 'Please add components to your formula first');
+    return;
+  }
+
+  const confirmed = await this.showConfirm(
+    'Apply to All Nodes',
+    'This will apply the risk calculation to ALL nodes in the network. Continue?'
+  );
+
+  if (!confirmed) return;
+
+  const calculationMode = await this.askCalculationMode();
+  if (!calculationMode) return;
+
+  const frequency = await this.askUpdateFrequency();
+  if (!frequency) return;
+
+  const config: RiskConfigurationRequest = {
+    formulaName: this.currentFormulaName || 'Custom Formula',
+    components: this.prepareComponentData(),
+    targetType: 'all',
+    targetValues: [],
+    calculationMode: calculationMode,
+    calculationMethod: this.selectedMethod,
+    customFormula: this.customFormula,
+    updateFrequency: frequency,
+    targetProperty: this.targetProperty || 'Risk Score'
+  };
+
+  try {
+    const response = await this.riskConfigService.applyRiskConfiguration(config).toPromise();
+    
+    if (response?.success) {
+      this.showSuccess(
+        'Configuration Applied',
+        `Updated ${response.nodesUpdated} nodes with average risk score: ${response.avgRiskScore.toFixed(2)}`
+      );
+      
+      if (response.automationEnabled) {
+        this.showInfo('Automation Enabled', `Risk calculation will run ${frequency}`);
+      }
+    }
+  } catch (error) {
+    console.error('Error applying configuration:', error);
+    this.showError('Application Failed', 'Failed to apply risk configuration');
+  }
+}
+
 }

@@ -75,7 +75,6 @@ export class ApiService {
     return throwError(() => error);
   }
 
-  // Add this method to ApiService class
 getNodeAttributes(): Observable<any> {
   return this.http.get<any>(`${this.API_DEVICE_DETAILS_URL}/get-node-attributes`)
     .pipe(
@@ -84,7 +83,6 @@ getNodeAttributes(): Observable<any> {
     );
 }
 
-// Add this method to ApiService class
 writeCustomRiskComponent(componentData: any): Observable<any> {
   return this.http.post<any>(`${this.API_DEVICE_DETAILS_URL}/write-custom-risk-component`, componentData)
     .pipe(

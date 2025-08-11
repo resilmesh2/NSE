@@ -319,7 +319,6 @@ async function populateVirtualNetwork(data) {
     }
 }
 
-// Replace the existing getVirtualNetworkData function in server.js
 async function getVirtualNetworkData() {
     try {
         const elements = [];
@@ -1039,21 +1038,6 @@ app.get('/api/get-subnet-devices/:subnetCidr', async (req, res) => {
   }
 });
 
-// Helper functions for the new endpoint
-function getStoredDeviceData(subnetCidr) {
-    const networkPrefix = subnetCidr.split('/')[0].split('.').slice(0, 3).join('.');
-    const storedDevices = [];
-    
-    virtualNetwork.nodes().forEach(nodeId => {
-        const nodeData = virtualNetwork.node(nodeId);
-        if (nodeData.type === 'IP' && nodeData.label && nodeData.label.startsWith(networkPrefix + '.') && nodeData.deviceData) {
-            storedDevices.push(nodeData.deviceData);
-        }
-    });
-    
-    return storedDevices;
-}
-
 function extractOSFromSoftware(softwareLabel) {
   if (!softwareLabel) return 'Unknown';
   
@@ -1718,8 +1702,6 @@ app.put('/api/risk/formulas/active', async (req, res) => {
     res.status(500).json({ error: 'Failed to set active formula' });
   }
 });
-
-// Add this to your NETWORK-VISUALISATION/servers/ Node.js file
 
 app.delete('/api/risk/formulas/custom/:formulaId', async (req, res) => {
   try {

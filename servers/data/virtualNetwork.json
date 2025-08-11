@@ -6,6 +6,48 @@
   },
   "nodes": [
     {
+      "v": "60",
+      "value": {
+        "label": "192.168.3.1",
+        "type": "IP",
+        "details": null,
+        "deviceData": {
+          "id": "device-60",
+          "ip": "192.168.3.1",
+          "hostname": "host-1",
+          "deviceType": "Network Device",
+          "os": "Unknown",
+          "riskScore": 3,
+          "vulnerabilities": [],
+          "hasRiskScore": true,
+          "openPorts": [
+            22,
+            80,
+            161,
+            443
+          ],
+          "lastSeen": "1d ago",
+          "status": "Online"
+        }
+      }
+    },
+    {
+      "v": "62",
+      "value": {
+        "label": "3",
+        "type": "Node",
+        "details": "0"
+      }
+    },
+    {
+      "v": "63",
+      "value": {
+        "label": "192.168.3.0/24",
+        "type": "Subnet",
+        "details": "5.5"
+      }
+    },
+    {
       "v": "64",
       "value": {
         "label": "192.168.2.49",
@@ -17,7 +59,7 @@
           "hostname": "LINUX-1",
           "deviceType": "Linux Server",
           "os": "Linux",
-          "riskScore": 3.3209609609609614,
+          "riskScore": 10,
           "vulnerabilities": [
             "CVE-2025-21864",
             "CVE-2025-37838",
@@ -471,7 +513,7 @@
             161,
             443
           ],
-          "lastSeen": "4h ago",
+          "lastSeen": "6d ago",
           "status": "Online"
         }
       }
@@ -479,7 +521,7 @@
     {
       "v": "66",
       "value": {
-        "label": "3.3209609609609614",
+        "label": "10",
         "type": "Node",
         "details": "0"
       }
@@ -504,9 +546,9 @@
           "hostname": "win-4.sri.local",
           "deviceType": "Windows Workstation",
           "os": "Windows",
-          "riskScore": 0,
+          "riskScore": 10,
           "vulnerabilities": [],
-          "hasRiskScore": false,
+          "hasRiskScore": true,
           "openPorts": [
             135,
             139,
@@ -514,7 +556,7 @@
             3389,
             5985
           ],
-          "lastSeen": "3d ago",
+          "lastSeen": "2d ago",
           "status": "Online"
         }
       }
@@ -522,7 +564,7 @@
     {
       "v": "70",
       "value": {
-        "label": "0",
+        "label": "10",
         "type": "Node",
         "details": "0"
       }
@@ -539,23 +581,23 @@
           "hostname": "win-1.sri.local",
           "deviceType": "Windows Workstation",
           "os": "Windows",
-          "riskScore": 0,
+          "riskScore": 10,
           "vulnerabilities": [],
-          "hasRiskScore": false,
+          "hasRiskScore": true,
           "openPorts": [
             135,
             139,
             3389
           ],
           "lastSeen": "6d ago",
-          "status": "Online"
+          "status": "Offline"
         }
       }
     },
     {
       "v": "73",
       "value": {
-        "label": "0",
+        "label": "10",
         "type": "Node",
         "details": "0"
       }
@@ -572,7 +614,7 @@
           "hostname": "LINUX-2",
           "deviceType": "Linux Server",
           "os": "Linux",
-          "riskScore": 3.3209609609609614,
+          "riskScore": 10,
           "vulnerabilities": [
             "CVE-2025-21864",
             "CVE-2025-37838",
@@ -1023,9 +1065,10 @@
           "openPorts": [
             22,
             80,
+            161,
             443
           ],
-          "lastSeen": "5d ago",
+          "lastSeen": "6d ago",
           "status": "Online"
         }
       }
@@ -1033,7 +1076,7 @@
     {
       "v": "76",
       "value": {
-        "label": "3.3209609609609614",
+        "label": "10",
         "type": "Node",
         "details": "0"
       }
@@ -1050,16 +1093,16 @@
           "hostname": "win-6.sri.local",
           "deviceType": "Windows Workstation",
           "os": "Windows",
-          "riskScore": 0,
+          "riskScore": 10,
           "vulnerabilities": [],
-          "hasRiskScore": false,
+          "hasRiskScore": true,
           "openPorts": [
             135,
             139,
             445,
             3389
           ],
-          "lastSeen": "3d ago",
+          "lastSeen": "18h ago",
           "status": "Online"
         }
       }
@@ -1067,7 +1110,7 @@
     {
       "v": "79",
       "value": {
-        "label": "0",
+        "label": "10",
         "type": "Node",
         "details": "0"
       }
@@ -1084,9 +1127,9 @@
           "hostname": "win-5.sri.local",
           "deviceType": "Windows Workstation",
           "os": "Windows",
-          "riskScore": 0,
+          "riskScore": 10,
           "vulnerabilities": [],
-          "hasRiskScore": false,
+          "hasRiskScore": true,
           "openPorts": [
             135,
             139,
@@ -1094,7 +1137,7 @@
             3389,
             5985
           ],
-          "lastSeen": "3d ago",
+          "lastSeen": "4d ago",
           "status": "Offline"
         }
       }
@@ -1102,7 +1145,7 @@
     {
       "v": "82",
       "value": {
-        "label": "0",
+        "label": "10",
         "type": "Node",
         "details": "0"
       }
@@ -1119,24 +1162,26 @@
           "hostname": "host-214",
           "deviceType": "Network Device",
           "os": "Windows",
-          "riskScore": 0,
+          "riskScore": 10,
           "vulnerabilities": [],
-          "hasRiskScore": false,
+          "hasRiskScore": true,
           "openPorts": [
             22,
             80,
+            135,
+            139,
             161,
             443
           ],
-          "lastSeen": "3d ago",
-          "status": "Offline"
+          "lastSeen": "2d ago",
+          "status": "Online"
         }
       }
     },
     {
       "v": "85",
       "value": {
-        "label": "0",
+        "label": "10",
         "type": "Node",
         "details": "0"
       }
@@ -1153,9 +1198,43 @@
           "hostname": "win-3.sri.local",
           "deviceType": "Windows Workstation",
           "os": "Windows",
-          "riskScore": 0,
+          "riskScore": 10,
           "vulnerabilities": [],
-          "hasRiskScore": false,
+          "hasRiskScore": true,
+          "openPorts": [
+            135,
+            139,
+            445,
+            3389
+          ],
+          "lastSeen": "3d ago",
+          "status": "Online"
+        }
+      }
+    },
+    {
+      "v": "88",
+      "value": {
+        "label": "10",
+        "type": "Node",
+        "details": "0"
+      }
+    },
+    {
+      "v": "89",
+      "value": {
+        "label": "192.168.4.5",
+        "type": "IP",
+        "details": null,
+        "deviceData": {
+          "id": "device-89",
+          "ip": "192.168.4.5",
+          "hostname": "WIN-SERVER",
+          "deviceType": "Windows Workstation",
+          "os": "Windows",
+          "riskScore": 4.2250000000000005,
+          "vulnerabilities": [],
+          "hasRiskScore": true,
           "openPorts": [
             135,
             139,
@@ -1163,15 +1242,505 @@
             3389,
             5985
           ],
-          "lastSeen": "1d ago",
-          "status": "Offline"
+          "lastSeen": "4d ago",
+          "status": "Online"
         }
       }
     },
     {
-      "v": "88",
+      "v": "91",
       "value": {
-        "label": "0",
+        "label": "4.2250000000000005",
+        "type": "Node",
+        "details": "0"
+      }
+    },
+    {
+      "v": "92",
+      "value": {
+        "label": "192.168.4.0/24",
+        "type": "Subnet",
+        "details": "3.7676276276276277"
+      }
+    },
+    {
+      "v": "93",
+      "value": {
+        "label": "192.168.4.32",
+        "type": "IP",
+        "details": null,
+        "deviceData": {
+          "id": "device-93",
+          "ip": "192.168.4.32",
+          "hostname": "MAIL-SERVER",
+          "deviceType": "Server",
+          "os": "Linux",
+          "riskScore": 4.2250000000000005,
+          "vulnerabilities": [
+            "CVE-2025-21864",
+            "CVE-2025-37838",
+            "CVE-2025-40114",
+            "CVE-2025-40014",
+            "CVE-2025-39778",
+            "CVE-2025-39755",
+            "CVE-2025-39735",
+            "CVE-2025-39728",
+            "CVE-2025-38152",
+            "CVE-2025-38049",
+            "CVE-2025-37925",
+            "CVE-2025-37893",
+            "CVE-2025-37860",
+            "CVE-2025-37785",
+            "CVE-2021-47671",
+            "CVE-2021-47670",
+            "CVE-2021-47669",
+            "CVE-2021-47668",
+            "CVE-2020-36789",
+            "CVE-2025-23137",
+            "CVE-2025-23136",
+            "CVE-2025-23134",
+            "CVE-2025-22097",
+            "CVE-2025-22088",
+            "CVE-2025-22085",
+            "CVE-2025-22063",
+            "CVE-2025-22056",
+            "CVE-2025-22054",
+            "CVE-2025-22052",
+            "CVE-2025-22051",
+            "CVE-2025-22041",
+            "CVE-2025-22040",
+            "CVE-2025-22038",
+            "CVE-2025-22037",
+            "CVE-2025-22036",
+            "CVE-2025-22035",
+            "CVE-2025-22033",
+            "CVE-2025-22032",
+            "CVE-2025-22031",
+            "CVE-2025-22014",
+            "CVE-2025-22012",
+            "CVE-2025-22011",
+            "CVE-2025-22010",
+            "CVE-2025-22009",
+            "CVE-2025-22007",
+            "CVE-2025-22006",
+            "CVE-2025-22005",
+            "CVE-2025-22004",
+            "CVE-2025-22003",
+            "CVE-2025-22002",
+            "CVE-2025-22001",
+            "CVE-2025-22000",
+            "CVE-2025-21999",
+            "CVE-2025-21998",
+            "CVE-2025-21997",
+            "CVE-2025-21996",
+            "CVE-2025-21995",
+            "CVE-2025-21993",
+            "CVE-2025-21991",
+            "CVE-2025-21990",
+            "CVE-2025-21989",
+            "CVE-2025-21984",
+            "CVE-2025-21982",
+            "CVE-2025-21981",
+            "CVE-2025-21980",
+            "CVE-2025-21979",
+            "CVE-2025-21969",
+            "CVE-2025-21968",
+            "CVE-2025-21967",
+            "CVE-2025-21966",
+            "CVE-2025-21964",
+            "CVE-2025-21963",
+            "CVE-2025-21962",
+            "CVE-2025-21961",
+            "CVE-2025-21959",
+            "CVE-2025-21957",
+            "CVE-2025-21953",
+            "CVE-2025-21951",
+            "CVE-2025-21949",
+            "CVE-2025-21948",
+            "CVE-2025-21947",
+            "CVE-2025-21945",
+            "CVE-2025-21943",
+            "CVE-2025-21941",
+            "CVE-2025-21940",
+            "CVE-2025-21937",
+            "CVE-2025-21936",
+            "CVE-2025-21934",
+            "CVE-2025-21933",
+            "CVE-2025-21930",
+            "CVE-2025-21929",
+            "CVE-2025-21928",
+            "CVE-2025-21927",
+            "CVE-2025-21923",
+            "CVE-2025-21922",
+            "CVE-2025-21920",
+            "CVE-2025-21919",
+            "CVE-2025-21918",
+            "CVE-2025-21917",
+            "CVE-2025-21915",
+            "CVE-2025-21912",
+            "CVE-2025-21911",
+            "CVE-2025-21908",
+            "CVE-2025-21905",
+            "CVE-2025-21904",
+            "CVE-2025-21901",
+            "CVE-2025-21900",
+            "CVE-2025-21898",
+            "CVE-2025-21893",
+            "CVE-2023-53028",
+            "CVE-2023-53026",
+            "CVE-2023-53025",
+            "CVE-2023-53023",
+            "CVE-2023-53022",
+            "CVE-2023-53021",
+            "CVE-2023-53020",
+            "CVE-2023-53018",
+            "CVE-2023-53017",
+            "CVE-2023-53016",
+            "CVE-2023-53015",
+            "CVE-2023-53014",
+            "CVE-2023-53013",
+            "CVE-2023-53011",
+            "CVE-2023-53008",
+            "CVE-2023-53005",
+            "CVE-2023-53003",
+            "CVE-2023-53002",
+            "CVE-2023-53001",
+            "CVE-2023-52999",
+            "CVE-2023-52994",
+            "CVE-2023-52993",
+            "CVE-2023-52991",
+            "CVE-2023-52989",
+            "CVE-2023-52988",
+            "CVE-2023-52984",
+            "CVE-2023-52983",
+            "CVE-2023-52979",
+            "CVE-2023-52978",
+            "CVE-2023-52977",
+            "CVE-2023-52976",
+            "CVE-2023-52975",
+            "CVE-2023-52974",
+            "CVE-2023-52973",
+            "CVE-2023-52939",
+            "CVE-2023-52938",
+            "CVE-2023-52937",
+            "CVE-2023-52936",
+            "CVE-2023-52935",
+            "CVE-2023-52932",
+            "CVE-2023-52931",
+            "CVE-2023-52930",
+            "CVE-2022-49761",
+            "CVE-2022-49759",
+            "CVE-2022-49758",
+            "CVE-2022-49757",
+            "CVE-2022-49756",
+            "CVE-2022-49755",
+            "CVE-2022-49754",
+            "CVE-2022-49753",
+            "CVE-2022-49752",
+            "CVE-2022-49751",
+            "CVE-2022-49750",
+            "CVE-2022-49749",
+            "CVE-2022-49748",
+            "CVE-2022-49746",
+            "CVE-2022-49742",
+            "CVE-2022-49741",
+            "CVE-2022-49740",
+            "CVE-2022-49738",
+            "CVE-2025-21891",
+            "CVE-2025-21887",
+            "CVE-2025-21879",
+            "CVE-2025-21867",
+            "CVE-2025-21866",
+            "CVE-2025-21865",
+            "CVE-2022-49733",
+            "CVE-2024-58052",
+            "CVE-2024-58055",
+            "CVE-2024-58058",
+            "CVE-2024-58059",
+            "CVE-2024-58060",
+            "CVE-2024-58062",
+            "CVE-2024-58063",
+            "CVE-2024-58064",
+            "CVE-2024-58065",
+            "CVE-2024-58066",
+            "CVE-2024-58067",
+            "CVE-2024-58068",
+            "CVE-2024-58069",
+            "CVE-2024-58070",
+            "CVE-2024-58071",
+            "CVE-2024-58073",
+            "CVE-2024-58076",
+            "CVE-2024-58080",
+            "CVE-2024-58081",
+            "CVE-2024-58083",
+            "CVE-2024-58084",
+            "CVE-2025-21833",
+            "CVE-2025-21843",
+            "CVE-2024-58087",
+            "CVE-2024-58088",
+            "CVE-2024-58089",
+            "CVE-2025-21844",
+            "CVE-2025-21845",
+            "CVE-2025-21846",
+            "CVE-2025-21847",
+            "CVE-2025-21848",
+            "CVE-2025-21849",
+            "CVE-2025-21850",
+            "CVE-2025-21851",
+            "CVE-2025-21852",
+            "CVE-2025-21853",
+            "CVE-2025-21854",
+            "CVE-2025-21855",
+            "CVE-2025-21856",
+            "CVE-2025-21857",
+            "CVE-2025-21858",
+            "CVE-2025-21859",
+            "CVE-2025-21860",
+            "CVE-2025-21861",
+            "CVE-2025-21862",
+            "CVE-2025-21863",
+            "Assumed vulnerability with ID CVE-2025-21864",
+            "Assumed vulnerability with ID CVE-2025-37838",
+            "Assumed vulnerability with ID CVE-2025-40114",
+            "Assumed vulnerability with ID CVE-2025-40014",
+            "Assumed vulnerability with ID CVE-2025-39778",
+            "Assumed vulnerability with ID CVE-2025-39755",
+            "Assumed vulnerability with ID CVE-2025-39735",
+            "Assumed vulnerability with ID CVE-2025-39728",
+            "Assumed vulnerability with ID CVE-2025-38152",
+            "Assumed vulnerability with ID CVE-2025-38049",
+            "Assumed vulnerability with ID CVE-2025-37925",
+            "Assumed vulnerability with ID CVE-2025-37893",
+            "Assumed vulnerability with ID CVE-2025-37860",
+            "Assumed vulnerability with ID CVE-2025-37785",
+            "Assumed vulnerability with ID CVE-2021-47671",
+            "Assumed vulnerability with ID CVE-2021-47670",
+            "Assumed vulnerability with ID CVE-2021-47669",
+            "Assumed vulnerability with ID CVE-2021-47668",
+            "Assumed vulnerability with ID CVE-2020-36789",
+            "Assumed vulnerability with ID CVE-2025-23137",
+            "Assumed vulnerability with ID CVE-2025-23136",
+            "Assumed vulnerability with ID CVE-2025-23134",
+            "Assumed vulnerability with ID CVE-2025-22097",
+            "Assumed vulnerability with ID CVE-2025-22088",
+            "Assumed vulnerability with ID CVE-2025-22085",
+            "Assumed vulnerability with ID CVE-2025-22063",
+            "Assumed vulnerability with ID CVE-2025-22056",
+            "Assumed vulnerability with ID CVE-2025-22054",
+            "Assumed vulnerability with ID CVE-2025-22052",
+            "Assumed vulnerability with ID CVE-2025-22051",
+            "Assumed vulnerability with ID CVE-2025-22041",
+            "Assumed vulnerability with ID CVE-2025-22040",
+            "Assumed vulnerability with ID CVE-2025-22038",
+            "Assumed vulnerability with ID CVE-2025-22037",
+            "Assumed vulnerability with ID CVE-2025-22036",
+            "Assumed vulnerability with ID CVE-2025-22035",
+            "Assumed vulnerability with ID CVE-2025-22033",
+            "Assumed vulnerability with ID CVE-2025-22032",
+            "Assumed vulnerability with ID CVE-2025-22031",
+            "Assumed vulnerability with ID CVE-2025-22014",
+            "Assumed vulnerability with ID CVE-2025-22012",
+            "Assumed vulnerability with ID CVE-2025-22011",
+            "Assumed vulnerability with ID CVE-2025-22010",
+            "Assumed vulnerability with ID CVE-2025-22009",
+            "Assumed vulnerability with ID CVE-2025-22007",
+            "Assumed vulnerability with ID CVE-2025-22006",
+            "Assumed vulnerability with ID CVE-2025-22005",
+            "Assumed vulnerability with ID CVE-2025-22004",
+            "Assumed vulnerability with ID CVE-2025-22003",
+            "Assumed vulnerability with ID CVE-2025-22002",
+            "Assumed vulnerability with ID CVE-2025-22001",
+            "Assumed vulnerability with ID CVE-2025-22000",
+            "Assumed vulnerability with ID CVE-2025-21999",
+            "Assumed vulnerability with ID CVE-2025-21998",
+            "Assumed vulnerability with ID CVE-2025-21997",
+            "Assumed vulnerability with ID CVE-2025-21996",
+            "Assumed vulnerability with ID CVE-2025-21995",
+            "Assumed vulnerability with ID CVE-2025-21993",
+            "Assumed vulnerability with ID CVE-2025-21991",
+            "Assumed vulnerability with ID CVE-2025-21990",
+            "Assumed vulnerability with ID CVE-2025-21989",
+            "Assumed vulnerability with ID CVE-2025-21984",
+            "Assumed vulnerability with ID CVE-2025-21982",
+            "Assumed vulnerability with ID CVE-2025-21981",
+            "Assumed vulnerability with ID CVE-2025-21980",
+            "Assumed vulnerability with ID CVE-2025-21979",
+            "Assumed vulnerability with ID CVE-2025-21969",
+            "Assumed vulnerability with ID CVE-2025-21968",
+            "Assumed vulnerability with ID CVE-2025-21967",
+            "Assumed vulnerability with ID CVE-2025-21966",
+            "Assumed vulnerability with ID CVE-2025-21964",
+            "Assumed vulnerability with ID CVE-2025-21963",
+            "Assumed vulnerability with ID CVE-2025-21962",
+            "Assumed vulnerability with ID CVE-2025-21961",
+            "Assumed vulnerability with ID CVE-2025-21959",
+            "Assumed vulnerability with ID CVE-2025-21957",
+            "Assumed vulnerability with ID CVE-2025-21953",
+            "Assumed vulnerability with ID CVE-2025-21951",
+            "Assumed vulnerability with ID CVE-2025-21949",
+            "Assumed vulnerability with ID CVE-2025-21948",
+            "Assumed vulnerability with ID CVE-2025-21947",
+            "Assumed vulnerability with ID CVE-2025-21945",
+            "Assumed vulnerability with ID CVE-2025-21943",
+            "Assumed vulnerability with ID CVE-2025-21941",
+            "Assumed vulnerability with ID CVE-2025-21940",
+            "Assumed vulnerability with ID CVE-2025-21937",
+            "Assumed vulnerability with ID CVE-2025-21936",
+            "Assumed vulnerability with ID CVE-2025-21934",
+            "Assumed vulnerability with ID CVE-2025-21933",
+            "Assumed vulnerability with ID CVE-2025-21930",
+            "Assumed vulnerability with ID CVE-2025-21929",
+            "Assumed vulnerability with ID CVE-2025-21928",
+            "Assumed vulnerability with ID CVE-2025-21927",
+            "Assumed vulnerability with ID CVE-2025-21923",
+            "Assumed vulnerability with ID CVE-2025-21922",
+            "Assumed vulnerability with ID CVE-2025-21920",
+            "Assumed vulnerability with ID CVE-2025-21919",
+            "Assumed vulnerability with ID CVE-2025-21918",
+            "Assumed vulnerability with ID CVE-2025-21917",
+            "Assumed vulnerability with ID CVE-2025-21915",
+            "Assumed vulnerability with ID CVE-2025-21912",
+            "Assumed vulnerability with ID CVE-2025-21911",
+            "Assumed vulnerability with ID CVE-2025-21908",
+            "Assumed vulnerability with ID CVE-2025-21905",
+            "Assumed vulnerability with ID CVE-2025-21904",
+            "Assumed vulnerability with ID CVE-2025-21901",
+            "Assumed vulnerability with ID CVE-2025-21900",
+            "Assumed vulnerability with ID CVE-2025-21898",
+            "Assumed vulnerability with ID CVE-2025-21893",
+            "Assumed vulnerability with ID CVE-2023-53028",
+            "Assumed vulnerability with ID CVE-2023-53026",
+            "Assumed vulnerability with ID CVE-2023-53025",
+            "Assumed vulnerability with ID CVE-2023-53023",
+            "Assumed vulnerability with ID CVE-2023-53022",
+            "Assumed vulnerability with ID CVE-2023-53021",
+            "Assumed vulnerability with ID CVE-2023-53020",
+            "Assumed vulnerability with ID CVE-2023-53018",
+            "Assumed vulnerability with ID CVE-2023-53017",
+            "Assumed vulnerability with ID CVE-2023-53016",
+            "Assumed vulnerability with ID CVE-2023-53015",
+            "Assumed vulnerability with ID CVE-2023-53014",
+            "Assumed vulnerability with ID CVE-2023-53013",
+            "Assumed vulnerability with ID CVE-2023-53011",
+            "Assumed vulnerability with ID CVE-2023-53008",
+            "Assumed vulnerability with ID CVE-2023-53005",
+            "Assumed vulnerability with ID CVE-2023-53003",
+            "Assumed vulnerability with ID CVE-2023-53002",
+            "Assumed vulnerability with ID CVE-2023-53001",
+            "Assumed vulnerability with ID CVE-2023-52999",
+            "Assumed vulnerability with ID CVE-2023-52994",
+            "Assumed vulnerability with ID CVE-2023-52993",
+            "Assumed vulnerability with ID CVE-2023-52991",
+            "Assumed vulnerability with ID CVE-2023-52989",
+            "Assumed vulnerability with ID CVE-2023-52988",
+            "Assumed vulnerability with ID CVE-2023-52984",
+            "Assumed vulnerability with ID CVE-2023-52983",
+            "Assumed vulnerability with ID CVE-2023-52979",
+            "Assumed vulnerability with ID CVE-2023-52978",
+            "Assumed vulnerability with ID CVE-2023-52977",
+            "Assumed vulnerability with ID CVE-2023-52976",
+            "Assumed vulnerability with ID CVE-2023-52975",
+            "Assumed vulnerability with ID CVE-2023-52974",
+            "Assumed vulnerability with ID CVE-2023-52973",
+            "Assumed vulnerability with ID CVE-2023-52939",
+            "Assumed vulnerability with ID CVE-2023-52938",
+            "Assumed vulnerability with ID CVE-2023-52937",
+            "Assumed vulnerability with ID CVE-2023-52936",
+            "Assumed vulnerability with ID CVE-2023-52935",
+            "Assumed vulnerability with ID CVE-2023-52932",
+            "Assumed vulnerability with ID CVE-2023-52931",
+            "Assumed vulnerability with ID CVE-2023-52930",
+            "Assumed vulnerability with ID CVE-2022-49761",
+            "Assumed vulnerability with ID CVE-2022-49759",
+            "Assumed vulnerability with ID CVE-2022-49758",
+            "Assumed vulnerability with ID CVE-2022-49757",
+            "Assumed vulnerability with ID CVE-2022-49756",
+            "Assumed vulnerability with ID CVE-2022-49755",
+            "Assumed vulnerability with ID CVE-2022-49754",
+            "Assumed vulnerability with ID CVE-2022-49753",
+            "Assumed vulnerability with ID CVE-2022-49752",
+            "Assumed vulnerability with ID CVE-2022-49751",
+            "Assumed vulnerability with ID CVE-2022-49750",
+            "Assumed vulnerability with ID CVE-2022-49749",
+            "Assumed vulnerability with ID CVE-2022-49748",
+            "Assumed vulnerability with ID CVE-2022-49746",
+            "Assumed vulnerability with ID CVE-2022-49742",
+            "Assumed vulnerability with ID CVE-2022-49741",
+            "Assumed vulnerability with ID CVE-2022-49740",
+            "Assumed vulnerability with ID CVE-2022-49738",
+            "Assumed vulnerability with ID CVE-2025-21891",
+            "Assumed vulnerability with ID CVE-2025-21887",
+            "Assumed vulnerability with ID CVE-2025-21879",
+            "Assumed vulnerability with ID CVE-2025-21867",
+            "Assumed vulnerability with ID CVE-2025-21866",
+            "Assumed vulnerability with ID CVE-2025-21865",
+            "Assumed vulnerability with ID CVE-2022-49733",
+            "Assumed vulnerability with ID CVE-2024-58052",
+            "Assumed vulnerability with ID CVE-2024-58055",
+            "Assumed vulnerability with ID CVE-2024-58058",
+            "Assumed vulnerability with ID CVE-2024-58059",
+            "Assumed vulnerability with ID CVE-2024-58060",
+            "Assumed vulnerability with ID CVE-2024-58062",
+            "Assumed vulnerability with ID CVE-2024-58063",
+            "Assumed vulnerability with ID CVE-2024-58064",
+            "Assumed vulnerability with ID CVE-2024-58065",
+            "Assumed vulnerability with ID CVE-2024-58066",
+            "Assumed vulnerability with ID CVE-2024-58067",
+            "Assumed vulnerability with ID CVE-2024-58068",
+            "Assumed vulnerability with ID CVE-2024-58069",
+            "Assumed vulnerability with ID CVE-2024-58070",
+            "Assumed vulnerability with ID CVE-2024-58071",
+            "Assumed vulnerability with ID CVE-2024-58073",
+            "Assumed vulnerability with ID CVE-2024-58076",
+            "Assumed vulnerability with ID CVE-2024-58080",
+            "Assumed vulnerability with ID CVE-2024-58081",
+            "Assumed vulnerability with ID CVE-2024-58083",
+            "Assumed vulnerability with ID CVE-2024-58084",
+            "Assumed vulnerability with ID CVE-2025-21833",
+            "Assumed vulnerability with ID CVE-2025-21843",
+            "Assumed vulnerability with ID CVE-2024-58087",
+            "Assumed vulnerability with ID CVE-2024-58088",
+            "Assumed vulnerability with ID CVE-2024-58089",
+            "Assumed vulnerability with ID CVE-2025-21844",
+            "Assumed vulnerability with ID CVE-2025-21845",
+            "Assumed vulnerability with ID CVE-2025-21846",
+            "Assumed vulnerability with ID CVE-2025-21847",
+            "Assumed vulnerability with ID CVE-2025-21848",
+            "Assumed vulnerability with ID CVE-2025-21849",
+            "Assumed vulnerability with ID CVE-2025-21850",
+            "Assumed vulnerability with ID CVE-2025-21851",
+            "Assumed vulnerability with ID CVE-2025-21852",
+            "Assumed vulnerability with ID CVE-2025-21853",
+            "Assumed vulnerability with ID CVE-2025-21854",
+            "Assumed vulnerability with ID CVE-2025-21855",
+            "Assumed vulnerability with ID CVE-2025-21856",
+            "Assumed vulnerability with ID CVE-2025-21857",
+            "Assumed vulnerability with ID CVE-2025-21858",
+            "Assumed vulnerability with ID CVE-2025-21859",
+            "Assumed vulnerability with ID CVE-2025-21860",
+            "Assumed vulnerability with ID CVE-2025-21861",
+            "Assumed vulnerability with ID CVE-2025-21862",
+            "Assumed vulnerability with ID CVE-2025-21863"
+          ],
+          "hasRiskScore": true,
+          "openPorts": [
+            21,
+            22,
+            25,
+            80,
+            443,
+            993,
+            3389
+          ],
+          "lastSeen": "8h ago",
+          "status": "Online"
+        }
+      }
+    },
+    {
+      "v": "95",
+      "value": {
+        "label": "4.2250000000000005",
         "type": "Node",
         "details": "0"
       }
@@ -1246,6 +1815,28 @@
       "v": "102",
       "value": {
         "label": "win-3.sri.local",
+        "type": "DomainName",
+        "details": [
+          "known",
+          "nmap"
+        ]
+      }
+    },
+    {
+      "v": "103",
+      "value": {
+        "label": "WIN-SERVER",
+        "type": "DomainName",
+        "details": [
+          "known",
+          "nmap"
+        ]
+      }
+    },
+    {
+      "v": "104",
+      "value": {
+        "label": "MAIL-SERVER",
         "type": "DomainName",
         "details": [
           "known",
@@ -1385,6 +1976,46 @@
       "w": "97",
       "value": {
         "id": "68-97",
+        "type": "RESOLVES_TO"
+      }
+    },
+    {
+      "v": "60",
+      "w": "62",
+      "value": {
+        "id": "60-62",
+        "type": "HAS_ASSIGNED"
+      }
+    },
+    {
+      "v": "93",
+      "w": "95",
+      "value": {
+        "id": "93-95",
+        "type": "HAS_ASSIGNED"
+      }
+    },
+    {
+      "v": "93",
+      "w": "104",
+      "value": {
+        "id": "93-104",
+        "type": "RESOLVES_TO"
+      }
+    },
+    {
+      "v": "89",
+      "w": "91",
+      "value": {
+        "id": "89-91",
+        "type": "HAS_ASSIGNED"
+      }
+    },
+    {
+      "v": "89",
+      "w": "103",
+      "value": {
+        "id": "89-103",
         "type": "RESOLVES_TO"
       }
     }
