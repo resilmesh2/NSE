@@ -3,8 +3,9 @@
   "version": "0.0.0",
   "scripts": {
     "start": "concurrently --names \"ANGULAR,CYTOSCAPE\" --colors \"blue,green\" \"ng serve\" \"npm run start:cytoscape\"",
+    "postinstall": "cd servers && npm install",
     "start:angular": "ng serve",
-    "start:cytoscape": "cd servers && node server.js",
+    "start:server": "cd servers && node server.js",
     "start:servers": "concurrently --names \"CYTOSCAPE\" --colors \"green\" \"npm run start:cytoscape\"",
     "build": "ng build",
     "dev": "concurrently --names \"ANGULAR,CYTOSCAPE\" --colors \"blue,green\" \"ng serve --open\" \"npm run start:cytoscape\""
