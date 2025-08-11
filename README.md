@@ -7,6 +7,10 @@ This project was generated using [Angular CLI](https://github.com/angular/angula
 To start a local development server, run:
 
 ```bash
+First run NPM i or NPM install to download dependancies
+```
+
+```bash
 npm start
 ```
 
