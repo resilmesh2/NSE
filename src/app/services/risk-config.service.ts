@@ -106,7 +106,7 @@ export class RiskConfigService {
   }
 
   saveCustomComponent(component: RiskComponent): Observable<any> {
-    return this.http.post<any>(`${this.POSTbaseUrl}/components/custom`, component);
+    return this.http.post<any>(`${this.POSTbaseUrl}/risk/components/custom`, component);
   }
 
   updateComponents(components: RiskComponent[]): Observable<any> {

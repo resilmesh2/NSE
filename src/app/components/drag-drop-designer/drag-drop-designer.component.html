@@ -178,7 +178,7 @@
           </ng-container>
         </div>
 
-        <!-- Calculation Methods - RESTORED! -->
+        <!-- Calculation Methods -->
         <div *ngIf="!isLoadingComponents" class="calculation-methods">
           <h5>Calculation Method</h5>
           <div class="method-selector">
@@ -733,7 +733,7 @@
 </div>
 
 <!-- Calculation Mode Modal -->
-<div class="modal-overlay" *ngIf="showCalculationModeModal" (click)="selectCalculationMode(null)">
+<!-- <div class="modal-overlay" *ngIf="showCalculationModeModal" (click)="selectCalculationMode(null)">
   <div class="modal-content" (click)="$event.stopPropagation()">
     <h3>Choose Calculation Mode</h3>
     
@@ -753,7 +753,7 @@
       <button class="btn-secondary" (click)="selectCalculationMode(null)">Cancel</button>
     </div>
   </div>
-</div>
+</div> -->
 
 <!-- Frequency Modal -->
 <div class="modal-overlay" *ngIf="showFrequencyModal" (click)="cancelFrequencyModal()">
@@ -794,6 +794,43 @@
         <button (click)="cancelFrequencyModal()" class="btn btn-secondary">Cancel</button>
         <button (click)="selectUpdateFrequency(updateFrequency)" class="btn btn-primary">OK</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Formula Input Modal -->
+<div class="modal-overlay" *ngIf="showFormulaInputModal" (click)="closeFormulaInputModal()">
+  <div class="confirmation-modal" (click)="$event.stopPropagation()">
+    <div class="confirmation-modal-header">
+      <h3>{{ formulaInputModalData.title }}</h3>
+    </div>
+    <div class="confirmation-modal-content">
+      <div class="form-group">
+        <label>{{ formulaInputModalData.nameLabel }} <span style="color: red;">*</span></label>
+        <input 
+          type="text" 
+          class="form-control" 
+          [(ngModel)]="formulaInputModalData.name"
+          placeholder="Enter formula name"
+          maxlength="50">
+      </div>
+      <div class="form-group" style="margin-top: 15px;">
+        <label>{{ formulaInputModalData.descriptionLabel }}</label>
+        <textarea 
+          class="form-control" 
+          [(ngModel)]="formulaInputModalData.description"
+          placeholder="Enter description (optional)"
+          rows="3"
+          maxlength="200"></textarea>
+      </div>
+    </div>
+    <div class="confirmation-modal-actions">
+      <button class="btn btn-secondary" (click)="formulaInputModalData.onCancel?.()">
+        Cancel
+      </button>
+      <button class="btn btn-primary" (click)="formulaInputModalData.onSave?.()">
+        Save Formula
+      </button>
     </div>
   </div>
 </div>

@@ -69,13 +69,29 @@ export class DragDropDesignerComponent implements OnInit {
     onClose: () => {}
   };
 
+  showFormulaInputModal: boolean = false;
+formulaInputModalData: {
+  title: string;
+  nameLabel: string;
+  descriptionLabel: string;
+  name: string;
+  description: string;
+  onSave?: () => void;
+  onCancel?: () => void;
+} = {
+  title: '',
+  nameLabel: '',
+  descriptionLabel: '',
+  name: '',
+  description: ''
+};
+
   currentFormulaName: string = '';
   selectedSubnets: any[] = [];
-  showCalculationModeModal = false;
+  // showCalculationModeModal = false;
   showFrequencyModal = false;
-  private calculationModeCallback: ((mode: string | null) => void) | null = null;
-  private frequencyCallback: ((frequency: string) => void) | null = null;
-  selectedCalculationMode: 'setValue' | 'calculate' | null = null;
+  // private calculationModeCallback: ((mode: string | null) => void) | null = null;
+  // selectedCalculationMode: 'setValue' | 'calculate' | null = null;
   updateFrequency = 'manual';
   updateFrequencies = [
     { value: 'manual', label: 'Manual Only' },
@@ -153,14 +169,15 @@ private notificationId = 0;
 
 toggleView(): void {
   this.showingFormulas = !this.showingFormulas;
-  this.toggleButtonText = this.showingFormulas ? 'Switch to Components' : 'Switch to Formulas';
+  this.toggleButtonText = this.showingFormulas 
+    ? 'Switch to Components' 
+    : 'Switch to Formulas';
   
-  // Hide formula selector panel when switching to components view
-  if (!this.showingFormulas) {
-    this.showFormulaSelector = false;
+  // Clear any temporary selections when switching views
+  if (!this.showingFormulas && this.riskFormula.length === 0 && this.activeFormula) {
+    // Auto-load active formula when switching to components view
+    this.loadPredefinedFormula(this.activeFormula);
   }
-  
-  console.log('Toggled view to:', this.showingFormulas ? 'Formulas' : 'Components');
 }
   
   private loadNetworkData() {
@@ -262,32 +279,32 @@ toggleView(): void {
     }
   }
 
- private async askCalculationMode(): Promise<'setValue' | 'calculate' | null> {
-  return new Promise((resolve) => {
-    const result = this.showThreeButtonConfirm(
-      'Choose Calculation Mode',
-      'How should the risk calculation be performed?',
-      'Set Specific Values (Use configured values)',
-      'Calculate from Properties (Use existing Neo4j values)',
-      'Cancel'
-    ).then((buttonResult) => {
-      if (buttonResult === 'button1') {
-        resolve('setValue');
-      } else if (buttonResult === 'button2') {
-        resolve('calculate');
-      } else {
-        resolve(null);
-      }
-    });
-  });
-}
+//  private async askCalculationMode(): Promise<'setValue' | 'calculate' | null> {
+//   return new Promise((resolve) => {
+//     const result = this.showThreeButtonConfirm(
+//       'Choose Calculation Mode',
+//       'How should the risk calculation be performed?',
+//       'Set Specific Values (Use configured values)',
+//       'Calculate from Properties (Use existing Neo4j values)',
+//       'Cancel'
+//     ).then((buttonResult) => {
+//       if (buttonResult === 'button1') {
+//         resolve('setValue');
+//       } else if (buttonResult === 'button2') {
+//         resolve('calculate');
+//       } else {
+//         resolve(null);
+//       }
+//     });
+//   });
+// }
 
-  selectCalculationMode(mode: string | null) {
-    this.selectedCalculationMode = mode as 'setValue' | 'calculate' | null;
-    if (this.calculationModeCallback) {
-      this.calculationModeCallback(mode);
-    }
-  }
+  // selectCalculationMode(mode: string | null) {
+  //   this.selectedCalculationMode = mode as 'setValue' | 'calculate' | null;
+  //   if (this.calculationModeCallback) {
+  //     this.calculationModeCallback(mode);
+  //   }
+  // }
 
 private askUpdateFrequency(): Promise<string | null> { 
   return new Promise((resolve) => {
@@ -788,74 +805,62 @@ async applyToSelectedNetworks() {
   // Close the network selection modal
   this.closeNetworkModal();
   
-  let calculationMode: 'setValue' | 'calculate' | null = null;
+  // Always use 'calculate' mode
+  const calculationMode = 'calculate';
   
-  // Loop until user confirms or cancels
-  while (true) {
-    calculationMode = await this.askCalculationMode();
-    if (!calculationMode) return;
-    
-    const networkNames = selectedNetworkData.map(n => n.prefix + '.x.x').join(', ');
-    let confirmMessage = '';
-    if (calculationMode === 'setValue') {
-      const values = this.riskFormula.map(comp => `${comp.name}: ${comp.currentValue || 0}`).join('\n');
-      confirmMessage = `Set "${propertyToUpdate}" to calculated value on Node objects in selected networks?\n\nNetworks: ${networkNames}\nMethod: ${this.selectedMethod.replace('_', ' ')}\nValues to use:\n${values}\n\nThis will set "${propertyToUpdate}" to the calculated result. Continue?`;
-    } else {
-      confirmMessage = `Calculate "${propertyToUpdate}" using existing Node property values in selected networks?\n\nNetworks: ${networkNames}\nMethod: ${this.selectedMethod.replace('_', ' ')}\nComponents: ${this.riskFormula.length}\n\nThis will use property values from Node objects. Continue?`;
-    }
-    
-    const result = await this.showThreeButtonConfirm(
-      'Apply to Networks', 
-      confirmMessage, 
-      'Apply', 
-      'Cancel', 
-      'Back to Mode Selection'
-    );
-    
-    if (result === 'button1') { // Apply
-      break; // Exit loop and proceed
-    } else if (result === 'button2') { // Cancel
-      return;
-    }
-  }
+  // Build confirmation message
+  const networkNames = selectedNetworkData.map(n => n.prefix + '.x.x').join(', ');
+  const confirmMessage = `Calculate "${propertyToUpdate}" using existing Node property values in selected networks?\n\nNetworks: ${networkNames}\nMethod: ${this.selectedMethod.replace('_', ' ')}\nComponents: ${this.riskFormula.length}\n\nThis will use property values from Node objects. Continue?`;
+  
+  // Show confirmation
+  const confirmed = await this.showConfirm(
+    'Apply Risk Calculation',
+    confirmMessage,
+    'Continue',
+    'Cancel'
+  );
+  
+  if (!confirmed) return;
+  
+  // Ask for update frequency
+  const updateFrequency = await this.askUpdateFrequency();
+  if (!updateFrequency) return;
+  
+  // Apply the configuration
+  const selectedPrefixes = selectedNetworkData.map(n => n.prefix);
+  
+  const config: RiskConfigurationRequest = {
+    formulaName: this.currentFormulaName || 'Custom Formula',
+    components: this.prepareComponentData(),
+    targetType: 'network',
+    targetValues: selectedPrefixes,
+    calculationMode: calculationMode,
+    calculationMethod: this.selectedMethod,
+    customFormula: this.customFormula,
+    updateFrequency: updateFrequency,
+    targetProperty: this.targetProperty || 'Risk Score'
+  };
 
-  const frequency = await this.askUpdateFrequency();
-  if (!frequency) return;
-  
   try {
-    const config: RiskConfigurationRequest = {
-      formulaName: this.currentFormulaName || 'Custom Formula',
-      components: this.prepareComponentData(),
-      targetType: 'network',
-      targetValues: selectedNetworkData.map(n => n.prefix),
-      calculationMode: calculationMode,
-      calculationMethod: this.selectedMethod,
-      customFormula: this.customFormula,
-      updateFrequency: frequency,
-      targetProperty: this.targetProperty || 'Risk Score'
-    };
-
     const response = await this.riskConfigService.applyRiskConfiguration(config).toPromise();
     
     if (response?.success) {
       this.showSuccess(
-        'Configuration Applied', 
-        `Updated ${response.nodesUpdated} nodes across ${selectedNetworkData.length} networks\nAverage Risk Score: ${response.avgRiskScore.toFixed(2)}`
+        'Configuration Applied',
+        `Updated ${response.nodesUpdated} nodes with average risk score: ${response.avgRiskScore.toFixed(2)}`
       );
       
       if (response.automationEnabled) {
-        this.showInfo('Automation Enabled', `Risk calculation will run ${frequency}`);
+        this.showInfo('Automation Enabled', `Risk calculation will run ${updateFrequency}`);
       }
     }
     
-    this.selectedNetworks = new Array(this.availableNetworks.length).fill(false);
-    this.selectAllNetworks = false;
     await this.refreshComponents();
     
   } catch (error) {
-    console.error('Error applying to networks:', error);
+    console.error('Error applying configuration:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    this.showError('Update Failed', `Error updating Node property:\n\n${errorMessage}`);
+    this.showError('Application Failed', `Failed to apply risk configuration: ${errorMessage}`);
   }
 }
 
@@ -868,74 +873,59 @@ async applyToSubnet(subnet: any) {
     return;
   }
   
-  let calculationMode: 'setValue' | 'calculate' | null = null;
+  // Always use 'calculate' mode
+  const calculationMode = 'calculate';
   
-  // Loop until user confirms or cancels
-  while (true) {
-    // Ask user which mode they want
-    calculationMode = await this.askCalculationMode();
-    if (!calculationMode) return; // User cancelled from calculation mode selection
-    
-    // Show confirmation with details and Back option
-    let confirmMessage = '';
-    if (calculationMode === 'setValue') {
-      const values = this.riskFormula.map(comp => `${comp.name}: ${comp.currentValue || 0}`).join('\n');
-      confirmMessage = `Set "${propertyToUpdate}" to calculated value on Node objects in subnet ${subnet.subnet}?\n\nMethod: ${this.selectedMethod.replace('_', ' ')}\nValues to use:\n${values}\n\nThis will set "${propertyToUpdate}" to the calculated result. Continue?`;
-    } else {
-      confirmMessage = `Calculate "${propertyToUpdate}" using existing Node property values in subnet ${subnet.subnet}?\n\nMethod: ${this.selectedMethod.replace('_', ' ')}\nComponents: ${this.riskFormula.length}\n\nThis will use property values from Node objects. Continue?`;
-    }
-    
-    const result = await this.showThreeButtonConfirm(
-      'Apply to Subnet', 
-      confirmMessage, 
-      'Apply', 
-      'Cancel', 
-      'Back to Mode Selection'
-    );
-    
-    if (result === 'button1') { // Apply
-      break; // Exit loop and proceed with application
-    } else if (result === 'button2') { // Cancel
-      return; // Exit method completely
-    }
-    // If result === 'button3' (Back), the loop continues and askCalculationMode runs again
-  }
+  // Build confirmation message
+  const confirmMessage = `Calculate "${propertyToUpdate}" using existing Node property values in subnet ${subnet.subnet}?\n\nMethod: ${this.selectedMethod.replace('_', ' ')}\nComponents: ${this.riskFormula.length}\n\nThis will use property values from Node objects. Continue?`;
   
-  const frequency = await this.askUpdateFrequency();
-  if (!frequency) return;
+  // Show confirmation
+  const confirmed = await this.showConfirm(
+    'Apply to Subnet',
+    confirmMessage,
+    'Continue',
+    'Cancel'
+  );
   
-  try {
-    const config: RiskConfigurationRequest = {
-      formulaName: this.currentFormulaName || 'Custom Formula',
-      components: this.prepareComponentData(),
-      targetType: 'subnet',
-      targetValues: [subnet.subnet],  // Just the subnet string
-      calculationMode: calculationMode,
-      calculationMethod: this.selectedMethod,
-      customFormula: this.customFormula, 
-      updateFrequency: frequency,
-      targetProperty: propertyToUpdate
-    };
+  if (!confirmed) return;
+  
+  // Ask for update frequency
+  const updateFrequency = await this.askUpdateFrequency();
+  if (!updateFrequency) return;
+  
+  // Apply the configuration
+  const config: RiskConfigurationRequest = {
+    formulaName: this.currentFormulaName || 'Custom Formula',
+    components: this.prepareComponentData(),
+    targetType: 'subnet',
+    targetValues: [subnet.subnet],
+    calculationMode: calculationMode,
+    calculationMethod: this.selectedMethod,
+    customFormula: this.customFormula,
+    updateFrequency: updateFrequency,
+    targetProperty: this.targetProperty || 'Risk Score'
+  };
 
+  try {
     const response = await this.riskConfigService.applyRiskConfiguration(config).toPromise();
     
     if (response?.success) {
       this.showSuccess(
-        'Configuration Applied', 
-        `Updated ${response.nodesUpdated} nodes in ${subnet.subnet}\nAverage Risk Score: ${response.avgRiskScore.toFixed(2)}`
+        'Configuration Applied',
+        `Updated ${response.nodesUpdated} nodes with average risk score: ${response.avgRiskScore.toFixed(2)}`
       );
       
       if (response.automationEnabled) {
-        this.showInfo('Automation Enabled', `Risk calculation will run ${frequency}`);
+        this.showInfo('Automation Enabled', `Risk calculation will run ${updateFrequency}`);
       }
     }
     
     await this.refreshComponents();
     
   } catch (error) {
-    console.error('Error applying to subnet:', error);
+    console.error('Error applying configuration:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    this.showError('Update Failed', `Error updating Node property:\n\n${errorMessage}`);
+    this.showError('Application Failed', `Failed to apply risk configuration: ${errorMessage}`);
   }
 }
 
@@ -970,37 +960,23 @@ async applyToSelectedIps() {
   // Close the IP selection modal
   this.closeIpModal();
   
-  let calculationMode: 'setValue' | 'calculate' | null = null;
+  // Always use 'calculate' mode
+  const calculationMode = 'calculate';
   
-  // Loop until user confirms or cancels
-  while (true) {
-    calculationMode = await this.askCalculationMode();
-    if (!calculationMode) return;
-    
-    const ipAddresses = selectedIpData.map(ip => ip.ip).join(', ');
-    const displayIps = ipAddresses.length > 100 ? ipAddresses.substring(0, 100) + '...' : ipAddresses;
-    let confirmMessage = '';
-    if (calculationMode === 'setValue') {
-      const values = this.riskFormula.map(comp => `${comp.name}: ${comp.currentValue || 0}`).join('\n');
-      confirmMessage = `Set "${propertyToUpdate}" to calculated value on Node objects for selected IPs?\n\nIPs: ${displayIps}\nMethod: ${this.selectedMethod.replace('_', ' ')}\nValues to use:\n${values}\n\nThis will set "${propertyToUpdate}" to the calculated result. Continue?`;
-    } else {
-      confirmMessage = `Calculate "${propertyToUpdate}" using existing Node property values for selected IPs?\n\nIPs: ${displayIps}\nMethod: ${this.selectedMethod.replace('_', ' ')}\nComponents: ${this.riskFormula.length}\n\nThis will use property values from Node objects. Continue?`;
-    }
-    
-    const result = await this.showThreeButtonConfirm(
-      'Apply to IP Addresses', 
-      confirmMessage, 
-      'Apply', 
-      'Cancel', 
-      'Back to Mode Selection'
-    );
-    
-    if (result === 'button1') { // Apply
-      break; // Exit loop and proceed
-    } else if (result === 'button2') { // Cancel
-      return;
-    }
-  }
+  // Build confirmation message
+  const ipAddresses = selectedIpData.map(ip => ip.ip).join(', ');
+  const displayIps = ipAddresses.length > 100 ? ipAddresses.substring(0, 100) + '...' : ipAddresses;
+  const confirmMessage = `Calculate "${propertyToUpdate}" using existing Node property values for selected IPs?\n\nIPs: ${displayIps}\nMethod: ${this.selectedMethod.replace('_', ' ')}\nComponents: ${this.riskFormula.length}\n\nThis will use property values from Node objects. Continue?`;
+  
+  // Show confirmation
+  const confirmed = await this.showConfirm(
+    'Apply to IP Addresses',
+    confirmMessage,
+    'Continue',
+    'Cancel'
+  );
+  
+  if (!confirmed) return;
 
   const frequency = await this.askUpdateFrequency();
   if (!frequency) return;
@@ -1010,7 +986,7 @@ async applyToSelectedIps() {
       formulaName: this.currentFormulaName || 'Custom Formula',
       components: this.prepareComponentData(),
       targetType: 'ip',
-      targetValues: selectedIpData.map(ip => ip.ip), // Use local variable
+      targetValues: selectedIpData.map(ip => ip.ip),
       calculationMode: calculationMode,
       calculationMethod: this.selectedMethod,
       customFormula: this.customFormula,
@@ -1052,35 +1028,21 @@ async applyToRandomSample() {
     return;
   }
   
-  let calculationMode: 'setValue' | 'calculate' | null = null;
+  // Always use 'calculate' mode
+  const calculationMode = 'calculate';
   
-  // Loop until user confirms or cancels
-  while (true) {
-    calculationMode = await this.askCalculationMode();
-    if (!calculationMode) return;
-    
-    let confirmMessage = '';
-    if (calculationMode === 'setValue') {
-      const values = this.riskFormula.map(comp => `${comp.name}: ${comp.currentValue || 0}`).join('\n');
-      confirmMessage = `Set "${propertyToUpdate}" to calculated value on Node objects in ${sampleSize} sample subnets?\n\nMethod: ${this.selectedMethod.replace('_', ' ')}\nValues to use:\n${values}\n\nSample subnets: ${sample.slice(0, 3).map(s => s.subnet).join(', ')}${sample.length > 3 ? '...' : ''}\n\nThis will set "${propertyToUpdate}" to the calculated result. Continue?`;
-    } else {
-      confirmMessage = `Calculate "${propertyToUpdate}" using existing Node property values in ${sampleSize} sample subnets?\n\nMethod: ${this.selectedMethod.replace('_', ' ')}\nComponents: ${this.riskFormula.length}\n\nSample subnets: ${sample.slice(0, 3).map(s => s.subnet).join(', ')}${sample.length > 3 ? '...' : ''}\n\nThis will use property values from Node objects. Continue?`;
-    }
-    
-    const result = await this.showThreeButtonConfirm(
-      'Apply to Sample', 
-      confirmMessage, 
-      'Apply', 
-      'Cancel', 
-      'Back to Mode Selection'
-    );
-    
-    if (result === 'button1') { // Apply
-      break;
-    } else if (result === 'button2') { // Cancel
-      return;
-    }
-  }
+  // Build confirmation message
+  const confirmMessage = `Calculate "${propertyToUpdate}" using existing Node property values in ${sampleSize} sample subnets?\n\nMethod: ${this.selectedMethod.replace('_', ' ')}\nComponents: ${this.riskFormula.length}\n\nSample subnets: ${sample.slice(0, 3).map(s => s.subnet).join(', ')}${sample.length > 3 ? '...' : ''}\n\nThis will use property values from Node objects. Continue?`;
+  
+  // Show confirmation
+  const confirmed = await this.showConfirm(
+    'Apply to Sample',
+    confirmMessage,
+    'Continue',
+    'Cancel'
+  );
+  
+  if (!confirmed) return;
   
   const frequency = await this.askUpdateFrequency();
   if (!frequency) return;
@@ -1429,17 +1391,11 @@ loadFormulas(): void {
 }
 
 loadFormulaFromLeftPanel(formula: RiskFormula): void {
+  // Ensure components are cleared before loading
+  this.resetFormula();
+  
+  // Load the selected formula
   this.loadPredefinedFormula(formula);
-  
-  // Switch to components view after loading
-  this.showingFormulas = false;
-  this.toggleButtonText = 'Switch to Formulas';
-  
-  // Show success notification with better message
-  this.showSuccess(
-    'Formula Loaded Successfully', 
-    `"${formula.name}" loaded into designer. You can now modify components or create a custom formula.`
-  );
 }
 
 private autoLoadActiveFormula(): void {
@@ -1461,17 +1417,22 @@ private autoLoadActiveFormula(): void {
 }
 
   setActiveFormula(formula: RiskFormula): void {
-    this.riskConfigService.setActiveFormula(formula.id, formula.type).subscribe({
-      next: () => {
-        this.activeFormula = formula;
-        console.log('Set active formula:', formula);
-        this.loadPredefinedFormula(formula);
-      },
-      error: (error) => {
-        console.error('Error setting active formula:', error);
-      }
-    });
-  }
+  this.riskConfigService.setActiveFormula(formula.id, formula.type).subscribe({
+    next: () => {
+      this.activeFormula = formula;
+      console.log('Set active formula:', formula);
+      
+      // Clear existing formula components before loading new ones
+      this.resetFormula();
+      
+      // Load the new formula
+      this.loadPredefinedFormula(formula);
+    },
+    error: (error) => {
+      console.error('Error setting active formula:', error);
+    }
+  });
+}
 
   isActiveFormula(formula: RiskFormula): boolean {
     return this.activeFormula?.id === formula.id && this.activeFormula?.type === formula.type;
@@ -1501,8 +1462,20 @@ onWeightChange(): void {
 }
 
 resetFormula(): void {
-  // Move all formula components back to available components
-  this.availableComponents.push(...this.riskFormula);
+  // Return all formula components back to available components
+  // Only add components that aren't already in available list
+  this.riskFormula.forEach(component => {
+    const exists = this.availableComponents.some(
+      c => c.neo4jProperty === component.neo4jProperty
+    );
+    if (!exists) {
+      // Reset weight to default before returning to available pool
+      component.weight = 0;
+      this.availableComponents.push(component);
+    }
+  });
+  
+  // Clear the formula array
   this.riskFormula = [];
   
   // Clear custom formula if using that method
@@ -1510,7 +1483,7 @@ resetFormula(): void {
     this.customFormula = '';
   }
   
-  console.log('Formula reset');
+  console.log('Formula reset - available components:', this.availableComponents.length);
 }
 
 trackByFn(index: number, item: RiskComponent): any {
@@ -1543,16 +1516,27 @@ validateFormula(): { valid: boolean; errors: string[] } {
 }
 
 loadPredefinedFormula(formula: RiskFormula): void {
-  // Clear current formula first
-  this.resetFormula();
+  // Return all current formula components to available pool
+  this.availableComponents.push(...this.riskFormula);
+  
+  // Clear the formula array
+  this.riskFormula = [];
+  
+  // Clear custom formula if in custom mode
+  if (this.selectedMethod === 'custom_formula') {
+    this.customFormula = '';
+  }
   
   // Load components from the selected formula
   if (formula.components) {
     const loadedComponents: RiskComponent[] = [];
     
     Object.entries(formula.components).forEach(([componentId, weight]) => {
-      // Find the component in available components
-      const componentIndex = this.availableComponents.findIndex(c => c.neo4jProperty === componentId);
+      // Find component in available components
+      const componentIndex = this.availableComponents.findIndex(
+        c => c.neo4jProperty === componentId
+      );
+      
       if (componentIndex !== -1) {
         // Remove from available and add to formula with correct weight
         const component = this.availableComponents.splice(componentIndex, 1)[0];
@@ -1563,7 +1547,7 @@ loadPredefinedFormula(formula: RiskFormula): void {
       }
     });
     
-    // Add all loaded components to formula
+    // Set the new formula components
     this.riskFormula = loadedComponents;
   }
   
@@ -1571,7 +1555,10 @@ loadPredefinedFormula(formula: RiskFormula): void {
   this.showFormulaSelector = false;
   
   // Show success notification
-  this.showSuccess('Formula Loaded', `Loaded "${formula.name}" with ${this.riskFormula.length} components`);
+  this.showSuccess(
+    'Formula Loaded', 
+    `Loaded "${formula.name}" with ${this.riskFormula.length} components`
+  );
   
   console.log('Loaded formula into designer:', formula.name, this.riskFormula);
 }
@@ -1583,43 +1570,68 @@ saveCurrentFormulaAsCustom(): void {
     return;
   }
 
-  // Create components object with weights
-  const components: { [key: string]: number } = {};
-  
-  this.riskFormula.forEach(component => {
-    components[component.neo4jProperty] = component.weight;
-  });
+  // Open modal for formula details
+  this.formulaInputModalData = {
+    title: 'Save Custom Formula',
+    nameLabel: 'Formula Name',
+    descriptionLabel: 'Description',
+    name: '',
+    description: '',
+    onSave: () => {
+      const formulaName = this.formulaInputModalData.name.trim();
+      const formulaDescription = this.formulaInputModalData.description.trim() || 'Custom formula created in designer';
+      
+      if (!formulaName) {
+        this.showWarning('Invalid Name', 'Please enter a formula name');
+        return;
+      }
 
-  // Get formula name from user
-  const formulaName = prompt('Enter a name for this custom formula:');
-  if (!formulaName?.trim()) return;
+      // Create components object with weights
+      const components: { [key: string]: number } = {};
+      
+      this.riskFormula.forEach(component => {
+        components[component.neo4jProperty] = component.weight;
+      });
 
-  const formulaDescription = prompt('Enter a description:') || 'Custom formula created in designer';
+      const customFormula = {
+        name: formulaName,
+        description: formulaDescription,
+        components: components,
+        created_by: 'user'
+      };
 
-  const customFormula = {
-    name: formulaName.trim(),
-    description: formulaDescription,
-    components: components,
-    created_by: 'user'
-  };
-
-  this.riskConfigService.createCustomFormula(customFormula).subscribe({
-    next: (response) => {
-      console.log('Custom formula saved:', response);
-      this.showSuccess('Formula Saved', `"${formulaName}" saved successfully!`);
-      this.loadFormulas(); // Reload to show the new custom formula
+      this.riskConfigService.createCustomFormula(customFormula).subscribe({
+        next: (response) => {
+          console.log('Custom formula saved:', response);
+          this.showSuccess('Formula Saved', `"${formulaName}" saved successfully!`);
+          this.loadFormulas(); // Reload to show the new custom formula
+          this.closeFormulaInputModal();
+        },
+        error: (error) => {
+          console.error('Error saving custom formula:', error);
+          this.showError('Save Failed', 'Failed to save custom formula. Please try again.');
+        }
+      });
     },
-    error: (error) => {
-      console.error('Error saving custom formula:', error);
-      this.showError('Save Failed', 'Failed to save custom formula. Please try again.');
+    onCancel: () => {
+      this.closeFormulaInputModal();
     }
-  });
+  };
+  
+  this.showFormulaInputModal = true;
 }
 
-deleteCustomFormula(formula: RiskFormula): void {
+async deleteCustomFormula(formula: RiskFormula): Promise<void> {
   const confirmMessage = `Are you sure you want to delete "${formula.name}"?\n\nThis action cannot be undone.`;
   
-  if (!confirm(confirmMessage)) {
+  const confirmed = await this.showConfirm(
+    'Delete Formula',
+    confirmMessage,
+    'Delete',
+    'Cancel'
+  );
+  
+  if (!confirmed) {
     return;
   }
 
@@ -1656,57 +1668,81 @@ deleteCustomFormula(formula: RiskFormula): void {
   });
 }
 
+closeFormulaInputModal() {
+  this.showFormulaInputModal = false;
+  // Reset form data
+  this.formulaInputModalData.name = '';
+  this.formulaInputModalData.description = '';
+}
+
 async confirmNetworkApplication() {
-    const selectedNetworks = this.availableNetworks
-      .filter((_, index) => this.selectedNetworks[index])
-      .map(network => network.prefix);
+  const selectedNetworks = this.availableNetworks
+    .filter((_, index) => this.selectedNetworks[index])
+    .map(network => network.prefix);
 
-    if (selectedNetworks.length === 0) {
-      this.showWarning('Selection Error', 'Please select at least one network');
-      return;
-    }
-
-    // Ask for calculation mode
-    const calculationMode = await this.askCalculationMode();
-    if (!calculationMode) return;
-
-    // Ask for update frequency
-    const frequency = await this.askUpdateFrequency();
-    if (!frequency) return;
-
-    // Prepare configuration request
-    const config: RiskConfigurationRequest = {
-      formulaName: this.currentFormulaName || 'Custom Formula',
-      components: this.prepareComponentData(),
-      targetType: 'network',
-      targetValues: selectedNetworks,
-      calculationMode: calculationMode,
-      calculationMethod: this.selectedMethod,
-      customFormula: this.customFormula, 
-      updateFrequency: frequency,
-      targetProperty: this.targetProperty || 'Risk Score'
-    };
-
-    try {
-      const response = await this.riskConfigService.applyRiskConfiguration(config).toPromise();
-      
-      if (response?.success) {
-        this.showSuccess(
-          'Configuration Applied',
-          `Updated ${response.nodesUpdated} nodes with average risk score: ${response.avgRiskScore.toFixed(2)}`
-        );
-        
-        if (response.automationEnabled) {
-          this.showInfo('Automation Enabled', `Risk calculation will run ${frequency}`);
-        }
-      }
-      
-      this.showNetworkModal = false;
-    } catch (error) {
-      console.error('Error applying configuration:', error);
-      this.showError('Application Failed', 'Failed to apply risk configuration');
-    }
+  if (selectedNetworks.length === 0) {
+    this.showWarning('Selection Error', 'Please select at least one network');
+    return;
   }
+
+  // Always use 'calculate' mode - no selection needed
+  const calculationMode = 'calculate';
+  
+  // Build confirmation message for calculate mode
+  const propertyToUpdate = this.getPropertyToUpdate();
+  const networkNames = selectedNetworks.map(n => n + '.x.x').join(', ');
+  const confirmMessage = `Calculate "${propertyToUpdate}" using existing Node property values in selected networks?\n\nNetworks: ${networkNames}\nMethod: ${this.selectedMethod.replace('_', ' ')}\nComponents: ${this.riskFormula.length}\n\nThis will use property values from Node objects. Continue?`;
+  
+  // Show confirmation
+  const confirmed = await this.showConfirm(
+    'Apply Configuration',
+    confirmMessage,
+    'Continue',
+    'Cancel'
+  );
+  
+  if (!confirmed) return;
+
+  // Ask for update frequency
+  const updateFrequency = await this.askUpdateFrequency();
+  if (!updateFrequency) return;
+
+  // Apply the configuration using the API
+  const config: RiskConfigurationRequest = {
+    formulaName: this.currentFormulaName || 'Custom Formula',
+    components: this.prepareComponentData(),
+    targetType: 'network',
+    targetValues: selectedNetworks,
+    calculationMode: calculationMode,
+    calculationMethod: this.selectedMethod,
+    customFormula: this.customFormula,
+    updateFrequency: updateFrequency,
+    targetProperty: this.targetProperty || 'Risk Score'
+  };
+
+  try {
+    const response = await this.riskConfigService.applyRiskConfiguration(config).toPromise();
+    
+    if (response?.success) {
+      this.showSuccess(
+        'Configuration Applied',
+        `Updated ${response.nodesUpdated} nodes with average risk score: ${response.avgRiskScore.toFixed(2)}`
+      );
+      
+      if (response.automationEnabled) {
+        this.showInfo('Automation Enabled', `Risk calculation will run ${updateFrequency}`);
+      }
+    }
+    
+    this.closeNetworkModal();
+    await this.refreshComponents();
+    
+  } catch (error) {
+    console.error('Error applying configuration:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    this.showError('Application Failed', `Failed to apply risk configuration: ${errorMessage}`);
+  }
+}
 
   private prepareComponentData(): ComponentData[] {
     return this.riskFormula.map(comp => ({
@@ -1719,49 +1755,49 @@ async confirmNetworkApplication() {
   }
 
   async confirmSubnetApplication() {
-    // Get selected subnets
-    const selectedSubnets = this.selectedSubnets
-      .map(subnet => subnet.subnet);
+  // Get selected subnets
+  const selectedSubnets = this.selectedSubnets
+    .map(subnet => subnet.subnet);
 
-    if (selectedSubnets.length === 0) {
-      this.showWarning('Selection Error', 'Please select at least one subnet');
-      return;
-    }
-
-    const calculationMode = await this.askCalculationMode();
-    if (!calculationMode) return;
-
-    const frequency = await this.askUpdateFrequency();
-    if (!frequency) return;
-
-    const config: RiskConfigurationRequest = {
-      formulaName: this.currentFormulaName || 'Custom Formula',
-      components: this.prepareComponentData(),
-      targetType: 'subnet',
-      targetValues: selectedSubnets,
-      calculationMode: calculationMode,
-      calculationMethod: this.selectedMethod,
-      customFormula: this.customFormula,
-      updateFrequency: frequency,
-      targetProperty: this.targetProperty || 'Risk Score'
-    };
-
-    try {
-      const response = await this.riskConfigService.applyRiskConfiguration(config).toPromise();
-      
-      if (response?.success) {
-        this.showSuccess(
-          'Configuration Applied',
-          `Updated ${response.nodesUpdated} nodes with average risk score: ${response.avgRiskScore.toFixed(2)}`
-        );
-      }
-      
-      this.showSubnetModal = false;
-    } catch (error) {
-      console.error('Error applying configuration:', error);
-      this.showError('Application Failed', 'Failed to apply risk configuration');
-    }
+  if (selectedSubnets.length === 0) {
+    this.showWarning('Selection Error', 'Please select at least one subnet');
+    return;
   }
+
+  // Always use 'calculate' mode
+  const calculationMode = 'calculate';
+
+  const frequency = await this.askUpdateFrequency();
+  if (!frequency) return;
+
+  const config: RiskConfigurationRequest = {
+    formulaName: this.currentFormulaName || 'Custom Formula',
+    components: this.prepareComponentData(),
+    targetType: 'subnet',
+    targetValues: selectedSubnets,
+    calculationMode: calculationMode,
+    calculationMethod: this.selectedMethod,
+    customFormula: this.customFormula,
+    updateFrequency: frequency,
+    targetProperty: this.targetProperty || 'Risk Score'
+  };
+
+  try {
+    const response = await this.riskConfigService.applyRiskConfiguration(config).toPromise();
+    
+    if (response?.success) {
+      this.showSuccess(
+        'Configuration Applied',
+        `Updated ${response.nodesUpdated} nodes with average risk score: ${response.avgRiskScore.toFixed(2)}`
+      );
+    }
+    
+    this.showSubnetModal = false;
+  } catch (error) {
+    console.error('Error applying configuration:', error);
+    this.showError('Application Failed', 'Failed to apply risk configuration');
+  }
+}
 
   async applyToAll() {
   if (this.riskFormula.length === 0) {
@@ -1776,8 +1812,8 @@ async confirmNetworkApplication() {
 
   if (!confirmed) return;
 
-  const calculationMode = await this.askCalculationMode();
-  if (!calculationMode) return;
+  // Always use 'calculate' mode
+  const calculationMode = 'calculate';
 
   const frequency = await this.askUpdateFrequency();
   if (!frequency) return;

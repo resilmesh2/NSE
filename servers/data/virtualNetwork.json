@@ -17,16 +17,15 @@
           "hostname": "host-1",
           "deviceType": "Network Device",
           "os": "Unknown",
-          "riskScore": 3,
+          "riskScore": 5,
           "vulnerabilities": [],
           "hasRiskScore": true,
           "openPorts": [
             22,
             80,
-            161,
             443
           ],
-          "lastSeen": "1d ago",
+          "lastSeen": "5d ago",
           "status": "Online"
         }
       }
@@ -34,7 +33,7 @@
     {
       "v": "62",
       "value": {
-        "label": "3",
+        "label": "5",
         "type": "Node",
         "details": "0"
       }
@@ -59,7 +58,7 @@
           "hostname": "LINUX-1",
           "deviceType": "Linux Server",
           "os": "Linux",
-          "riskScore": 10,
+          "riskScore": 4.2250000000000005,
           "vulnerabilities": [
             "CVE-2025-21864",
             "CVE-2025-37838",
@@ -510,10 +509,9 @@
           "openPorts": [
             22,
             80,
-            161,
             443
           ],
-          "lastSeen": "6d ago",
+          "lastSeen": "5d ago",
           "status": "Online"
         }
       }
@@ -521,7 +519,7 @@
     {
       "v": "66",
       "value": {
-        "label": "10",
+        "label": "4.2250000000000005",
         "type": "Node",
         "details": "0"
       }
@@ -546,7 +544,7 @@
           "hostname": "win-4.sri.local",
           "deviceType": "Windows Workstation",
           "os": "Windows",
-          "riskScore": 10,
+          "riskScore": 4.2250000000000005,
           "vulnerabilities": [],
           "hasRiskScore": true,
           "openPorts": [
@@ -556,7 +554,7 @@
             3389,
             5985
           ],
-          "lastSeen": "2d ago",
+          "lastSeen": "4d ago",
           "status": "Online"
         }
       }
@@ -564,7 +562,7 @@
     {
       "v": "70",
       "value": {
-        "label": "10",
+        "label": "4.2250000000000005",
         "type": "Node",
         "details": "0"
       }
@@ -581,23 +579,24 @@
           "hostname": "win-1.sri.local",
           "deviceType": "Windows Workstation",
           "os": "Windows",
-          "riskScore": 10,
+          "riskScore": 4.2250000000000005,
           "vulnerabilities": [],
           "hasRiskScore": true,
           "openPorts": [
             135,
             139,
+            445,
             3389
           ],
           "lastSeen": "6d ago",
-          "status": "Offline"
+          "status": "Online"
         }
       }
     },
     {
       "v": "73",
       "value": {
-        "label": "10",
+        "label": "4.2250000000000005",
         "type": "Node",
         "details": "0"
       }
@@ -614,7 +613,7 @@
           "hostname": "LINUX-2",
           "deviceType": "Linux Server",
           "os": "Linux",
-          "riskScore": 10,
+          "riskScore": 4.2250000000000005,
           "vulnerabilities": [
             "CVE-2025-21864",
             "CVE-2025-37838",
@@ -1076,7 +1075,7 @@
     {
       "v": "76",
       "value": {
-        "label": "10",
+        "label": "4.2250000000000005",
         "type": "Node",
         "details": "0"
       }
@@ -1093,16 +1092,17 @@
           "hostname": "win-6.sri.local",
           "deviceType": "Windows Workstation",
           "os": "Windows",
-          "riskScore": 10,
+          "riskScore": 4.2250000000000005,
           "vulnerabilities": [],
           "hasRiskScore": true,
           "openPorts": [
             135,
             139,
             445,
-            3389
+            3389,
+            5985
           ],
-          "lastSeen": "18h ago",
+          "lastSeen": "5d ago",
           "status": "Online"
         }
       }
@@ -1110,7 +1110,7 @@
     {
       "v": "79",
       "value": {
-        "label": "10",
+        "label": "4.2250000000000005",
         "type": "Node",
         "details": "0"
       }
@@ -1127,7 +1127,7 @@
           "hostname": "win-5.sri.local",
           "deviceType": "Windows Workstation",
           "os": "Windows",
-          "riskScore": 10,
+          "riskScore": 4.2250000000000005,
           "vulnerabilities": [],
           "hasRiskScore": true,
           "openPorts": [
@@ -1137,7 +1137,7 @@
             3389,
             5985
           ],
-          "lastSeen": "4d ago",
+          "lastSeen": "20h ago",
           "status": "Offline"
         }
       }
@@ -1145,7 +1145,7 @@
     {
       "v": "82",
       "value": {
-        "label": "10",
+        "label": "4.2250000000000005",
         "type": "Node",
         "details": "0"
       }
@@ -1162,7 +1162,7 @@
           "hostname": "host-214",
           "deviceType": "Network Device",
           "os": "Windows",
-          "riskScore": 10,
+          "riskScore": 4.2250000000000005,
           "vulnerabilities": [],
           "hasRiskScore": true,
           "openPorts": [
@@ -1181,7 +1181,7 @@
     {
       "v": "85",
       "value": {
-        "label": "10",
+        "label": "4.2250000000000005",
         "type": "Node",
         "details": "0"
       }
@@ -1198,16 +1198,17 @@
           "hostname": "win-3.sri.local",
           "deviceType": "Windows Workstation",
           "os": "Windows",
-          "riskScore": 10,
+          "riskScore": 4.2250000000000005,
           "vulnerabilities": [],
           "hasRiskScore": true,
           "openPorts": [
             135,
             139,
             445,
-            3389
+            3389,
+            5985
           ],
-          "lastSeen": "3d ago",
+          "lastSeen": "2d ago",
           "status": "Online"
         }
       }
@@ -1215,7 +1216,7 @@
     {
       "v": "88",
       "value": {
-        "label": "10",
+        "label": "4.2250000000000005",
         "type": "Node",
         "details": "0"
       }
@@ -1238,11 +1239,9 @@
           "openPorts": [
             135,
             139,
-            445,
-            3389,
-            5985
+            3389
           ],
-          "lastSeen": "4d ago",
+          "lastSeen": "1d ago",
           "status": "Online"
         }
       }
@@ -1732,8 +1731,8 @@
             993,
             3389
           ],
-          "lastSeen": "8h ago",
-          "status": "Online"
+          "lastSeen": "4d ago",
+          "status": "Offline"
         }
       }
     },
@@ -1860,6 +1859,14 @@
   ],
   "edges": [
     {
+      "v": "60",
+      "w": "62",
+      "value": {
+        "id": "60-62",
+        "type": "HAS_ASSIGNED"
+      }
+    },
+    {
       "v": "71",
       "w": "73",
       "value": {
@@ -1977,14 +1984,6 @@
       "value": {
         "id": "68-97",
         "type": "RESOLVES_TO"
-      }
-    },
-    {
-      "v": "60",
-      "w": "62",
-      "value": {
-        "id": "60-62",
-        "type": "HAS_ASSIGNED"
       }
     },
     {
