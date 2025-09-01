@@ -13,6 +13,7 @@ import { TreemapComponent } from './components/treemap/treemap.component';
 import { DataTableComponent } from './components/data-table/data-table.component';
 import { DevicePopupComponent } from './components/device-popup/device-popup.component';
 import { DragDropDesignerComponent } from './components/drag-drop-designer/drag-drop-designer.component';
+import { ComponentConfigurationComponent } from './components/component-configuration/component-configuration.component';
 
 @Component({
   selector: 'app-root',
@@ -25,7 +26,8 @@ import { DragDropDesignerComponent } from './components/drag-drop-designer/drag-
     TreemapComponent, 
     DataTableComponent,
     DevicePopupComponent,
-    DragDropDesignerComponent
+    DragDropDesignerComponent,
+    ComponentConfigurationComponent
   ],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.css']
@@ -34,7 +36,7 @@ export class AppComponent implements OnInit {
   @ViewChild(DevicePopupComponent) devicePopup!: DevicePopupComponent;
   @ViewChild('headerElement', { static: true }) headerElement!: ElementRef<HTMLElement>;
   
-  title = 'Network Risk Dashboard';
+  title = 'Network System Status';
   networkStatus = 'unknown';
   networkData: SubnetData[] = [];
   stats: NetworkStats = {

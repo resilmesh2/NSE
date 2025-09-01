@@ -1726,3 +1726,147 @@ app.delete('/api/risk/formulas/custom/:formulaId', async (req, res) => {
     res.status(500).json({ error: 'Failed to delete custom formula' });
   }
 });
+
+app.delete('/api/risk/components/custom/:componentId', async (req, res) => {
+  try {
+    console.log('=== COMPONENT DELETION DEBUG ===');
+    console.log('Deleting custom component:', req.params.componentId);
+    
+    // Step 1: Get component details before deletion
+    console.log('Step 1: Getting component details...');
+    const getResponse = await fetch(`${ISIM_API_BASE}/components/available`);
+    
+    if (!getResponse.ok) {
+      console.log('Failed to get components list:', getResponse.status);
+      return res.status(500).json({ error: 'Failed to get component details' });
+    }
+    
+    const componentsData = await getResponse.json();
+    let componentToDelete = null;
+    
+    console.log('Total available components:', componentsData.available_components?.length || 0);
+    
+    if (componentsData.available_components) {
+      componentToDelete = componentsData.available_components.find(
+        comp => comp.id.toString() === req.params.componentId
+      );
+      console.log('Found component to delete:', {
+        name: componentToDelete?.name,
+        neo4jProperty: componentToDelete?.neo4jProperty,
+        type: componentToDelete?.type
+      });
+    }
+    
+    // Step 2: Delete from config file
+    console.log('Step 2: Deleting from config...');
+    const configDeleteResponse = await fetch(`${ISIM_API_BASE}/components/custom/${req.params.componentId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+    
+    if (!configDeleteResponse.ok) {
+      console.log('Config deletion failed:', configDeleteResponse.status);
+      const errorData = await configDeleteResponse.json();
+      return res.status(configDeleteResponse.status).json(errorData);
+    }
+    
+    const configData = await configDeleteResponse.json();
+    console.log('Config deletion successful');
+    
+    // Step 3: Delete property from Neo4j if we found the component
+    if (componentToDelete && componentToDelete.neo4jProperty) {
+      try {
+        console.log(`Step 3: Testing Neo4j property first: ${componentToDelete.neo4jProperty}`);
+        
+        // First test if the property exists
+        const testUrl = `${ISIM_API_BASE}/components/neo4j-property-test/${encodeURIComponent(componentToDelete.neo4jProperty)}`;
+        console.log('Testing URL:', testUrl);
+        
+        const testResponse = await fetch(testUrl, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+        
+        if (testResponse.ok) {
+          const testData = await testResponse.json();
+          console.log('Neo4j test result:', testData);
+          
+          if (testData.nodeCount > 0) {
+            // Property exists, now delete it
+            console.log(`Step 4: Deleting Neo4j property: ${componentToDelete.neo4jProperty}`);
+            const deleteUrl = `${ISIM_API_BASE}/components/neo4j-property/${encodeURIComponent(componentToDelete.neo4jProperty)}`;
+            console.log('Delete URL:', deleteUrl);
+            
+            const neo4jDeleteResponse = await fetch(deleteUrl, {
+              method: 'DELETE',
+              headers: {
+                'Content-Type': 'application/json',
+              }
+            });
+            
+            console.log('Neo4j delete response status:', neo4jDeleteResponse.status);
+            
+            if (neo4jDeleteResponse.ok) {
+              const neo4jData = await neo4jDeleteResponse.json();
+              console.log('Neo4j deletion successful:', neo4jData);
+              
+              res.json({
+                ...configData,
+                neo4jDeletion: neo4jData,
+                message: `Component deleted from config and ${neo4jData.nodesUpdated} nodes updated in Neo4j`
+              });
+            } else {
+              const neo4jError = await neo4jDeleteResponse.text();
+              console.error('Neo4j deletion failed:', neo4jError);
+              res.json({
+                ...configData,
+                warning: 'Component deleted from config but Neo4j cleanup failed',
+                neo4jError: neo4jError
+              });
+            }
+          } else {
+            console.log('Property not found in Neo4j, no deletion needed');
+            res.json({
+              ...configData,
+              message: 'Component deleted from config (property not found in Neo4j)'
+            });
+          }
+        } else {
+          const testError = await testResponse.text();
+          console.error('Neo4j test failed:', testError);
+          res.json({
+            ...configData,
+            warning: 'Component deleted from config but could not test Neo4j property',
+            testError: testError
+          });
+        }
+      } catch (neo4jError) {
+        console.error('Neo4j operation error:', neo4jError);
+        res.json({
+          ...configData,
+          warning: 'Component deleted from config but Neo4j cleanup failed',
+          neo4jError: neo4jError.message
+        });
+      }
+    } else {
+      console.log('No Neo4j property to delete');
+      res.json({
+        ...configData,
+        message: 'Component deleted from config (no Neo4j property specified)'
+      });
+    }
+    
+    console.log('=== COMPONENT DELETION COMPLETE ===');
+    
+  } catch (error) {
+    console.error('Error deleting custom component:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete custom component', 
+      details: error.message 
+    });
+  }
+});

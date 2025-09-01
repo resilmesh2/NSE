@@ -1,10 +1,11 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { DragDropModule } from '@angular/cdk/drag-drop';
+import { DragDropModule, CdkDropList } from '@angular/cdk/drag-drop';
 import { CdkDragDrop, moveItemInArray, transferArrayItem } from '@angular/cdk/drag-drop';
 import { NetworkDataService } from '../../services/network-data.service';
 import { RiskComponentsService, RiskComponent } from '../../services/risk-components.service';
+import { HttpClient } from '@angular/common/http';
 import { RiskConfigService, RiskFormula, RiskConfigurationRequest, ConfigurationResponse, ComponentData  } from '../../services/risk-config.service';
 
 interface CalculationMethod {
@@ -37,6 +38,7 @@ export class DragDropDesignerComponent implements OnInit {
 
   predefinedFormulas: RiskFormula[] = [];
   customFormulas: RiskFormula[] = [];
+  customComponents: any[] = [];
   activeFormula: RiskFormula | null = null;
   showFormulaSelector = false;
   isLoadingFormulas = false;
@@ -147,7 +149,13 @@ private notificationId = 0;
     maxValue: 10
   };
 
+  
+
+@ViewChild('componentList', { static: false }) componentList!: CdkDropList;
+@ViewChild('formulaArea', { static: false }) formulaArea!: CdkDropList;
+
   constructor(
+    private http: HttpClient,
     private networkDataService: NetworkDataService,
     private riskComponentsService: RiskComponentsService,
     private riskConfigService: RiskConfigService
@@ -155,6 +163,11 @@ private notificationId = 0;
 
   async ngOnInit() {
   this.isLoadingComponents = true;
+
+  // Initialize components with zero values in Neo4j
+  await this.riskComponentsService.initializeComponentsInNeo4j();
+
+  this.loadCustomComponents();
   
   // Load components from config
   this.loadComponentsFromConfig();
@@ -448,20 +461,7 @@ closeIpModal() {
     const newWeight = parseFloat((event.target as HTMLInputElement).value);
     component.weight = newWeight;
   }
-
-  updateMaxValue(component: RiskComponent, event: any) {
-    const newMaxValue = parseFloat((event.target as HTMLInputElement).value);
-    component.maxValue = newMaxValue;
-    if (component.currentValue && component.currentValue > newMaxValue) {
-      component.currentValue = newMaxValue;
-    }
-  }
-
-  updateCurrentValue(component: RiskComponent, event: any) {
-    const newCurrentValue = parseFloat((event.target as HTMLInputElement).value);
-    component.currentValue = Math.min(newCurrentValue, component.maxValue);
-  }
-
+  
   // Simulate risk calculation preview using data
   calculatePreviewRisk(): number {
     if (this.riskFormula.length === 0) return 0;
@@ -1243,26 +1243,34 @@ private loadComponentsFromConfig(): void {
     description: autoDescription,
     weight: 0.2,
     maxValue: this.customComponent.maxValue,
-    currentValue: Math.random() * this.customComponent.maxValue,
+    currentValue: 0,
     neo4jProperty: this.customComponent.name.trim().replace(/[^a-zA-Z0-9]/g, '_'),
     isComposite: false
   };
   
-  // Save to config file instead of just adding locally
   this.riskConfigService.saveCustomComponent(newComponent).subscribe({
-    next: (response) => {
-      console.log('Custom component saved to config:', response);
-      
-      // Add to local array
+  next: async (response) => {
+    console.log('Custom component saved to config:', response);
+    
+    // Write to Neo4j
+    await this.writeComponentToNeo4j(newComponent);
+    
+    // Don't reload everything - just add the new component with server ID
+    if (response.component) {
+      // Use the server component with correct ID
+      this.availableComponents.push(response.component);
+    } else {
+      // Fallback: add our component but it might have ID issues later
       this.availableComponents.push(newComponent);
-      
-      this.closeCustomComponentModal();
-      
-      this.showSuccess(
-        'Component Added', 
-        `"${newComponent.name}" has been saved to configuration`
-      );
-    },
+    }
+    
+    this.closeCustomComponentModal();
+    
+    this.showSuccess(
+      'Component Added', 
+      `"${newComponent.name}" has been saved and Neo4j property created`
+    );
+  },
     error: (error) => {
       console.error('Error saving custom component:', error);
       this.showError(
@@ -1271,6 +1279,28 @@ private loadComponentsFromConfig(): void {
       );
     }
   });
+}
+
+private async writeComponentToNeo4j(component: any): Promise<any> {
+  // Use the existing API to write to Neo4j
+  const componentData = {
+    componentName: component.name,
+    neo4jProperty: component.neo4jProperty,
+    formula: 'setValue',
+    method: 'setValue',
+    components: [{
+      name: component.name,
+      neo4jProperty: component.neo4jProperty,
+      weight: component.weight,
+      maxValue: component.maxValue,
+      currentValue: 0
+    }],
+    targetType: 'all',
+    targetValues: [],
+    calculationMode: 'setValue'
+  };
+
+  return await this.http.post('http://localhost:3000/api/write-custom-risk-component', componentData).toPromise();
 }
 
   // Network selection methods
@@ -1386,6 +1416,18 @@ loadFormulas(): void {
     error: (error) => {
       console.error('Error loading active formula:', error);
       this.isLoadingFormulas = false;
+    }
+  });
+}
+
+loadCustomComponents(): void {
+  this.riskConfigService.getCustomComponents().subscribe({
+    next: (components) => {
+      this.customComponents = components;
+      console.log('Loaded custom components:', components.length);
+    },
+    error: (error) => {
+      console.error('Error loading custom components:', error);
     }
   });
 }
@@ -1656,6 +1698,54 @@ async deleteCustomFormula(formula: RiskFormula): Promise<void> {
     error: (error) => {
       console.error('Error deleting custom formula:', error);
       let errorMessage = 'Failed to delete custom formula';
+      
+      if (error.error && error.error.error) {
+        errorMessage = error.error.error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      this.showError('Delete Failed', errorMessage);
+    }
+  });
+}
+
+async deleteCustomComponent(component: any): Promise<void> {
+  const confirmMessage = `Are you sure you want to delete "${component.name}"?\n\nThis action cannot be undone.`;
+  
+  const confirmed = await this.showConfirm(
+    'Delete Component',
+    confirmMessage,
+    'Delete',
+    'Cancel'
+  );
+  
+  if (!confirmed) {
+    return;
+  }
+
+  console.log('Deleting component:', component.id, component.name);
+
+  this.riskConfigService.deleteCustomComponent(component.id).subscribe({
+    next: async (response) => {
+      console.log('Delete response:', response);
+      await this.riskComponentsService.initializeComponentsInNeo4j();
+      this.showSuccess(
+        'Component Deleted', 
+        `"${component.name}" has been deleted successfully`
+      );
+      
+      // Reload components to refresh the list
+      this.loadCustomComponents();
+      
+      // Remove from available components if present
+      this.availableComponents = this.availableComponents.filter(
+        c => c.id !== component.id
+      );
+    },
+    error: (error) => {
+      console.error('Error deleting custom component:', error);
+      let errorMessage = 'Failed to delete custom component';
       
       if (error.error && error.error.error) {
         errorMessage = error.error.error;

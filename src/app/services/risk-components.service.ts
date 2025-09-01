@@ -126,7 +126,7 @@ export class RiskComponentsService {
         description: 'Vulnerability severity score',
         weight: 0.4,
         maxValue: 10,
-        currentValue: 5.5,
+        currentValue: 0,
         neo4jProperty: 'cvss_score',
         isComposite: false
       },
@@ -139,11 +139,41 @@ export class RiskComponentsService {
         weight: 0.3,
         neo4jProperty: 'threatScore',
         maxValue: 10,
-        currentValue: 3.2,
+        currentValue: 0,
         isComposite: false
       }
     ];
   }
+
+  async initializeComponentsInNeo4j(): Promise<void> {
+  try {
+    const components = this.getFallbackComponents();
+    
+    for (const component of components) {
+      const componentData = {
+        componentName: component.name,
+        neo4jProperty: component.neo4jProperty,
+        formula: 'direct',
+        method: 'setValue',
+        components: [{
+          name: component.name,
+          neo4jProperty: component.neo4jProperty,
+          weight: component.weight,
+          maxValue: component.maxValue,
+          currentValue: 0
+        }],
+        targetType: 'all',
+        targetValues: [],
+        calculationMode: 'setValue'
+      };
+
+      await this.apiService.writeCustomRiskComponent(componentData).toPromise();
+      console.log(`Initialized ${component.name} with default value 0 in Neo4j`);
+    }
+  } catch (error) {
+    console.error('Failed to initialize components in Neo4j:', error);
+  }
+}
 
   getComponents(): RiskComponent[] {
     return this.componentsSubject.value;

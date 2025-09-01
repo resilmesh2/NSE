@@ -14,29 +14,268 @@
   </div>
 
   <div class="designer-workspace">
-    <!-- Enhanced Components Palette with Toggle -->
+    <!-- Components Palette -->
     <div class="components-palette">
-      <!-- Dynamic Header with Toggle -->
       <div class="palette-header">
-        <h4>{{ showingFormulas ? 'Available Formulas' : 'Available Risk Components' }}</h4>
-        <button 
-          class="btn btn-outline btn-sm toggle-view-btn" 
-          (click)="toggleView()">
-          {{ toggleButtonText }}
-        </button>
+        <h4>Available Risk Components</h4>
       </div>
 
       <!-- Loading State -->
-      <div *ngIf="(showingFormulas && isLoadingFormulas) || (!showingFormulas && isLoadingComponents)" 
-           class="loading-state">
+      <div *ngIf="isLoadingComponents" class="loading-state">
         <div class="loading-spinner"></div>
-        <div class="loading-text">
-          {{ showingFormulas ? 'Loading Formulas...' : 'Loading Components...' }}
+        <div class="loading-text">Loading Components...</div>
+      </div>
+
+      <!-- COMPONENTS VIEW -->
+      <div *ngIf="!isLoadingComponents" class="components-list">
+        
+        <!-- Components Grid -->
+        <div class="component-list" 
+            cdkDropList 
+            #componentList="cdkDropList"
+            [cdkDropListData]="availableComponents"
+            [cdkDropListConnectedTo]="[formulaArea]"
+            (cdkDropListDropped)="drop($event)">
+          
+          <div *ngFor="let component of availableComponents" 
+              class="component-item" 
+              [attr.data-type]="component.type"
+              cdkDrag>
+            <div class="component-preview">
+              <span class="component-icon">{{component.icon}}</span>
+              <div class="component-info">
+                <span class="component-name">{{component.name}}</span>
+                <span class="component-desc">{{component.description}}</span>
+                <span class="component-type">{{component.type.toUpperCase()}}</span>
+                
+                <!-- Show if composite -->
+                <div *ngIf="component.isComposite" class="component-composite">
+                  Composite: {{component.compositeOf?.join(' + ')}}
+                </div>
+                
+                <!-- Show statistics -->
+                <div class="component-stats">
+                  {{getComponentStatistics(component)}}
+                </div>
+                
+                <!-- Show ISIM property -->
+                <div class="component-property">
+                  Property: {{component.neo4jProperty}}
+                </div>
+              </div>
+              
+              <!-- Delete button for custom components -->
+              <div *ngIf="component.type === 'custom'" class="component-actions">
+                <button 
+                  class="btn btn-danger btn-xs" 
+                  (click)="deleteCustomComponent(component); $event.stopPropagation()"
+                  title="Delete custom component">
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Custom Components Section -->
+        <div *ngIf="customComponents.length > 0" class="custom-components-section">
+          <h5>Custom Components</h5>
+          <div class="custom-components-list">
+            <div *ngFor="let component of customComponents" 
+                 class="custom-component-item">
+              
+              <div class="custom-component-header">
+                <div class="custom-component-name">{{ component.name }}</div>
+                <div class="custom-component-badge custom">CUSTOM</div>
+              </div>
+              
+              <div class="custom-component-description">{{ component.description }}</div>
+              
+              <div class="custom-component-details">
+                <span class="detail-item">Type: {{ component.type?.toUpperCase() }}</span>
+                <span class="detail-item">Max: {{ component.maxValue }}</span>
+              </div>
+              
+              <div class="custom-component-actions">
+                <button 
+                  class="btn btn-danger btn-xs" 
+                  (click)="deleteCustomComponent(component)">
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Calculation Methods -->
+        <div class="calculation-methods">
+          <h5>Calculation Method</h5>
+          <div class="method-selector">
+            <div *ngFor="let method of availableMethods" 
+                 class="method-option"
+                 [class.selected]="selectedMethod === method.id"
+                 (click)="onMethodChange(method.id)">
+              <span class="method-icon">{{method.icon}}</span>
+              <div class="method-info">
+                <span class="method-name">{{method.name}}</span>
+                <span class="method-desc">{{method.description}}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Create Custom Component Button -->
+        <div class="config-section" style="margin-top: 20px; border-top: 1px solid #dee2e6; padding-top: 15px;">
+          <label>Add Custom Component:</label>
+          <button class="btn btn-outline" (click)="addCustomComponent()">+ Add Custom</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Risk Formula Builder -->
+    <div class="formula-builder">
+      <h4>Risk Calculation Formula</h4>
+      <div class="formula-area" 
+           cdkDropList 
+           #formulaArea="cdkDropList"
+           [cdkDropListData]="riskFormula"
+           [cdkDropListConnectedTo]="[componentList]"
+           (cdkDropListDropped)="drop($event)">
+        
+        <div *ngFor="let component of riskFormula; let i = index" 
+          class="formula-component enhanced" 
+          cdkDrag>
+        <div class="component-header">
+          <div class="component-title-section">
+            <span class="component-icon">{{component.icon}}</span>
+            <div class="title-info">
+              <span class="component-title">{{component.name}}</span>
+              <span class="component-type">{{component.type || 'Risk Factor'}}</span>
+            </div>
+          </div>
+          <button class="remove-btn" (click)="removeFromFormula(i)">×</button>
+        </div>
+        
+        <div class="component-body">
+          <div class="weight-section">
+            <div class="weight-control">
+              <label class="weight-label">Weight</label>
+              <div class="weight-input-group">
+                <input type="number" 
+                      [value]="component.weight" 
+                      (input)="updateWeight(component, $event)"
+                      step="0.1" 
+                      min="0" 
+                      max="1"
+                      class="weight-input">
+                <span class="weight-percentage">{{(component.weight * 100).toFixed(1)}}%</span>
+              </div>
+            </div>
+            
+            <div class="weight-bar-container">
+              <div class="weight-bar">
+                <div class="weight-fill" 
+                    [style.width.%]="component.weight * 100"
+                    [class.weight-high]="component.weight > 0.4"
+                    [class.weight-medium]="component.weight > 0.2 && component.weight <= 0.4"
+                    [class.weight-low]="component.weight <= 0.2">
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="component-description" *ngIf="component.description">
+            {{component.description}}
+          </div>
         </div>
       </div>
 
-      <!-- FORMULAS VIEW -->
-      <div *ngIf="showingFormulas && !isLoadingFormulas" class="formulas-list">
+        <!-- Empty state -->
+        <div *ngIf="riskFormula.length === 0" class="empty-formula">
+          <div class="empty-icon">🧮</div>
+          <h5>Build Your Risk Formula</h5>
+          <p>Drag risk components from the left panel to create your custom calculation</p>
+          <p class="empty-hint">Or load a predefined formula from the right panel</p>
+        </div>
+      </div>
+
+      <!-- Formula Preview -->
+      <div class="formula-preview" *ngIf="riskFormula.length > 0">
+        <h5>Formula Preview</h5>
+        <div class="preview-calculation">
+          <div class="calculation-display">
+            <div class="method-label">{{selectedMethod.replace('_', ' ').toUpperCase()}}:</div>
+            <div class="formula-expression">
+              <span *ngIf="selectedMethod === 'weighted_avg'">
+                {{getWeightedFormulaExpression()}}
+              </span>
+              <span *ngIf="selectedMethod === 'max'">
+                {{getMaxFormulaExpression()}}
+              </span>
+              <span *ngIf="selectedMethod === 'sum'">
+                {{getSumFormulaExpression()}}
+              </span>
+              <span *ngIf="selectedMethod === 'custom_formula'">
+                <div class="custom-formula-input">
+                  <label for="customFormulaField">Custom Formula:</label>
+                  <textarea 
+                    id="customFormulaField"
+                    [(ngModel)]="customFormula"
+                    placeholder="Components will auto-populate when dragged. Edit operators as needed."
+                    class="form-control"
+                    rows="2"
+                    style="margin-top: 5px; font-family: 'Courier New', monospace; resize: vertical;">
+                  </textarea>
+                  
+                  <div class="formula-hint" style="font-size: 11px; color: #666; margin-top: 5px;">
+                    Components auto-populate with + operators. Edit manually for custom calculations.
+                    <br>Example: <code>(CVSS Score * 0.6) + (Threat Score * 0.4)</code>
+                    <span *ngIf="isCustomFormulaEdited()" style="color: #007bff; font-weight: bold;">
+                      <br>✏️ Custom formula detected - sample result reflects your changes
+                    </span>
+                  </div>
+                </div>
+              </span>
+              <span *ngIf="selectedMethod !== 'weighted_avg' && selectedMethod !== 'max' && selectedMethod !== 'sum' && selectedMethod !== 'custom_formula'">
+                {{getGenericFormulaExpression()}}
+              </span>
+            </div>
+          </div>
+          <div class="result-preview">
+            <span class="result-label">Sample Result:</span>
+            <span class="result-value" [ngClass]="getResultRiskClass(calculatePreviewRisk())">
+              {{calculatePreviewRisk().toFixed(2)}}
+            </span>
+          </div>
+        </div>
+        
+        <!-- Formula Summary -->
+        <div class="formula-summary" *ngIf="riskFormula.length > 0">
+          <div class="total-weight">
+            <strong>Total Weight: {{ getTotalWeight().toFixed(3) }}</strong>
+            <span 
+              class="weight-status" 
+              [class.valid]="isValidWeight()" 
+              [class.invalid]="!isValidWeight()">
+              {{ isValidWeight() ? 'Valid' : 'Must equal 1.0' }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Configuration Panel -->
+    <div class="config-panel">
+      <h4>Available Formulas</h4>
+      
+      <!-- Loading State -->
+      <div *ngIf="isLoadingFormulas" class="loading-state">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Loading Formulas...</div>
+      </div>
+
+      <!-- Formulas Content -->
+      <div *ngIf="!isLoadingFormulas">
         
         <!-- Active Formula Display -->
         <div class="active-formula-indicator" *ngIf="activeFormula">
@@ -122,293 +361,12 @@
         <div *ngIf="predefinedFormulas.length === 0 && customFormulas.length === 0" class="no-formulas">
           <div class="empty-icon">📋</div>
           <p>No formulas available</p>
-          <button class="btn btn-outline btn-sm" (click)="toggleView()">
-            Create Custom Formula
-          </button>
-        </div>
-      </div>
-
-      <!-- COMPONENTS VIEW - Always render but hide when showing formulas -->
-      <div [style.display]="showingFormulas ? 'none' : 'block'" class="components-list">
-        
-        <!-- Show loading in components view -->
-        <div *ngIf="isLoadingComponents" class="loading-state">
-          <div class="loading-spinner"></div>
-          <div class="loading-text">Loading Components...</div>
-        </div>
-
-        <!-- Components Grid -->
-        <div class="component-list" 
-            cdkDropList 
-            #componentList="cdkDropList"
-            [cdkDropListData]="availableComponents"
-            [cdkDropListConnectedTo]="[formulaArea]"
-            (cdkDropListDropped)="drop($event)">
-          
-          <!-- Show components only when not loading -->
-          <ng-container *ngIf="!isLoadingComponents">
-            <div *ngFor="let component of availableComponents" 
-                class="component-item" 
-                [attr.data-type]="component.type"
-                cdkDrag>
-              <div class="component-preview">
-                <span class="component-icon">{{component.icon}}</span>
-                <div class="component-info">
-                  <span class="component-name">{{component.name}}</span>
-                  <span class="component-desc">{{component.description}}</span>
-                  <span class="component-type">{{component.type.toUpperCase()}}</span>
-                  
-                  <!-- Show if composite -->
-                  <div *ngIf="component.isComposite" class="component-composite">
-                    Composite: {{component.compositeOf?.join(' + ')}}
-                  </div>
-                  
-                  <!-- Show statistics -->
-                  <div class="component-stats">
-                    {{getComponentStatistics(component)}}
-                  </div>
-                  
-                  <!-- Show ISIM property -->
-                  <div class="component-property">
-                    Property: {{component.neo4jProperty}}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </ng-container>
-        </div>
-
-        <!-- Calculation Methods -->
-        <div *ngIf="!isLoadingComponents" class="calculation-methods">
-          <h5>Calculation Method</h5>
-          <div class="method-selector">
-            <div *ngFor="let method of availableMethods" 
-                 class="method-option"
-                 [class.selected]="selectedMethod === method.id"
-                 (click)="onMethodChange(method.id)">
-              <span class="method-icon">{{method.icon}}</span>
-              <div class="method-info">
-                <span class="method-name">{{method.name}}</span>
-                <span class="method-desc">{{method.description}}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Risk Formula Builder -->
-    <div class="formula-builder">
-      <h4>Risk Calculation Formula</h4>
-      <div class="formula-area" 
-           cdkDropList 
-           #formulaArea="cdkDropList"
-           [cdkDropListData]="riskFormula"
-           [cdkDropListConnectedTo]="[componentList]"
-           (cdkDropListDropped)="drop($event)">
-        
-        <div *ngFor="let component of riskFormula; let i = index" 
-             class="formula-component" 
-             cdkDrag>
-          <div class="component-header">
-            <span class="component-title">{{component.icon}} {{component.name}}</span>
-            <button class="remove-btn" (click)="removeFromFormula(i)">×</button>
-          </div>
-          <div class="component-config">
-            <div class="config-row">
-              <label>Weight:</label>
-              <input type="number" 
-                    [value]="component.weight" 
-                    (input)="updateWeight(component, $event)"
-                    step="0.1" 
-                    min="0" 
-                    max="1"
-                    class="weight-input">
-            </div>
-            <div class="config-row">
-              <label>Max Value:</label>
-              <input type="number" 
-                    [value]="component.maxValue" 
-                    (input)="updateMaxValue(component, $event)"
-                    step="0.1" 
-                    min="1" 
-                    [max]="component.statistics?.max || 10"
-                    class="weight-input">
-            </div>
-            <div class="config-row">
-              <label>Current:</label>
-              <input type="number" 
-                    [value]="(component.currentValue || component.statistics?.avg || 0).toFixed(2)" 
-                    (input)="updateCurrentValue(component, $event)"
-                    step="0.1" 
-                    min="0" 
-                    [max]="component.maxValue"
-                    class="weight-input">
-            </div>
-          </div>
-        </div>
-
-        <!-- Empty state -->
-        <div *ngIf="riskFormula.length === 0" class="empty-formula">
-          <div class="empty-icon">🧮</div>
-          <h5>Build Your Risk Formula</h5>
-          <p>Drag risk components from the left panel to create your custom calculation</p>
-          <p class="empty-hint">Or load a predefined formula from above</p>
-        </div>
-      </div>
-
-      <!-- Formula Preview -->
-      <div class="formula-preview" *ngIf="riskFormula.length > 0">
-        <h5>Formula Preview</h5>
-        <div class="preview-calculation">
-          <div class="calculation-display">
-            <div class="method-label">{{selectedMethod.replace('_', ' ').toUpperCase()}}:</div>
-            <div class="formula-expression">
-              <span *ngIf="selectedMethod === 'weighted_avg'">
-                {{getWeightedFormulaExpression()}}
-              </span>
-              <span *ngIf="selectedMethod === 'max'">
-                {{getMaxFormulaExpression()}}
-              </span>
-              <span *ngIf="selectedMethod === 'sum'">
-                {{getSumFormulaExpression()}}
-              </span>
-              <span *ngIf="selectedMethod === 'custom_formula'">
-                <div class="custom-formula-input">
-                  <label for="customFormulaField">Custom Formula:</label>
-                  <textarea 
-                    id="customFormulaField"
-                    [(ngModel)]="customFormula"
-                    placeholder="Components will auto-populate when dragged. Edit operators as needed."
-                    class="form-control"
-                    rows="2"
-                    style="margin-top: 5px; font-family: 'Courier New', monospace; resize: vertical;">
-                  </textarea>
-                  
-                  <div class="formula-hint" style="font-size: 11px; color: #666; margin-top: 5px;">
-                    Components auto-populate with + operators. Edit manually for custom calculations.
-                    <br>Example: <code>(CVSS Score * 0.6) + (Threat Score * 0.4)</code>
-                    <span *ngIf="isCustomFormulaEdited()" style="color: #007bff; font-weight: bold;">
-                      <br>✏️ Custom formula detected - sample result reflects your changes
-                    </span>
-                  </div>
-                </div>
-              </span>
-              <span *ngIf="selectedMethod !== 'weighted_avg' && selectedMethod !== 'max' && selectedMethod !== 'sum' && selectedMethod !== 'custom_formula'">
-                {{getGenericFormulaExpression()}}
-              </span>
-            </div>
-          </div>
-          <div class="result-preview">
-            <span class="result-label">Sample Result:</span>
-            <span class="result-value" [ngClass]="getResultRiskClass(calculatePreviewRisk())">
-              {{calculatePreviewRisk().toFixed(2)}}
-            </span>
-          </div>
-        </div>
-        
-        <!-- Formula Summary -->
-        <div class="formula-summary" *ngIf="riskFormula.length > 0">
-          <div class="total-weight">
-            <strong>Total Weight: {{ getTotalWeight().toFixed(3) }}</strong>
-            <span 
-              class="weight-status" 
-              [class.valid]="isValidWeight()" 
-              [class.invalid]="!isValidWeight()">
-              {{ isValidWeight() ? 'Valid' : 'Must equal 1.0' }}
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Configuration Panel -->
-    <div class="config-panel">
-      <h4>Configuration</h4>
-      
-      <div class="config-section">
-        <label>Risk Scale:</label>
-        <select class="form-control">
-          <option>0-10 Scale</option>
-          <option>0-100 Scale</option>
-          <option>1-5 Scale</option>
-          <option>Custom Scale</option>
-        </select>
-      </div>
-
-      <div class="config-section">
-        <label>Normalization:</label>
-        <select class="form-control">
-          <option>Auto Normalize</option>
-          <option>Manual Scaling</option>
-          <option>No Normalization</option>
-        </select>
-      </div>
-
-      <div class="config-section">
-        <label>Thresholds:</label>
-        <div class="threshold-inputs">
-          <div class="threshold-item">
-            <span>Low:</span>
-            <input type="number" value="3" class="threshold-input">
-          </div>
-          <div class="threshold-item">
-            <span>Medium:</span>
-            <input type="number" value="6" class="threshold-input">
-          </div>
-          <div class="threshold-item">
-            <span>High:</span>
-            <input type="number" value="8" class="threshold-input">
-          </div>
-        </div>
-      </div>
-
-      <div class="config-section">
-        <label>Update Frequency:</label>
-        <select class="form-control">
-          <option>Real-time</option>
-          <option>Hourly</option>
-          <option>Daily</option>
-          <option>Manual</option>
-        </select>
-      </div>
-
-      <div class="config-section">
-        <label>Target Property:</label>
-        <select class="form-control" [(ngModel)]="targetProperty">
-          <option value="Risk Score">Risk Score</option>
-          <option value="Custom Risk">Custom Risk</option>
-          <option *ngFor="let comp of riskFormula" [value]="comp.neo4jProperty">{{comp.name}}</option>
-        </select>
-      </div>
-
-      <div class="config-section">
-        <label>Custom Components:</label>
-        <button class="btn btn-outline" (click)="addCustomComponent()">+ Add Custom</button>
-      </div>
-
-      <div class="preview-section">
-        <h5>Impact Preview</h5>
-        <div class="impact-stats">
-          <div class="stat-item">
-            <span class="stat-label">Components:</span>
-            <span class="stat-value">{{getComponentCount()}}</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">Total Weight:</span>
-            <span class="stat-value">{{getTotalWeight().toFixed(2)}}</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">Method:</span>
-            <span class="stat-value">{{getSelectedMethodDisplay()}}</span>
-          </div>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- All your existing modals stay the same... -->
 <!-- Configuration Application Modal -->
 <div class="modal-overlay" *ngIf="showConfigModal" (click)="closeConfigModal()">
   <div class="config-modal" (click)="$event.stopPropagation()">
@@ -646,7 +604,7 @@
           <label for="componentMaxValue">Maximum Value *</label>
           <input 
             type="number" 
-            id="componentMaxValue"path
+            id="componentMaxValue"
             name="componentMaxValue"
             [(ngModel)]="customComponent.maxValue"
             #componentMaxValue="ngModel"
@@ -731,29 +689,6 @@
     <div class="notification-message">{{notification.message}}</div>
   </div>
 </div>
-
-<!-- Calculation Mode Modal -->
-<!-- <div class="modal-overlay" *ngIf="showCalculationModeModal" (click)="selectCalculationMode(null)">
-  <div class="modal-content" (click)="$event.stopPropagation()">
-    <h3>Choose Calculation Mode</h3>
-    
-    <div class="calculation-modes">
-      <button class="mode-option" (click)="selectCalculationMode('setValue')">
-        <div class="mode-title">Set Specific Values</div>
-        <div class="mode-description">Use the values you've configured</div>
-      </button>
-      
-      <button class="mode-option" (click)="selectCalculationMode('calculate')">
-        <div class="mode-title">Calculate from Properties</div>
-        <div class="mode-description">Calculate using existing properties</div>
-      </button>
-    </div>
-    
-    <div class="modal-actions">
-      <button class="btn-secondary" (click)="selectCalculationMode(null)">Cancel</button>
-    </div>
-  </div>
-</div> -->
 
 <!-- Frequency Modal -->
 <div class="modal-overlay" *ngIf="showFrequencyModal" (click)="cancelFrequencyModal()">

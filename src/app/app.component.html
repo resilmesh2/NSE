@@ -48,8 +48,14 @@
     class="tab" 
     [class.active]="activeView === 'designer' && !isRoutedPage"
     (click)="switchView('designer')">
-    Risk Calculation Creation
+    Risk Calculation Configurator
   </button>
+  <!-- <button 
+    class="tab" 
+    [class.active]="activeView === 'components' && !isRoutedPage"
+    (click)="switchView('components')">
+    Component Configuration
+  </button> -->
   </div>
 
   <!-- Loading State -->
@@ -81,6 +87,10 @@
     <app-drag-drop-designer 
     *ngIf="activeView === 'designer'">
     </app-drag-drop-designer>
+    
+    <app-component-configuration 
+      *ngIf="activeView === 'components'">
+    </app-component-configuration>
   </div>
 
   <!-- Device Popup Component -->

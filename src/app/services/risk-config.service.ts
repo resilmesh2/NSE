@@ -87,6 +87,14 @@ export class RiskConfigService {
     });
   }
 
+  deleteCustomComponent(componentId: string): Observable<any> {
+  return this.http.delete(`${this.baseUrl}/components/custom/${componentId}`);
+}
+
+getCustomComponents(): Observable<any[]> {
+  return this.http.get<any[]>(`${this.baseUrl}/components/custom`);
+}
+
   validateFormula(components: { [key: string]: number }): { valid: boolean; error?: string } {
     const total = Object.values(components).reduce((sum, weight) => sum + weight, 0);
     
