@@ -1150,8 +1150,6 @@ input[type="checkbox"]:indeterminate {
   }
 }
 
-/* Add these new styles to your existing CSS */
-
 .active-formula-display {
   background: #e8f5e8;
   border: 1px solid #4caf50;
@@ -1369,7 +1367,6 @@ input[type="checkbox"]:indeterminate {
   background: #c82333;
 }
 
-/* Enhanced left panel styles */
 .palette-header {
   display: flex;
   justify-content: space-between;

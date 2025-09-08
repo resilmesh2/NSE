@@ -54,7 +54,7 @@
   background: #fafafa;
 }
 
-/* Legend container - let it take remaining space and center content */
+/* Legend container */
 .legend-container {
   flex: 1;
   display: flex;
@@ -152,7 +152,6 @@
   color: #333;
 }
 
-/* Enhanced search input styling */
 .search-input {
   min-width: 250px;
   padding: 8px 30px 8px 12px;
@@ -185,7 +184,6 @@
   }
 }
 
-/* Add to network-graph.component.css */
 .search-hint {
   position: absolute;
   top: 100%;

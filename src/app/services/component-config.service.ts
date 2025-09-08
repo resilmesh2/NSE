@@ -1,4 +1,3 @@
-// src/app/services/component-config.service.ts
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
@@ -33,6 +32,21 @@ export interface ComponentSchedule {
   enabled: boolean;
 }
 
+export interface ComponentAutomation {
+  componentName: string;
+  componentId: string;
+  dataSource: {
+    type: 'neo4j_query' | 'wazuh_alerts' | 'static_value' | 'calculation';
+    query?: string;
+    value?: number;
+  };
+  updateFrequency: 'manual' | 'minute' | 'hourly' | 'daily' | 'weekly';
+  calculationMethod: string;
+  durationHours?: number;
+  customQuery?: string;
+  targetProperty?: string;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -63,5 +77,34 @@ export class ComponentConfigService {
 
   saveCustomComponent(component: any): Observable<any> {
   return this.http.post(`${this.apiUrl}/risk/components/custom`, component);
+}
+
+saveComponentAutomation(automation: ComponentAutomation): Observable<any> {
+  return this.http.post(`${this.apiUrl}/components/automation/save`, automation);
+}
+
+getActiveComponentAutomations(): Observable<any> {
+  return this.http.get(`${this.apiUrl}/components/automation/active`);
+}
+
+testComponentQuery(query: string, sourceType: string): Observable<any> {
+  return this.http.post(`${this.apiUrl}/components/automation/test`, {
+    query,
+    sourceType
+  });
+}
+
+getComponentAutomationConfig(componentId: string): Observable<any> {
+  return this.http.get(`${this.apiUrl}/components/automation/${componentId}`);
+}
+
+applyAutomationConfig(componentId: number, automationId: string): Observable<any> {
+  return this.http.post(`${this.apiUrl}/components/${componentId}/apply-automation`, {
+    automation_id: automationId
+  });
+}
+
+getAvailableAutomations(): Observable<any> {
+  return this.http.get(`${this.apiUrl}/components/automations/list`);
 }
 }

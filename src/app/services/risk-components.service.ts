@@ -3,7 +3,7 @@ import { Observable, BehaviorSubject } from 'rxjs';
 import { ApiService } from './api.service';
 
 export interface RiskComponent {
-  id: number;
+  id: number | string;
   name: string;
   type: string;
   icon: string;
@@ -205,7 +205,6 @@ export class RiskComponentsService {
         targetType,
         targetValues,
         calculationMode,
-        // Add calculation method details for backend
         calculationDetails: this.getCalculationDetails(method, components)
       };
 

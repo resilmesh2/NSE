@@ -169,11 +169,16 @@ private notificationId = 0;
 
   this.loadCustomComponents();
   
-  // Load components from config
-  this.loadComponentsFromConfig();
+  setTimeout(() => {
+    this.loadComponentsFromConfig();
+  }, 100);
   
   this.loadNetworkData();
-  this.loadFormulas(); // This will auto-load the active formula
+  
+  // Load formulas after components are loaded
+  setTimeout(() => {
+    this.loadFormulas();
+  }, 500);
   
   // Switch to components view when active formula is loaded
   this.showingFormulas = false;
@@ -413,22 +418,37 @@ closeIpModal() {
 }
 
   drop(event: CdkDragDrop<RiskComponent[]>) {
-    if (event.previousContainer === event.container) {
-      moveItemInArray(event.container.data, event.previousIndex, event.currentIndex);
-    } else {
-      transferArrayItem(
-        event.previousContainer.data,
-        event.container.data,
-        event.previousIndex,
-        event.currentIndex,
-      );
+  if (event.previousContainer === event.container) {
+    moveItemInArray(event.container.data, event.previousIndex, event.currentIndex);
+  } else {
+    // Get the component being transferred
+    const component = event.previousContainer.data[event.previousIndex];
+    
+    // Ensure valid values before transferring
+    component.weight = this.validateNumber(component.weight, 0.2);
+    component.currentValue = this.validateNumber(component.currentValue, 0);
+    component.maxValue = this.validateNumber(component.maxValue, 100);
+    
+    // Ensure neo4jProperty exists
+    if (!component.neo4jProperty) {
+      component.neo4jProperty = component.name.replace(/[^a-zA-Z0-9]/g, '_');
     }
     
-    // Auto-update custom formula when components change
-    if (this.selectedMethod === 'custom_formula') {
-      this.updateCustomFormulaFromComponents();
-    }
+    console.log('Dropping component with neo4jProperty:', component.neo4jProperty);
+    
+    transferArrayItem(
+      event.previousContainer.data,
+      event.container.data,
+      event.previousIndex,
+      event.currentIndex,
+    );
   }
+  
+  // Auto-update custom formula when components change
+  if (this.selectedMethod === 'custom_formula') {
+    this.updateCustomFormulaFromComponents();
+  }
+}
 
   removeFromFormula(index: number) {
     const item = this.riskFormula[index];
@@ -458,9 +478,20 @@ closeIpModal() {
   }
 
   updateWeight(component: RiskComponent, event: any) {
-    const newWeight = parseFloat((event.target as HTMLInputElement).value);
+  const inputValue = (event.target as HTMLInputElement).value;
+  const newWeight = parseFloat(inputValue);
+  
+  // Validate and prevent reset
+  if (!isNaN(newWeight) && newWeight >= 0 && newWeight <= 1) {
     component.weight = newWeight;
+    console.log(`Updated weight for ${component.name} to ${newWeight}`);
+  } else {
+    // Keep the existing weight if invalid input
+    console.warn(`Invalid weight input: ${inputValue}, keeping ${component.weight}`);
+    // Reset the input to show the valid weight
+    (event.target as HTMLInputElement).value = component.weight.toString();
   }
+}
   
   // Simulate risk calculation preview using data
   calculatePreviewRisk(): number {
@@ -784,6 +815,16 @@ async applyConfiguration() {
     this.showConfigModal = true;
   }
 
+async applyToNetwork() {
+    if (this.riskFormula.length === 0) {
+      this.showWarning('Configuration Error', 'Please add components to your formula first');
+      return;
+    }
+
+    // Show network selection modal
+    this.showNetworkModal = true;
+  }
+
 async applyToSelectedNetworks() {
   const selectedNetworkIndices = this.selectedNetworks
     .map((selected, index) => selected ? index : -1)
@@ -802,17 +843,13 @@ async applyToSelectedNetworks() {
     return;
   }
   
-  // Close the network selection modal
   this.closeNetworkModal();
   
-  // Always use 'calculate' mode
   const calculationMode = 'calculate';
   
-  // Build confirmation message
   const networkNames = selectedNetworkData.map(n => n.prefix + '.x.x').join(', ');
   const confirmMessage = `Calculate "${propertyToUpdate}" using existing Node property values in selected networks?\n\nNetworks: ${networkNames}\nMethod: ${this.selectedMethod.replace('_', ' ')}\nComponents: ${this.riskFormula.length}\n\nThis will use property values from Node objects. Continue?`;
   
-  // Show confirmation
   const confirmed = await this.showConfirm(
     'Apply Risk Calculation',
     confirmMessage,
@@ -822,11 +859,9 @@ async applyToSelectedNetworks() {
   
   if (!confirmed) return;
   
-  // Ask for update frequency
   const updateFrequency = await this.askUpdateFrequency();
   if (!updateFrequency) return;
   
-  // Apply the configuration
   const selectedPrefixes = selectedNetworkData.map(n => n.prefix);
   
   const config: RiskConfigurationRequest = {
@@ -853,6 +888,9 @@ async applyToSelectedNetworks() {
       if (response.automationEnabled) {
         this.showInfo('Automation Enabled', `Risk calculation will run ${updateFrequency}`);
       }
+      
+      // Clear the formula after successful save
+      this.riskFormula = [];
     }
     
     await this.refreshComponents();
@@ -873,13 +911,10 @@ async applyToSubnet(subnet: any) {
     return;
   }
   
-  // Always use 'calculate' mode
   const calculationMode = 'calculate';
   
-  // Build confirmation message
   const confirmMessage = `Calculate "${propertyToUpdate}" using existing Node property values in subnet ${subnet.subnet}?\n\nMethod: ${this.selectedMethod.replace('_', ' ')}\nComponents: ${this.riskFormula.length}\n\nThis will use property values from Node objects. Continue?`;
   
-  // Show confirmation
   const confirmed = await this.showConfirm(
     'Apply to Subnet',
     confirmMessage,
@@ -889,11 +924,9 @@ async applyToSubnet(subnet: any) {
   
   if (!confirmed) return;
   
-  // Ask for update frequency
   const updateFrequency = await this.askUpdateFrequency();
   if (!updateFrequency) return;
   
-  // Apply the configuration
   const config: RiskConfigurationRequest = {
     formulaName: this.currentFormulaName || 'Custom Formula',
     components: this.prepareComponentData(),
@@ -918,6 +951,9 @@ async applyToSubnet(subnet: any) {
       if (response.automationEnabled) {
         this.showInfo('Automation Enabled', `Risk calculation will run ${updateFrequency}`);
       }
+      
+      // Clear the formula after successful save
+      this.riskFormula = [];
     }
     
     await this.refreshComponents();
@@ -928,16 +964,6 @@ async applyToSubnet(subnet: any) {
     this.showError('Application Failed', `Failed to apply risk configuration: ${errorMessage}`);
   }
 }
-
-async applyToNetwork() {
-    if (this.riskFormula.length === 0) {
-      this.showWarning('Configuration Error', 'Please add components to your formula first');
-      return;
-    }
-
-    // Show network selection modal
-    this.showNetworkModal = true;
-  }
 
 async applyToSelectedIps() {
   const selectedIpIndices = this.selectedIps
@@ -957,18 +983,14 @@ async applyToSelectedIps() {
     return;
   }
   
-  // Close the IP selection modal
   this.closeIpModal();
   
-  // Always use 'calculate' mode
   const calculationMode = 'calculate';
   
-  // Build confirmation message
   const ipAddresses = selectedIpData.map(ip => ip.ip).join(', ');
   const displayIps = ipAddresses.length > 100 ? ipAddresses.substring(0, 100) + '...' : ipAddresses;
   const confirmMessage = `Calculate "${propertyToUpdate}" using existing Node property values for selected IPs?\n\nIPs: ${displayIps}\nMethod: ${this.selectedMethod.replace('_', ' ')}\nComponents: ${this.riskFormula.length}\n\nThis will use property values from Node objects. Continue?`;
   
-  // Show confirmation
   const confirmed = await this.showConfirm(
     'Apply to IP Addresses',
     confirmMessage,
@@ -1005,6 +1027,9 @@ async applyToSelectedIps() {
       if (response.automationEnabled) {
         this.showInfo('Automation Enabled', `Risk calculation will run ${frequency}`);
       }
+      
+      // Clear the formula after successful save
+      this.riskFormula = [];
     }
     
     this.selectedIps = [];
@@ -1028,13 +1053,10 @@ async applyToRandomSample() {
     return;
   }
   
-  // Always use 'calculate' mode
   const calculationMode = 'calculate';
   
-  // Build confirmation message
   const confirmMessage = `Calculate "${propertyToUpdate}" using existing Node property values in ${sampleSize} sample subnets?\n\nMethod: ${this.selectedMethod.replace('_', ' ')}\nComponents: ${this.riskFormula.length}\n\nSample subnets: ${sample.slice(0, 3).map(s => s.subnet).join(', ')}${sample.length > 3 ? '...' : ''}\n\nThis will use property values from Node objects. Continue?`;
   
-  // Show confirmation
   const confirmed = await this.showConfirm(
     'Apply to Sample',
     confirmMessage,
@@ -1071,6 +1093,9 @@ async applyToRandomSample() {
       if (response.automationEnabled) {
         this.showInfo('Automation Enabled', `Risk calculation will run ${frequency}`);
       }
+      
+      // Clear the formula after successful save
+      this.riskFormula = [];
     }
     
     await this.refreshComponents();
@@ -1170,7 +1195,16 @@ private loadComponentsFromConfig(): void {
   
   this.riskConfigService.getAvailableComponents().subscribe({
     next: (data) => {
-      this.availableComponents = data.available_components || [];
+      // Ensure all components have valid values
+      this.availableComponents = (data.available_components || []).map(comp => ({
+        ...comp,
+        id: comp.id || `comp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        neo4jProperty: comp.neo4jProperty || comp.name.replace(/[^a-zA-Z0-9]/g, '_'),
+        weight: this.validateNumber(comp.weight, 0),
+        currentValue: this.validateNumber(comp.currentValue, 0),
+        maxValue: this.validateNumber(comp.maxValue, 100)
+      }));
+      
       console.log('Loaded components from config:', this.availableComponents.length);
       this.isLoadingComponents = false;
       
@@ -1249,28 +1283,38 @@ private loadComponentsFromConfig(): void {
   };
   
   this.riskConfigService.saveCustomComponent(newComponent).subscribe({
-  next: async (response) => {
-    console.log('Custom component saved to config:', response);
-    
-    // Write to Neo4j
-    await this.writeComponentToNeo4j(newComponent);
-    
-    // Don't reload everything - just add the new component with server ID
-    if (response.component) {
-      // Use the server component with correct ID
-      this.availableComponents.push(response.component);
-    } else {
-      // Fallback: add our component but it might have ID issues later
-      this.availableComponents.push(newComponent);
-    }
-    
-    this.closeCustomComponentModal();
-    
-    this.showSuccess(
-      'Component Added', 
-      `"${newComponent.name}" has been saved and Neo4j property created`
-    );
-  },
+    next: async (response) => {
+      console.log('Server response:', response);
+      console.log('Custom component saved to config:', response);
+      
+      // Write to Neo4j
+      await this.writeComponentToNeo4j(newComponent);
+      
+      // IMPORTANT: Add the component with all properties immediately
+      const componentToAdd = response.component || newComponent;
+      
+      // Ensure the component has all required properties
+      const validatedComponent = {
+        ...componentToAdd,
+        weight: this.validateNumber(componentToAdd.weight, 0.2),
+        currentValue: this.validateNumber(componentToAdd.currentValue, 0),
+        maxValue: this.validateNumber(componentToAdd.maxValue, 100),
+        neo4jProperty: componentToAdd.neo4jProperty || newComponent.neo4jProperty
+      };
+      
+      // Add to available components immediately
+      this.availableComponents.push(validatedComponent);
+      
+      // Also add to custom components for tracking
+      //this.customComponents.push(validatedComponent);
+      
+      this.closeCustomComponentModal();
+      
+      this.showSuccess(
+        'Component Added', 
+        `"${newComponent.name}" has been saved and is ready to use`
+      );
+    },
     error: (error) => {
       console.error('Error saving custom component:', error);
       this.showError(
@@ -1480,10 +1524,39 @@ private autoLoadActiveFormula(): void {
     return this.activeFormula?.id === formula.id && this.activeFormula?.type === formula.type;
   }
 
-  getComponentDisplayName(componentKey: string): string {
-    const component = this.availableComponents.find(c => c.neo4jProperty === componentKey);
-    return component ? component.name : componentKey.replace(/_/g, ' ').toUpperCase();
+  private validateNumber(value: any, defaultValue: number = 0): number {
+  if (value === undefined || value === null || value === '') {
+    return defaultValue;
   }
+  const num = Number(value);
+  return isNaN(num) ? defaultValue : num;
+}
+
+  getComponentDisplayName(componentKey: string): string {
+  // First try to find in available components
+  let component = this.availableComponents.find(c => c.neo4jProperty === componentKey);
+  
+  // If not found, try custom components
+  if (!component) {
+    component = this.customComponents.find(c => 
+      c.neo4jProperty === componentKey || c.name === componentKey
+    );
+  }
+  
+  // If still not found, check if it's in the current formula
+  if (!component) {
+    component = this.riskFormula.find(c => c.neo4jProperty === componentKey);
+  }
+  
+  // Return the display name or a formatted version of the key
+  if (component) {
+    return component.name;
+  } else {
+    // Fallback: format the key as a readable name
+    console.warn(`Component not found for key: ${componentKey}`);
+    return componentKey.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim().toUpperCase();
+  }
+}
 
 getFormulaComponentsArray(formula: RiskFormula): Array<{key: string, value: number}> {
   if (!formula.components) return [];
@@ -1572,6 +1645,7 @@ loadPredefinedFormula(formula: RiskFormula): void {
   // Load components from the selected formula
   if (formula.components) {
     const loadedComponents: RiskComponent[] = [];
+    const missingComponents: string[] = [];
     
     Object.entries(formula.components).forEach(([componentId, weight]) => {
       // Find component in available components
@@ -1582,15 +1656,46 @@ loadPredefinedFormula(formula: RiskFormula): void {
       if (componentIndex !== -1) {
         // Remove from available and add to formula with correct weight
         const component = this.availableComponents.splice(componentIndex, 1)[0];
-        component.weight = weight;
+        component.weight = this.validateNumber(weight, 0.2);
         loadedComponents.push(component);
       } else {
-        console.warn(`Component ${componentId} not found in available components`);
+        // Component not found - create a placeholder
+        console.warn(`Component ${componentId} not found - creating placeholder`);
+        missingComponents.push(componentId);
+        
+        // Look in custom components for metadata
+        const customComp = this.customComponents.find(c => 
+          c.neo4jProperty === componentId || c.name === componentId
+        );
+        
+        // Create placeholder with available metadata
+        const placeholderComponent: RiskComponent = {
+          id: `placeholder_${Date.now()}`,
+          name: customComp?.name || componentId.replace(/_/g, ' ').toUpperCase(),
+          neo4jProperty: componentId,
+          weight: this.validateNumber(weight, 0.2),
+          currentValue: 0,
+          maxValue: customComp?.maxValue || 100,
+          type: customComp?.type || 'custom',
+          icon: customComp?.icon || '⚠️',
+          description: customComp?.description || `Component ${componentId} (placeholder)`,
+          isComposite: false
+        };
+        
+        loadedComponents.push(placeholderComponent);
       }
     });
     
     // Set the new formula components
     this.riskFormula = loadedComponents;
+    
+    // Show warning if there were missing components
+    if (missingComponents.length > 0) {
+      this.showWarning(
+        'Missing Components',
+        `Some components were not found: ${missingComponents.join(', ')}. Placeholders were created.`
+      );
+    }
   }
   
   // Close formula selector
@@ -1632,8 +1737,28 @@ saveCurrentFormulaAsCustom(): void {
       const components: { [key: string]: number } = {};
       
       this.riskFormula.forEach(component => {
-        components[component.neo4jProperty] = component.weight;
+        // Debug logging
+        console.log('Saving component to formula:', {
+          name: component.name,
+          neo4jProperty: component.neo4jProperty,
+          weight: component.weight
+        });
+        
+        const propertyKey = component.neo4jProperty || component.name.replace(/[^a-zA-Z0-9]/g, '_');
+        
+        if (propertyKey && propertyKey !== 'undefined') {
+          components[propertyKey] = this.validateNumber(component.weight, 0.2);
+        } else {
+          console.error('Component missing valid neo4jProperty:', component);
+          this.showWarning('Invalid Component', `Component "${component.name}" could not be saved properly`);
+          return;
+        }
       });
+      
+      if (Object.keys(components).length !== this.riskFormula.length) {
+        this.showError('Save Failed', 'Some components could not be saved properly');
+        return;
+      }
 
       const customFormula = {
         name: formulaName,
@@ -1775,10 +1900,8 @@ async confirmNetworkApplication() {
     return;
   }
 
-  // Always use 'calculate' mode - no selection needed
   const calculationMode = 'calculate';
   
-  // Build confirmation message for calculate mode
   const propertyToUpdate = this.getPropertyToUpdate();
   const networkNames = selectedNetworks.map(n => n + '.x.x').join(', ');
   const confirmMessage = `Calculate "${propertyToUpdate}" using existing Node property values in selected networks?\n\nNetworks: ${networkNames}\nMethod: ${this.selectedMethod.replace('_', ' ')}\nComponents: ${this.riskFormula.length}\n\nThis will use property values from Node objects. Continue?`;
@@ -1797,7 +1920,6 @@ async confirmNetworkApplication() {
   const updateFrequency = await this.askUpdateFrequency();
   if (!updateFrequency) return;
 
-  // Apply the configuration using the API
   const config: RiskConfigurationRequest = {
     formulaName: this.currentFormulaName || 'Custom Formula',
     components: this.prepareComponentData(),
@@ -1854,7 +1976,6 @@ async confirmNetworkApplication() {
     return;
   }
 
-  // Always use 'calculate' mode
   const calculationMode = 'calculate';
 
   const frequency = await this.askUpdateFrequency();
@@ -1902,7 +2023,6 @@ async confirmNetworkApplication() {
 
   if (!confirmed) return;
 
-  // Always use 'calculate' mode
   const calculationMode = 'calculate';
 
   const frequency = await this.askUpdateFrequency();
