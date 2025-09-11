@@ -231,7 +231,7 @@
                     Components auto-populate with + operators. Edit manually for custom calculations.
                     <br>Example: <code>(CVSS Score * 0.6) + (Threat Score * 0.4)</code>
                     <span *ngIf="isCustomFormulaEdited()" style="color: #007bff; font-weight: bold;">
-                      <br>✏️ Custom formula detected - sample result reflects your changes
+                      <br>✏️ Custom formula detected
                     </span>
                   </div>
                 </div>
@@ -240,12 +240,6 @@
                 {{getGenericFormulaExpression()}}
               </span>
             </div>
-          </div>
-          <div class="result-preview">
-            <span class="result-label">Sample Result:</span>
-            <span class="result-value" [ngClass]="getResultRiskClass(calculatePreviewRisk())">
-              {{calculatePreviewRisk().toFixed(2)}}
-            </span>
           </div>
         </div>
         
