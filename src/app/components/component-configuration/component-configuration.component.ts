@@ -293,9 +293,6 @@ private notificationId = 0;
   });
 }
 
- // In component-configuration.component.ts
-// Update the configuration handling to only manage update_frequency
-
 private openManualConfigModal(component: ComponentConfig): void {
   this.selectedComponent = component;
   this.selectedMethod = component.calculationMethod || 'manual';
