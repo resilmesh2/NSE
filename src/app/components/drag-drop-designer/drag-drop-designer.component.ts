@@ -1261,7 +1261,7 @@ private loadComponentsFromConfig(): void {
   const autoDescription = `${this.customComponent.category.charAt(0).toUpperCase() + this.customComponent.category.slice(1)} component for risk assessment`;
   
   const categoryIcons: { [key: string]: string } = {
-    'security': '🔒',
+    'security': '🔐',
     'performance': '⚡',
     'compliance': '📋',
     'business': '💼',
@@ -1269,8 +1269,14 @@ private loadComponentsFromConfig(): void {
     'custom': '🔧'
   };
   
+  // Generate the component key the same way backend does
+  const componentKey = this.customComponent.name.trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  
   const newComponent: RiskComponent = {
-    id: Date.now(),
+    id: Date.now(),  // Keep numeric ID for now
     name: this.customComponent.name.trim(),
     type: 'custom',
     icon: categoryIcons[this.customComponent.category] || '🔧',
@@ -1278,35 +1284,34 @@ private loadComponentsFromConfig(): void {
     weight: 0.2,
     maxValue: this.customComponent.maxValue,
     currentValue: 0,
-    neo4jProperty: this.customComponent.name.trim().replace(/[^a-zA-Z0-9]/g, '_'),
+    neo4jProperty: componentKey,  // Use the generated key
     isComposite: false
   };
   
   this.riskConfigService.saveCustomComponent(newComponent).subscribe({
     next: async (response) => {
       console.log('Server response:', response);
-      console.log('Custom component saved to config:', response);
       
       // Write to Neo4j
       await this.writeComponentToNeo4j(newComponent);
       
-      // IMPORTANT: Add the component with all properties immediately
-      const componentToAdd = response.component || newComponent;
+      // IMPORTANT: Update the component with the backend's component_key
+      const serverComponentKey = response.component_key;
       
-      // Ensure the component has all required properties
-      const validatedComponent = {
-        ...componentToAdd,
-        weight: this.validateNumber(componentToAdd.weight, 0.2),
-        currentValue: this.validateNumber(componentToAdd.currentValue, 0),
-        maxValue: this.validateNumber(componentToAdd.maxValue, 100),
-        neo4jProperty: componentToAdd.neo4jProperty || newComponent.neo4jProperty
+      const componentToAdd = {
+        ...newComponent,
+        id: serverComponentKey,  // Use the backend's component_key as ID
+        neo4jProperty: serverComponentKey,  // Ensure consistency
+        weight: this.validateNumber(newComponent.weight, 0.2),
+        currentValue: this.validateNumber(newComponent.currentValue, 0),
+        maxValue: this.validateNumber(newComponent.maxValue, 100)
       };
       
-      // Add to available components immediately
-      this.availableComponents.push(validatedComponent);
+      // Add to available components
+      this.availableComponents.push(componentToAdd);
       
-      // Also add to custom components for tracking
-      //this.customComponents.push(validatedComponent);
+      // Also add to custom components list if you maintain one
+      this.customComponents.push(componentToAdd);
       
       this.closeCustomComponentModal();
       
@@ -1464,11 +1469,17 @@ loadFormulas(): void {
   });
 }
 
-loadCustomComponents(): void {
+loadCustomComponents() {
   this.riskConfigService.getCustomComponents().subscribe({
     next: (components) => {
-      this.customComponents = components;
-      console.log('Loaded custom components:', components.length);
+      console.log('Loaded custom components:', components);
+      
+      // Map the components with correct IDs
+      this.customComponents = components.map(comp => ({
+        ...comp,
+        id: comp.id || comp.neo4jProperty,  // Use the id from backend
+        neo4jProperty: comp.neo4jProperty || comp.id
+      }));
     },
     error: (error) => {
       console.error('Error loading custom components:', error);
@@ -1849,9 +1860,12 @@ async deleteCustomComponent(component: any): Promise<void> {
     return;
   }
 
-  console.log('Deleting component:', component.id, component.name);
+  // Use the component's ID which should be the component_key from backend
+  const componentId = component.id;
+  
+  console.log('Deleting component with ID:', componentId, 'Name:', component.name);
 
-  this.riskConfigService.deleteCustomComponent(component.id).subscribe({
+  this.riskConfigService.deleteCustomComponent(componentId).subscribe({
     next: async (response) => {
       console.log('Delete response:', response);
       await this.riskComponentsService.initializeComponentsInNeo4j();
@@ -1863,9 +1877,14 @@ async deleteCustomComponent(component: any): Promise<void> {
       // Reload components to refresh the list
       this.loadCustomComponents();
       
-      // Remove from available components if present
+      // Remove from available components
       this.availableComponents = this.availableComponents.filter(
-        c => c.id !== component.id
+        c => c.id !== componentId
+      );
+      
+      // Remove from custom components list  
+      this.customComponents = this.customComponents.filter(
+        c => c.id !== componentId
       );
     },
     error: (error) => {

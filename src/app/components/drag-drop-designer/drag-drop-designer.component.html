@@ -77,36 +77,6 @@
           </div>
         </div>
 
-        <!-- Custom Components Section -->
-        <div *ngIf="customComponents.length > 0" class="custom-components-section">
-          <h5>Custom Components</h5>
-          <div class="custom-components-list">
-            <div *ngFor="let component of customComponents" 
-                 class="custom-component-item">
-              
-              <div class="custom-component-header">
-                <div class="custom-component-name">{{ component.name }}</div>
-                <div class="custom-component-badge custom">CUSTOM</div>
-              </div>
-              
-              <div class="custom-component-description">{{ component.description }}</div>
-              
-              <div class="custom-component-details">
-                <span class="detail-item">Type: {{ component.type?.toUpperCase() }}</span>
-                <span class="detail-item">Max: {{ component.maxValue }}</span>
-              </div>
-              
-              <div class="custom-component-actions">
-                <button 
-                  class="btn btn-danger btn-xs" 
-                  (click)="deleteCustomComponent(component)">
-                  Delete
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
         <!-- Calculation Methods -->
         <div class="calculation-methods">
           <h5>Calculation Method</h5>
