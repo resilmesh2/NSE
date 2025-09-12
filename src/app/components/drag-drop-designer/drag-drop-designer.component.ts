@@ -1847,7 +1847,7 @@ async deleteCustomFormula(formula: RiskFormula): Promise<void> {
 }
 
 async deleteCustomComponent(component: any): Promise<void> {
-  const confirmMessage = `Are you sure you want to delete "${component.name}"?\n\nThis action cannot be undone.`;
+  const confirmMessage = `Are you sure you want to delete "${component.name}"?\n\nThis will:\n• Remove the component from configuration\n• Delete the "${component.neo4jProperty}" property from all nodes in Neo4j\n\nThis action cannot be undone.`;
   
   const confirmed = await this.showConfirm(
     'Delete Component',
@@ -1860,29 +1860,35 @@ async deleteCustomComponent(component: any): Promise<void> {
     return;
   }
 
-  // Use the component's ID which should be the component_key from backend
   const componentId = component.id;
-  
-  console.log('Deleting component with ID:', componentId, 'Name:', component.name);
+  console.log('Deleting component:', componentId, component.name);
 
   this.riskConfigService.deleteCustomComponent(componentId).subscribe({
     next: async (response) => {
       console.log('Delete response:', response);
+      
+      // Call the Neo4j property deletion endpoint
+      try {
+        const neo4jResponse = await this.http.delete(`http://localhost:5000/api/components/neo4j-property/${component.neo4jProperty}`).toPromise();
+        console.log('Neo4j deletion response:', neo4jResponse);
+      } catch (neo4jError) {
+        console.error('Error deleting from Neo4j:', neo4jError);
+        this.showWarning('Partial Deletion', 'Component removed from config but Neo4j cleanup failed');
+      }
+      
       await this.riskComponentsService.initializeComponentsInNeo4j();
+      
       this.showSuccess(
         'Component Deleted', 
-        `"${component.name}" has been deleted successfully`
+        `"${component.name}" has been deleted successfully from both config and Neo4j`
       );
       
-      // Reload components to refresh the list
       this.loadCustomComponents();
       
-      // Remove from available components
       this.availableComponents = this.availableComponents.filter(
         c => c.id !== componentId
       );
       
-      // Remove from custom components list  
       this.customComponents = this.customComponents.filter(
         c => c.id !== componentId
       );
