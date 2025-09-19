@@ -51,7 +51,7 @@ export interface ComponentAutomation {
   providedIn: 'root'
 })
 export class ComponentConfigService {
-  private apiUrl = 'http://localhost:5000/api';
+  private apiUrl = 'http://192.168.200.137:5000/api';
 
   constructor(private http: HttpClient) { }
 
@@ -68,7 +68,7 @@ export class ComponentConfigService {
   }
 
   deleteCustomComponent(componentId: number): Observable<any> {
-  return this.http.delete(`http://localhost:3000/api/risk/components/custom/${componentId}`);
+  return this.http.delete(`http://192.168.200.137:3000/api/risk/components/custom/${componentId}`);
 }
 
   executeComponentCalculation(componentId: number): Observable<any> {

@@ -100,7 +100,7 @@ private notificationId = 0;
    
    this.loading = true;
    
-   this.http.get(`http://localhost:5000/api/components/custom/${componentIdentifier}/config`).subscribe({
+   this.http.get(`http://192.168.200.137:5000/api/components/custom/${componentIdentifier}/config`).subscribe({
      next: (response: any) => {
        this.loading = false;
        
@@ -207,7 +207,7 @@ private notificationId = 0;
                              component.name?.toLowerCase().replace(/\s+/g, '_') || 
                              component.id.toString();
   
-  this.http.post(`http://localhost:5000/api/components/custom/${componentIdentifier}/execute`, {
+  this.http.post(`http://192.168.200.137:5000/api/components/custom/${componentIdentifier}/execute`, {
     query: automation.data_source.query,
     update_neo4j: true,
     target_property: automation.target_property || componentIdentifier
@@ -242,7 +242,7 @@ private notificationId = 0;
                               component.name?.toLowerCase().replace(/\s+/g, '_') || 
                               component.id.toString();
    
-   this.http.post(`http://localhost:5000/api/components/neo4j/update`, {
+   this.http.post(`http://192.168.200.137:5000/api/components/neo4j/update`, {
      property: componentIdentifier,
      value: value
    }).subscribe({
@@ -262,7 +262,7 @@ private notificationId = 0;
                              component.name?.toLowerCase().replace(/\s+/g, '_') || 
                              component.id.toString();
   
-  this.http.post(`http://localhost:5000/api/components/custom/${componentIdentifier}/execute`, {
+  this.http.post(`http://192.168.200.137:5000/api/components/custom/${componentIdentifier}/execute`, {
     query: query,
     update_neo4j: true,
     target_property: component.neo4jProperty || componentIdentifier
@@ -343,7 +343,7 @@ saveComponentConfiguration(): void {
     target_property: this.selectedComponent.neo4jProperty || componentIdentifier
   };
   
-  this.http.put(`http://localhost:5000/api/components/custom/${componentIdentifier}/config`, configUpdate)
+  this.http.put(`http://192.168.200.137:5000/api/components/custom/${componentIdentifier}/config`, configUpdate)
     .subscribe({
       next: (response) => {
         this.showSuccess('Configuration Saved', 
@@ -628,7 +628,7 @@ saveComponentConfiguration(): void {
      calculationMode: 'setValue'
    };
 
-   return await this.http.post('http://localhost:3000/api/write-custom-risk-component', componentData).toPromise();
+   return await this.http.post('http://192.168.200.137:3000/api/write-custom-risk-component', componentData).toPromise();
  }
 
  getCategoryIcon(category: string): string {

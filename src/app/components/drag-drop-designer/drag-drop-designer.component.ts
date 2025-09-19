@@ -1349,7 +1349,7 @@ private async writeComponentToNeo4j(component: any): Promise<any> {
     calculationMode: 'setValue'
   };
 
-  return await this.http.post('http://localhost:3000/api/write-custom-risk-component', componentData).toPromise();
+  return await this.http.post('http://192.168.200.137:3000/api/write-custom-risk-component', componentData).toPromise();
 }
 
   // Network selection methods
@@ -1869,7 +1869,7 @@ async deleteCustomComponent(component: any): Promise<void> {
       
       // Call the Neo4j property deletion endpoint
       try {
-        const neo4jResponse = await this.http.delete(`http://localhost:5000/api/components/neo4j-property/${component.neo4jProperty}`).toPromise();
+        const neo4jResponse = await this.http.delete(`http://192.168.200.137:5000/api/components/neo4j-property/${component.neo4jProperty}`).toPromise();
         console.log('Neo4j deletion response:', neo4jResponse);
       } catch (neo4jError) {
         console.error('Error deleting from Neo4j:', neo4jError);
