@@ -55,6 +55,45 @@ interface ActiveAutomation {
   targetValues?: string[];
 }
 
+interface NetworkDevice {
+  ip: string;
+  hostname?: string;
+  riskScore?: number;
+  isActive?: boolean;
+  selected?: boolean;
+  hidden?: boolean;
+  isMatch?: boolean;
+  deviceType?: string;
+  os?: string;
+  vulnerabilities?: number;
+  [key: string]: any; // Allow additional properties
+}
+
+interface SubnetData {
+  subnet: string;
+  deviceCount: number;
+  riskScore?: number;
+  devices?: NetworkDevice[];
+  visibleDevices?: NetworkDevice[];
+  expanded?: boolean;
+  selected?: boolean;
+  hidden?: boolean;
+  isMatch?: boolean;
+  hasDetailedData?: boolean;
+  [key: string]: any; // Allow additional properties
+}
+
+interface NetworkData {
+  prefix: string;
+  subnets: SubnetData[];
+  totalDevices: number;
+  expanded?: boolean;
+  selected?: boolean;
+  hidden?: boolean;
+  isMatch?: boolean;
+  [key: string]: any; // Allow additional properties
+}
+
 @Component({
   selector: 'app-drag-drop-designer',
   standalone: true,
@@ -68,16 +107,17 @@ export class DragDropDesignerComponent implements OnInit {
   riskFormula: RiskComponent[] = [];
   isLoadingComponents = true;
 
+  // Hierarchical network selection properties
+  hierarchicalNetworks: NetworkData[] = [];
+  networkSearchTerm: string = '';
+  networkSearchFilter: string = 'all';
+  networkSearchResults: any[] = [];
   showIpModal = false;
-  availableIpAddresses: any[] = [];
-  filteredIpAddresses: any[] = [];
-  selectedIps: boolean[] = [];
-  selectAllIps = false;
-  ipSearchTerm = '';
+  
+  // Subnet search
   subnetSearchTerm: string = '';
   filteredSubnets: any[] = [];
-
-  selectedSubnetForIps: string = '';
+  availableSubnets: any[] = [];
 
   showingAutomations = false;
   activeAutomations: ActiveAutomation[] = [];
@@ -138,10 +178,7 @@ formulaInputModalData: {
 
   currentFormulaName: string = '';
   selectedSubnets: any[] = [];
-  // showCalculationModeModal = false;
   showFrequencyModal = false;
-  // private calculationModeCallback: ((mode: string | null) => void) | null = null;
-  // selectedCalculationMode: 'setValue' | 'calculate' | null = null;
   updateFrequency = 'manual';
   updateFrequencies = [
     { value: 'manual', label: 'Manual Only' },
@@ -153,8 +190,7 @@ formulaInputModalData: {
   ];
   private frequencyResolve: ((value: string | null) => void) | null = null;
 
-  
-notifications: Array<{
+  notifications: Array<{
   id: number;
   type: 'success' | 'info' | 'warning' | 'error';
   title: string;
@@ -178,26 +214,12 @@ private notificationId = 0;
   selectedMethod = 'weighted_avg';
   customFormula = '';
 
-  // Modal states
-  showConfigModal = false;
-  showNetworkModal = false;
-  showSubnetModal = false;
-  
-  availableNetworks: any[] = [];
-  availableSubnets: any[] = [];
-
-  // Multi-select network properties
-  selectedNetworks: boolean[] = [];
-  selectAllNetworks = false;
-
   showCustomComponentModal = false;
   customComponent = {
     name: '',
     category: '',
     maxValue: 10
   };
-
-  
 
 @ViewChild('componentList', { static: false }) componentList!: CdkDropList;
 @ViewChild('formulaArea', { static: false }) formulaArea!: CdkDropList;
@@ -224,17 +246,15 @@ private notificationId = 0;
   this.loadNetworkData();
   this.loadActiveAutomations();
   
+  // Initialize hierarchical networks
+  setTimeout(() => {
+    this.initializeHierarchicalNetworks();
+  }, 200);
+  
   // Load formulas after components are loaded
   setTimeout(() => {
     this.loadFormulas();
   }, 500);
-  
-}
-
-openIpModalForSubnet(subnet?: string) {
-  this.selectedSubnetForIps = subnet || '';
-  this.loadIpAddressesFromSubnet(this.selectedSubnetForIps);
-  this.showIpModal = true;
 }
 
 loadActiveAutomations(): void {
@@ -247,7 +267,7 @@ loadActiveAutomations(): void {
         if (response.success && response.automations) {
           this.activeAutomations = Object.keys(response.automations).map(key => ({
             id: key,
-            enabled: response.automations[key].enabled !== false, // Handle missing enabled field
+            enabled: response.automations[key].enabled !== false,
             ...response.automations[key]
           }));
         } else {
@@ -296,7 +316,6 @@ async pauseAutomation(automation: ActiveAutomation): Promise<void> {
   this.http.put(`http://localhost:5000/api/components/automation/${automation.id}/pause`, {})
     .subscribe({
       next: () => {
-        // Update the local automation object
         automation.enabled = false;
         this.showSuccess('Automation Paused', `${this.getComponentName(automation)} automation has been paused`);
       },
@@ -319,7 +338,6 @@ async resumeAutomation(automation: ActiveAutomation): Promise<void> {
   this.http.put(`http://localhost:5000/api/components/automation/${automation.id}/resume`, {})
     .subscribe({
       next: () => {
-        // Update the local automation object
         automation.enabled = true;
         this.showSuccess('Automation Resumed', `${this.getComponentName(automation)} automation has been resumed`);
       },
@@ -330,7 +348,6 @@ async resumeAutomation(automation: ActiveAutomation): Promise<void> {
 }
 
 getAutomationStatusText(automation: ActiveAutomation): string {
-  // Check if enabled property exists, if not default to true, if explicitly false then paused
   const enabled = automation.enabled !== false;
   if (!enabled) return 'Paused';
   
@@ -376,7 +393,6 @@ getAutomationStatusClass(automation: ActiveAutomation): string {
 }
 
 getAutomationTarget(automation: ActiveAutomation): string {
-  // Get the actual target values from the automation data
   const targetType = automation.target_type || automation.targetType;
   const targetValues = automation.target_values || automation.targetValues || [];
   
@@ -481,7 +497,6 @@ formatLastRun(lastRun: string | undefined): string {
 }
 
 getComponentName(automation: ActiveAutomation): string {
-  // Handle both component and formula automations
   return automation.formula_name || 
          automation.componentName || 
          'Unknown Formula';
@@ -502,7 +517,7 @@ getRiskScore(automation: ActiveAutomation): string {
 }
 
 formatUpdateFrequency(frequency: string | undefined): string {
-  if (!frequency) return 'Manual'; // Handle undefined/null/empty cases
+  if (!frequency) return 'Manual';
   
   const frequencyMap: { [key: string]: string } = {
     'manual': 'Manual',
@@ -514,6 +529,581 @@ formatUpdateFrequency(frequency: string | undefined): string {
   };
   return frequencyMap[frequency] || frequency;
 }
+
+
+// Network tree interaction methods
+toggleNetworkNode(networkIndex: number): void {
+  const network = this.hierarchicalNetworks[networkIndex];
+  if (network) {
+    network.expanded = !network.expanded;
+  }
+}
+
+toggleNetworkExpansion(networkIndex: number, event: Event): void {
+  event.stopPropagation();
+  this.toggleNetworkNode(networkIndex);
+}
+
+toggleSubnetExpansion(networkIndex: number, subnetIndex: number, event: Event): void {
+  event.stopPropagation();
+  const subnet = this.hierarchicalNetworks[networkIndex]?.subnets[subnetIndex];
+  if (subnet) {
+    subnet.expanded = !subnet.expanded;
+  }
+}
+
+// Selection methods
+selectEntireNetwork(networkIndex: number): void {
+  const network = this.hierarchicalNetworks[networkIndex];
+  if (!network) return;
+  
+  // When network is selected, deselect all subnets and IPs
+  network.subnets.forEach(subnet => {
+    subnet.selected = false;
+    if (subnet.devices) {
+      subnet.devices.forEach(device => {
+        device.selected = false;
+      });
+    }
+    if (subnet.visibleDevices) {
+      subnet.visibleDevices.forEach(device => {
+        device.selected = false;
+      });
+    }
+  });
+  
+  this.updateSelectionCounts();
+}
+
+selectEntireSubnet(networkIndex: number, subnetIndex: number): void {
+  const network = this.hierarchicalNetworks[networkIndex];
+  const subnet = network?.subnets[subnetIndex];
+  if (!subnet) return;
+  
+  // When subnet is selected, deselect network and individual IPs
+  network.selected = false;
+  if (subnet.devices) {
+    subnet.devices.forEach(device => {
+      device.selected = false;
+    });
+  }
+  if (subnet.visibleDevices) {
+    subnet.visibleDevices.forEach(device => {
+      device.selected = false;
+    });
+  }
+  
+  this.updateSelectionCounts();
+}
+
+// Update these method signatures
+loadMoreIPs(networkIndex: number, subnetIndex: number): void {
+  const subnet: SubnetData | undefined = this.hierarchicalNetworks[networkIndex]?.subnets[subnetIndex];
+  if (!subnet || !subnet.devices) return;
+  
+  const currentVisible = subnet.visibleDevices?.length || 0;
+  const nextBatch = subnet.devices.slice(currentVisible, currentVisible + 20);
+  
+  // Map real devices to include selection state
+  const mappedBatch: NetworkDevice[] = nextBatch.map((device: NetworkDevice) => ({
+    ...device,
+    selected: false,
+    hidden: false,
+    isMatch: false
+  }));
+  
+  if (!subnet.visibleDevices) {
+    subnet.visibleDevices = [];
+  }
+  subnet.visibleDevices.push(...mappedBatch);
+}
+
+selectIndividualIP(networkIndex: number, subnetIndex: number, ipIndex: number): void {
+  const network: NetworkData | undefined = this.hierarchicalNetworks[networkIndex];
+  const subnet: SubnetData | undefined = network?.subnets[subnetIndex];
+  if (!subnet) return;
+  
+  // When individual IP is selected, deselect network and subnet
+  if (network) {
+    network.selected = false;
+  }
+  subnet.selected = false;
+  
+  // Sync visible device selection with main devices array
+  const visibleDevice: NetworkDevice | undefined = subnet.visibleDevices?.[ipIndex];
+  if (visibleDevice && subnet.devices) {
+    const originalDevice = subnet.devices.find((d: NetworkDevice) => d.ip === visibleDevice.ip);
+    if (originalDevice) {
+      originalDevice.selected = visibleDevice.selected;
+    }
+  }
+  
+  this.updateSelectionCounts();
+}
+
+private initializeHierarchicalNetworks(): void {
+  const networkMap = new Map<string, NetworkData>();
+  const currentData = this.networkDataService.getCurrentNetworkData();
+  
+  currentData.forEach((subnet: any) => {
+    const networkPrefix = subnet.subnet.split('.').slice(0, 2).join('.');
+    if (!networkMap.has(networkPrefix)) {
+      networkMap.set(networkPrefix, {
+        prefix: networkPrefix,
+        subnets: [],
+        totalDevices: 0,
+        expanded: false,
+        selected: false,
+        hidden: false,
+        isMatch: false
+      });
+    }
+    const network = networkMap.get(networkPrefix)!;
+    
+    // Use real subnet data with real devices if available
+    const subnetData: SubnetData = {
+      ...subnet,
+      devices: subnet.devices || [],
+      visibleDevices: [],
+      expanded: false,
+      selected: false,
+      hidden: false,
+      isMatch: false
+    };
+    
+    // Show first 15 real devices if they exist
+    if (subnetData.devices && subnetData.devices.length > 0) {
+      subnetData.visibleDevices = subnetData.devices.slice(0, 15).map((device: any) => ({
+        ...device,
+        selected: false,
+        hidden: false,
+        isMatch: false
+      }));
+    }
+    
+    network.subnets.push(subnetData);
+    network.totalDevices += subnetData.devices?.length || subnet.deviceCount || 0;
+  });
+
+  this.hierarchicalNetworks = Array.from(networkMap.values());
+  console.log('Initialized hierarchical networks with real data:', this.hierarchicalNetworks);
+}
+
+performNetworkSearch(): void {
+  const searchTerm = this.networkSearchTerm.toLowerCase().trim();
+  this.networkSearchResults = [];
+  
+  if (!searchTerm) {
+    this.clearNetworkSearchResults();
+    return;
+  }
+  
+  this.hierarchicalNetworks.forEach((network: NetworkData) => {
+    let networkMatches = false;
+    
+    // Search network level
+    if ((this.networkSearchFilter === 'all' || this.networkSearchFilter === 'networks') &&
+        network.prefix.toLowerCase().includes(searchTerm)) {
+      networkMatches = true;
+      network.isMatch = true;
+      this.networkSearchResults.push({ type: 'network', element: network });
+    }
+    
+    // Search subnets
+    network.subnets.forEach((subnet: SubnetData) => {
+      let subnetMatches = false;
+      
+      if ((this.networkSearchFilter === 'all' || this.networkSearchFilter === 'subnets') &&
+          subnet.subnet.toLowerCase().includes(searchTerm)) {
+        subnetMatches = true;
+        subnet.isMatch = true;
+        networkMatches = true;
+        this.networkSearchResults.push({ type: 'subnet', element: subnet });
+      }
+      
+      // Search real device data
+      if ((this.networkSearchFilter === 'all' || this.networkSearchFilter === 'ips') && subnet.devices) {
+        subnet.devices.forEach((device: NetworkDevice) => {
+          const ipMatch = device.ip && device.ip.includes(searchTerm);
+          const hostnameMatch = device.hostname && device.hostname.toLowerCase().includes(searchTerm);
+          
+          if (ipMatch || hostnameMatch) {
+            device.isMatch = true;
+            subnetMatches = true;
+            networkMatches = true;
+            this.networkSearchResults.push({ type: 'ip', element: device });
+            
+            // Make sure this device is visible
+            if (subnet.visibleDevices && !subnet.visibleDevices.some((vd: NetworkDevice) => vd.ip === device.ip)) {
+              subnet.visibleDevices.push({
+                ...device,
+                selected: false,
+                hidden: false,
+                isMatch: true
+              });
+            }
+          }
+        });
+      }
+      
+      subnet.hidden = !subnetMatches;
+    });
+    
+    network.hidden = !networkMatches;
+  });
+}
+
+private filterHighRiskItems(): void {
+  this.hierarchicalNetworks.forEach((network: NetworkData) => {
+    let networkHasHighRisk = false;
+    
+    network.subnets.forEach((subnet: SubnetData) => {
+      let subnetHasHighRisk = false;
+      
+      // Check if subnet itself has high risk
+      if (subnet.riskScore && subnet.riskScore >= 7) {
+        subnet.isMatch = true;
+        subnetHasHighRisk = true;
+        networkHasHighRisk = true;
+        this.networkSearchResults.push({ type: 'subnet', element: subnet });
+      }
+      
+      // Check devices for high risk
+      if (subnet.devices) {
+        subnet.devices.forEach((device: NetworkDevice) => {
+          if (device.riskScore && device.riskScore >= 7) {
+            device.isMatch = true;
+            subnetHasHighRisk = true;
+            networkHasHighRisk = true;
+            this.networkSearchResults.push({ type: 'ip', element: device });
+          }
+        });
+      }
+      
+      subnet.hidden = !subnetHasHighRisk;
+    });
+    
+    network.hidden = !networkHasHighRisk;
+  });
+}
+
+private calculateTotalTargets(): number {
+  let totalTargets = 0;
+  
+  this.hierarchicalNetworks.forEach((network: NetworkData) => {
+    if (network.selected) {
+      // Count all devices in all subnets of this network
+      network.subnets.forEach((subnet: SubnetData) => {
+        totalTargets += subnet.devices?.length || subnet.deviceCount || 0;
+      });
+    } else {
+      network.subnets.forEach((subnet: SubnetData) => {
+        if (subnet.selected) {
+          // Count all devices in this subnet
+          totalTargets += subnet.devices?.length || subnet.deviceCount || 0;
+        } else {
+          // Count only selected individual devices
+          if (subnet.devices) {
+            subnet.devices.forEach((device: NetworkDevice) => {
+              if (device.selected) {
+                totalTargets++;
+              }
+            });
+          }
+        }
+      });
+    }
+  });
+  
+  return totalTargets;
+}
+
+private updateSelectionCounts(): void {
+  // Sync visible device selections with main device array
+  this.hierarchicalNetworks.forEach((network: NetworkData) => {
+    network.subnets.forEach((subnet: SubnetData) => {
+      if (subnet.visibleDevices && subnet.devices) {
+        subnet.visibleDevices.forEach((visibleDevice: NetworkDevice) => {
+          const originalDevice = subnet.devices!.find((d: NetworkDevice) => d.ip === visibleDevice.ip);
+          if (originalDevice) {
+            originalDevice.selected = visibleDevice.selected;
+          }
+        });
+      }
+    });
+  });
+}
+
+setNetworkSearchFilter(filter: string): void {
+  this.networkSearchFilter = filter;
+  
+  if (filter === 'high-risk') {
+    this.clearNetworkSearchResults();
+    this.filterHighRiskItems();
+  } else {
+    this.performNetworkSearch();
+  }
+}
+
+
+clearNetworkSearch(): void {
+  this.networkSearchTerm = '';
+  this.clearNetworkSearchResults();
+}
+
+private clearNetworkSearchResults(): void {
+  this.networkSearchResults = [];
+  
+  this.hierarchicalNetworks.forEach(network => {
+    network.hidden = false;
+    network.isMatch = false;
+    
+    network.subnets.forEach(subnet => {
+      subnet.hidden = false;
+      subnet.isMatch = false;
+      
+      if (subnet.devices) {
+        subnet.devices.forEach(device => {
+          device.hidden = false;
+          device.isMatch = false;
+        });
+      }
+    });
+  });
+}
+
+expandAllNetworkResults(): void {
+  this.networkSearchResults.forEach(result => {
+    if (result.type === 'ip') {
+      const device = result.element;
+      this.hierarchicalNetworks.forEach(network => {
+        network.subnets.forEach(subnet => {
+          if (subnet.devices && subnet.devices.some(d => d.ip === device.ip)) {
+            network.expanded = true;
+            subnet.expanded = true;
+          }
+        });
+      });
+    } else if (result.type === 'subnet') {
+      const subnetElement = result.element;
+      this.hierarchicalNetworks.forEach(network => {
+        if (network.subnets.includes(subnetElement)) {
+          network.expanded = true;
+        }
+      });
+    } else if (result.type === 'network') {
+      result.element.expanded = true;
+    }
+  });
+}
+
+// Selection summary methods
+getNetworkSelectionSummary(): string {
+  let networkCount = 0;
+  let subnetCount = 0;
+  let ipCount = 0;
+  
+  this.hierarchicalNetworks.forEach(network => {
+    if (network.selected) {
+      networkCount++;
+    } else {
+      network.subnets.forEach(subnet => {
+        if (subnet.selected) {
+          subnetCount++;
+        } else {
+          if (subnet.devices) {
+            subnet.devices.forEach(device => {
+              if (device.selected) {
+                ipCount++;
+              }
+            });
+          }
+        }
+      });
+    }
+  });
+  
+  const parts = [];
+  if (networkCount > 0) parts.push(`${networkCount} network${networkCount > 1 ? 's' : ''}`);
+  if (subnetCount > 0) parts.push(`${subnetCount} subnet${subnetCount > 1 ? 's' : ''}`);
+  if (ipCount > 0) parts.push(`${ipCount} IP${ipCount > 1 ? 's' : ''}`);
+  
+  return parts.length > 0 ? parts.join(' • ') + ' selected' : 'No selections made';
+}
+
+getNetworkSelectionDetails(): string {
+  const totalTargets = this.calculateTotalTargets();
+  return totalTargets > 0 ? `Total estimated targets: ${totalTargets.toLocaleString()} devices` : '';
+}
+
+getTotalSelectedCount(): number {
+  return this.calculateTotalTargets();
+}
+
+clearAllNetworkSelections(): void {
+  this.hierarchicalNetworks.forEach(network => {
+    network.selected = false;
+    network.subnets.forEach(subnet => {
+      subnet.selected = false;
+      if (subnet.devices) {
+        subnet.devices.forEach(device => {
+          device.selected = false;
+        });
+      }
+      if (subnet.visibleDevices) {
+        subnet.visibleDevices.forEach(device => {
+          device.selected = false;
+        });
+      }
+    });
+  });
+}
+
+// Apply selected hierarchy to automation
+async applyToSelectedHierarchy(): Promise<void> {
+  const selectedData = this.gatherSelectedTargets();
+  
+  if (selectedData.totalTargets === 0) {
+    this.showWarning('Selection Required', 'Please select at least one network, subnet, or IP address.');
+    return;
+  }
+  
+  this.closeIpModal();
+  
+  const propertyToUpdate = this.getPropertyToUpdate();
+  if (!propertyToUpdate) {
+    this.showWarning('Configuration Error', 'Please add components to your formula first!');
+    return;
+  }
+  
+  // Determine the most specific target type
+  let targetType = 'mixed';
+  let targetValues: string[] = [];
+  
+  if (selectedData.selectedNetworks.length > 0 && selectedData.selectedSubnets.length === 0 && selectedData.selectedIPs.length === 0) {
+    targetType = 'network';
+    targetValues = selectedData.selectedNetworks;
+  } else if (selectedData.selectedSubnets.length > 0 && selectedData.selectedNetworks.length === 0 && selectedData.selectedIPs.length === 0) {
+    targetType = 'subnet';
+    targetValues = selectedData.selectedSubnets;
+  } else if (selectedData.selectedIPs.length > 0 && selectedData.selectedNetworks.length === 0 && selectedData.selectedSubnets.length === 0) {
+    targetType = 'ip';
+    targetValues = selectedData.selectedIPs;
+  } else {
+    // Mixed selection - use the most comprehensive approach
+    targetType = 'mixed';
+    targetValues = [...selectedData.selectedNetworks, ...selectedData.selectedSubnets, ...selectedData.selectedIPs];
+  }
+  
+  const confirmMessage = `Apply risk calculation to selected targets?\n\nSelection: ${selectedData.summary}\nMethod: ${this.selectedMethod.replace('_', ' ')}\nComponents: ${this.riskFormula.length}\nEstimated targets: ${selectedData.totalTargets}\n\nContinue?`;
+  
+  const confirmed = await this.showConfirm(
+    'Apply to Selected Targets',
+    confirmMessage,
+    'Continue',
+    'Cancel'
+  );
+  
+  if (!confirmed) return;
+
+  const frequency = await this.askUpdateFrequency();
+  if (!frequency) return;
+  
+  try {
+    const config: RiskConfigurationRequest = {
+      formulaName: this.currentFormulaName || 'Custom Formula',
+      components: this.prepareComponentData(),
+      targetType: targetType,
+      targetValues: targetValues,
+      calculationMode: 'calculate',
+      calculationMethod: this.selectedMethod,
+      customFormula: this.customFormula,
+      updateFrequency: frequency,
+      targetProperty: this.targetProperty || 'Risk Score'
+    };
+
+    const response = await this.riskConfigService.applyRiskConfiguration(config).toPromise();
+    
+    if (response?.success) {
+      this.showSuccess(
+        'Configuration Applied', 
+        `Updated ${response.nodesUpdated} nodes\nAverage Risk Score: ${response.avgRiskScore.toFixed(2)}`
+      );
+      
+      if (response.automationEnabled) {
+        this.showInfo('Automation Enabled', `Risk calculation will run ${frequency}`);
+      }
+      
+      this.riskFormula = [];
+      this.loadActiveAutomations(); // Refresh automations list
+    }
+    
+    this.clearAllNetworkSelections();
+    await this.refreshComponents();
+    
+  } catch (error) {
+    console.error('Error applying configuration:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    this.showError('Application Failed', `Failed to apply risk configuration: ${errorMessage}`);
+  }
+}
+
+// Gather real selected targets for automation
+private gatherSelectedTargets(): any {
+  const selectedNetworks: string[] = [];
+  const selectedSubnets: string[] = [];
+  const selectedIPs: string[] = [];
+  let totalTargets = 0;
+  
+  this.hierarchicalNetworks.forEach(network => {
+    if (network.selected) {
+      selectedNetworks.push(network.prefix);
+      totalTargets += network.totalDevices;
+    } else {
+      network.subnets.forEach(subnet => {
+        if (subnet.selected) {
+          selectedSubnets.push(subnet.subnet);
+          totalTargets += subnet.devices ? subnet.devices.length : (subnet.deviceCount || 0);
+        } else {
+          // Check both devices and visibleDevices arrays for selections
+          const devicesToCheck = subnet.devices || [];
+          const visibleDevicesToCheck = subnet.visibleDevices || [];
+          
+          // First check visible devices and sync with main devices array
+          visibleDevicesToCheck.forEach(visibleDevice => {
+            if (visibleDevice.selected) {
+              const originalDevice = devicesToCheck.find(d => d.ip === visibleDevice.ip);
+              if (originalDevice) {
+                originalDevice.selected = true;
+              }
+            }
+          });
+          
+          // Now count all selected devices
+          devicesToCheck.forEach(device => {
+            if (device.selected && device.ip) {
+              selectedIPs.push(device.ip);
+              totalTargets++;
+            }
+          });
+        }
+      });
+    }
+  });
+  
+  const parts = [];
+  if (selectedNetworks.length > 0) parts.push(`${selectedNetworks.length} network(s)`);
+  if (selectedSubnets.length > 0) parts.push(`${selectedSubnets.length} subnet(s)`);
+  if (selectedIPs.length > 0) parts.push(`${selectedIPs.length} IP(s)`);
+  
+  return {
+    selectedNetworks,
+    selectedSubnets,
+    selectedIPs,
+    totalTargets,
+    summary: parts.join(', ') || 'No selections'
+  };
+}
   
   private async loadNetworkData() {
   console.log('Loading network data...');
@@ -521,26 +1111,7 @@ formatUpdateFrequency(frequency: string | undefined): string {
   
   // Store all subnets without limit
   this.availableSubnets = currentData;
-  this.filteredSubnets = currentData; // Initialize filtered subnets
-  
-  const networkMap = new Map();
-  
-  currentData.forEach(subnet => {
-    const networkPrefix = subnet.subnet.split('.').slice(0, 2).join('.');
-    if (!networkMap.has(networkPrefix)) {
-      networkMap.set(networkPrefix, {
-        prefix: networkPrefix,
-        subnets: [],
-        totalDevices: 0
-      });
-    }
-    const network = networkMap.get(networkPrefix);
-    network.subnets.push(subnet);
-    network.totalDevices += subnet.deviceCount;
-  });
-
-  this.availableNetworks = Array.from(networkMap.values());
-  this.selectedNetworks = new Array(this.availableNetworks.length).fill(false);
+  this.filteredSubnets = currentData;
 }
 
 filterSubnets() {
@@ -554,176 +1125,6 @@ filterSubnets() {
     );
   }
 }
-
-  private async loadIpAddresses() {
-  console.log('Loading IP addresses...');
-  this.availableIpAddresses = [];
-  
-  try {
-    const networkData = this.networkDataService.getCurrentNetworkData();
-    console.log('Network data:', networkData.length, 'subnets');
-    
-    // Only process subnets that have devices loaded (hasDetailedData = true)
-    const subnetsWithDevices = networkData.filter(subnet => 
-      subnet.hasDetailedData && subnet.devices && subnet.devices.length > 0
-    );
-    
-    console.log(`Found ${subnetsWithDevices.length} subnets with loaded devices`);
-    
-    if (subnetsWithDevices.length === 0) {
-      console.log('No subnets with loaded device data found');
-      this.filteredIpAddresses = [];
-      return;
-    }
-    
-    // Extract all devices from subnets that have been loaded
-    subnetsWithDevices.forEach(subnet => {
-      subnet.devices.forEach(device => {
-        if (device.ip) {
-          this.availableIpAddresses.push({
-            ip: device.ip,
-            subnet: subnet.subnet,
-            riskScore: device.riskScore || 0,
-            hostname: device.hostname || 'Unknown',
-            deviceData: device
-          });
-        }
-      });
-    });
-    
-    // Sort by IP address
-    this.availableIpAddresses.sort((a, b) => {
-      const aOctets = a.ip.split('.').map(Number);
-      const bOctets = b.ip.split('.').map(Number);
-      for (let i = 0; i < 4; i++) {
-        if (aOctets[i] !== bOctets[i]) {
-          return aOctets[i] - bOctets[i];
-        }
-      }
-      return 0;
-    });
-    
-    // Initialize with all available IPs (no 50 limit)
-    this.filteredIpAddresses = [...this.availableIpAddresses];
-    this.selectedIps = new Array(this.availableIpAddresses.length).fill(false);
-    this.selectAllIps = false;
-    this.ipSearchTerm = '';
-    
-    console.log(`Loaded ${this.availableIpAddresses.length} IP addresses from expanded subnets`);
-    
-  } catch (error) {
-    console.error('Error loading IP addresses:', error);
-    this.availableIpAddresses = [];
-    this.filteredIpAddresses = [];
-  }
-}
-
-  private loadIpAddressesFromSubnet(selectedSubnet?: string) {
-  if (!selectedSubnet) {
-    this.availableIpAddresses = [];
-    this.filteredIpAddresses = [];
-    return;
-  }
-
-  try {
-    const networkData = this.networkDataService.getCurrentNetworkData();
-    console.log('Network data:', networkData.length, 'subnets');
-    
-    this.availableIpAddresses = [];
-    
-    // Find the specific subnet or load from clicked subnet
-    const subnetsToProcess = selectedSubnet ? 
-      networkData.filter(subnet => subnet.subnet === selectedSubnet) : 
-      networkData;
-    
-    subnetsToProcess.forEach(subnet => {
-      if (subnet.devices && subnet.devices.length > 0) {
-        subnet.devices.forEach(device => {
-          if (device.ip) {
-            this.availableIpAddresses.push({
-              ip: device.ip,
-              subnet: subnet.subnet,
-              riskScore: device.riskScore || 0,
-              hostname: device.hostname || 'Unknown',
-              deviceData: device
-            });
-          }
-        });
-      } else {
-        // Generate sample IPs from subnet range for demonstration
-        const baseIp = subnet.subnet.split('/')[0];
-        const baseOctets = baseIp.split('.');
-        
-        const ipCount = Math.min(5, Math.max(3, subnet.deviceCount || 3));
-        for (let i = 1; i <= ipCount; i++) {
-          const lastOctet = Math.floor(Math.random() * 200) + 10;
-          const sampleIp = `${baseOctets[0]}.${baseOctets[1]}.${baseOctets[2]}.${lastOctet}`;
-          
-          this.availableIpAddresses.push({
-            ip: sampleIp,
-            subnet: subnet.subnet,
-            riskScore: subnet.riskScore || 0,
-            hostname: `host-${lastOctet}`,
-            deviceData: null
-          });
-        }
-      }
-    });
-    
-    // Sort by IP address
-    this.availableIpAddresses.sort((a, b) => {
-      const aOctets = a.ip.split('.').map(Number);
-      const bOctets = b.ip.split('.').map(Number);
-      
-      for (let i = 0; i < 4; i++) {
-        if (aOctets[i] !== bOctets[i]) {
-          return aOctets[i] - bOctets[i];
-        }
-      }
-      return 0;
-    });
-    
-    // Initialize filtered list with all IPs
-    this.filteredIpAddresses = [...this.availableIpAddresses];
-    this.selectedIps = new Array(this.filteredIpAddresses.length).fill(false);
-    
-  } catch (error) {
-    console.error('Error loading IP addresses:', error);
-    this.availableIpAddresses = [];
-    this.filteredIpAddresses = [];
-  }
-}
-
-getExpandedSubnetsCount(): number {
-  return this.networkDataService.getCurrentNetworkData().filter(s => s.hasDetailedData).length;
-}
-
-//  private async askCalculationMode(): Promise<'setValue' | 'calculate' | null> {
-//   return new Promise((resolve) => {
-//     const result = this.showThreeButtonConfirm(
-//       'Choose Calculation Mode',
-//       'How should the risk calculation be performed?',
-//       'Set Specific Values (Use configured values)',
-//       'Calculate from Properties (Use existing Neo4j values)',
-//       'Cancel'
-//     ).then((buttonResult) => {
-//       if (buttonResult === 'button1') {
-//         resolve('setValue');
-//       } else if (buttonResult === 'button2') {
-//         resolve('calculate');
-//       } else {
-//         resolve(null);
-//       }
-//     });
-//   });
-// }
-
-  // selectCalculationMode(mode: string | null) {
-  //   this.selectedCalculationMode = mode as 'setValue' | 'calculate' | null;
-  //   if (this.calculationModeCallback) {
-  //     this.calculationModeCallback(mode);
-  //   }
-  // }
 
 private askUpdateFrequency(): Promise<string | null> { 
   return new Promise((resolve) => {
@@ -740,7 +1141,7 @@ selectUpdateFrequency(frequency: string) {
   this.showFrequencyModal = false;
   
   if (this.frequencyResolve) {
-    this.frequencyResolve(frequency);  // Resolve with the selected frequency
+    this.frequencyResolve(frequency);
     this.frequencyResolve = null;
   }
 }
@@ -752,70 +1153,6 @@ cancelFrequencyModal() {
     this.frequencyResolve(null);
     this.frequencyResolve = null;
   }
-}
-
-filterIpAddresses() {
-  if (!this.ipSearchTerm.trim()) {
-    this.filteredIpAddresses = [...this.availableIpAddresses];
-  } else {
-    const searchTerm = this.ipSearchTerm.toLowerCase();
-    this.filteredIpAddresses = this.availableIpAddresses.filter(ip => 
-      ip.ip.includes(searchTerm) || 
-      ip.hostname.toLowerCase().includes(searchTerm) ||
-      ip.subnet.includes(searchTerm)
-    );
-  }
-  
-  // Reset selections when filtering
-  this.selectedIps = new Array(this.filteredIpAddresses.length).fill(false);
-  this.selectAllIps = false;
-}
-
-toggleAllIps(event: any) {
-  const selectAll = event.target.checked;
-  this.selectedIps = new Array(this.filteredIpAddresses.length).fill(selectAll);
-  this.selectAllIps = selectAll;
-}
-
-updateIpSelection() {
-  const selectedCount = this.getSelectedIpsCount();
-  const totalCount = this.filteredIpAddresses.length;
-  
-  if (selectedCount === 0) {
-    this.selectAllIps = false;
-  } else if (selectedCount === totalCount) {
-    this.selectAllIps = true;
-  } else {
-    this.selectAllIps = false;
-  }
-}
-
-isSelectAllIpsIndeterminate(): boolean {
-  const selectedCount = this.getSelectedIpsCount();
-  const totalCount = this.filteredIpAddresses.length;
-  return selectedCount > 0 && selectedCount < totalCount;
-}
-
-getSelectedIpsCount(): number {
-  return this.selectedIps.filter(selected => selected).length;
-}
-
-getSelectedIpsCountText(): string {
-  const count = this.getSelectedIpsCount();
-  if (count === 0) {
-    return '0 IPs selected';
-  } else if (count === 1) {
-    return '1 IP selected';
-  } else {
-    return `${count} IPs selected`;
-  }
-}
-
-closeIpModal() {
-  this.showIpModal = false;
-  this.selectedIps = [];
-  this.ipSearchTerm = '';
-  this.selectAllIps = false;
 }
 
   drop(event: CdkDragDrop<RiskComponent[]>) {
@@ -1092,6 +1429,12 @@ closeAlertModal() {
   this.showAlertModal = false;
 }
 
+closeIpModal() {
+  this.showIpModal = false;
+  this.clearAllNetworkSelections();
+  this.networkSearchTerm = '';
+}
+
   isCustomFormulaEdited(): boolean {
     if (!this.customFormula.trim() || this.riskFormula.length === 0) {
       return false;
@@ -1195,254 +1538,17 @@ getAutoDescription(): string {
     return `Avg: ${stats.avg?.toFixed(2) || 'N/A'}, Max: ${stats.max?.toFixed(2) || 'N/A'}, Min: ${stats.min?.toFixed(2) || 'N/A'}`;
   }
 
-  // Configuration application methods
-saveConfiguration() {
-  if (this.riskFormula.length === 0) {
-    this.showWarning('Configuration Error', 'Please add components to your formula first!');
-    return;
-  }
-  
-  // Show the configuration modal instead of immediate save
-  this.showConfigModal = true;
-}
-
-async applyConfiguration() {
+  // Configuration application methods - Updated to use hierarchical selector
+  saveConfiguration() {
     if (this.riskFormula.length === 0) {
-      this.showWarning('Configuration Error', 'Please add components to your formula first');
+      this.showWarning('Configuration Error', 'Please add components to your formula first!');
       return;
     }
     
-    // Show the apply options modal
-    this.showConfigModal = true;
+    // Initialize hierarchical networks with real data and show selector
+    this.initializeHierarchicalNetworks();
+    this.showIpModal = true;
   }
-
-async applyToNetwork() {
-    if (this.riskFormula.length === 0) {
-      this.showWarning('Configuration Error', 'Please add components to your formula first');
-      return;
-    }
-
-    // Show network selection modal
-    this.showNetworkModal = true;
-  }
-
-async applyToSelectedNetworks() {
-  const selectedNetworkIndices = this.selectedNetworks
-    .map((selected, index) => selected ? index : -1)
-    .filter(index => index !== -1);
-  
-  if (selectedNetworkIndices.length === 0) {
-    this.showWarning('Selection Required', 'Please select at least one network to apply the configuration.');
-    return;
-  }
-  
-  const selectedNetworkData = selectedNetworkIndices.map(index => this.availableNetworks[index]);
-  
-  const propertyToUpdate = this.getPropertyToUpdate();
-  if (!propertyToUpdate) {
-    this.showWarning('Configuration Error', 'Please add components to your formula first!');
-    return;
-  }
-  
-  this.closeNetworkModal();
-  
-  const calculationMode = 'calculate';
-  
-  const networkNames = selectedNetworkData.map(n => n.prefix + '.x.x').join(', ');
-  const confirmMessage = `Calculate "${propertyToUpdate}" using existing Node property values in selected networks?\n\nNetworks: ${networkNames}\nMethod: ${this.selectedMethod.replace('_', ' ')}\nComponents: ${this.riskFormula.length}\n\nThis will use property values from Node objects. Continue?`;
-  
-  const confirmed = await this.showConfirm(
-    'Apply Risk Calculation',
-    confirmMessage,
-    'Continue',
-    'Cancel'
-  );
-  
-  if (!confirmed) return;
-  
-  const updateFrequency = await this.askUpdateFrequency();
-  if (!updateFrequency) return;
-  
-  const selectedPrefixes = selectedNetworkData.map(n => n.prefix);
-  
-  const config: RiskConfigurationRequest = {
-    formulaName: this.currentFormulaName || 'Custom Formula',
-    components: this.prepareComponentData(),
-    targetType: 'network',
-    targetValues: selectedPrefixes,
-    calculationMode: calculationMode,
-    calculationMethod: this.selectedMethod,
-    customFormula: this.customFormula,
-    updateFrequency: updateFrequency,
-    targetProperty: this.targetProperty || 'Risk Score'
-  };
-
-  try {
-    const response = await this.riskConfigService.applyRiskConfiguration(config).toPromise();
-    
-    if (response?.success) {
-      this.showSuccess(
-        'Configuration Applied',
-        `Updated ${response.nodesUpdated} nodes with average risk score: ${response.avgRiskScore.toFixed(2)}`
-      );
-      
-      if (response.automationEnabled) {
-        this.showInfo('Automation Enabled', `Risk calculation will run ${updateFrequency}`);
-      }
-      
-      // Clear the formula after successful save
-      this.riskFormula = [];
-    }
-    
-    await this.refreshComponents();
-    
-  } catch (error) {
-    console.error('Error applying configuration:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    this.showError('Application Failed', `Failed to apply risk configuration: ${errorMessage}`);
-  }
-}
-
-async applyToSubnet(subnet: any) {
-  this.closeSubnetModal();
-  
-  const propertyToUpdate = this.getPropertyToUpdate();
-  if (!propertyToUpdate) {
-    this.showWarning('Configuration Error', 'Please add components to your formula first!');
-    return;
-  }
-  
-  const calculationMode = 'calculate';
-  
-  const confirmMessage = `Calculate "${propertyToUpdate}" using existing Node property values in subnet ${subnet.subnet}?\n\nMethod: ${this.selectedMethod.replace('_', ' ')}\nComponents: ${this.riskFormula.length}\n\nThis will use property values from Node objects. Continue?`;
-  
-  const confirmed = await this.showConfirm(
-    'Apply to Subnet',
-    confirmMessage,
-    'Continue',
-    'Cancel'
-  );
-  
-  if (!confirmed) return;
-  
-  const updateFrequency = await this.askUpdateFrequency();
-  if (!updateFrequency) return;
-  
-  const config: RiskConfigurationRequest = {
-    formulaName: this.currentFormulaName || 'Custom Formula',
-    components: this.prepareComponentData(),
-    targetType: 'subnet',
-    targetValues: [subnet.subnet],
-    calculationMode: calculationMode,
-    calculationMethod: this.selectedMethod,
-    customFormula: this.customFormula,
-    updateFrequency: updateFrequency,
-    targetProperty: this.targetProperty || 'Risk Score'
-  };
-
-  try {
-    const response = await this.riskConfigService.applyRiskConfiguration(config).toPromise();
-    
-    if (response?.success) {
-      this.showSuccess(
-        'Configuration Applied',
-        `Updated ${response.nodesUpdated} nodes with average risk score: ${response.avgRiskScore.toFixed(2)}`
-      );
-      
-      if (response.automationEnabled) {
-        this.showInfo('Automation Enabled', `Risk calculation will run ${updateFrequency}`);
-      }
-      
-      // Clear the formula after successful save
-      this.riskFormula = [];
-    }
-    
-    await this.refreshComponents();
-    
-  } catch (error) {
-    console.error('Error applying configuration:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    this.showError('Application Failed', `Failed to apply risk configuration: ${errorMessage}`);
-  }
-}
-
-async applyToSelectedIps() {
-  const selectedIpIndices = this.selectedIps
-    .map((selected, index) => selected ? index : -1)
-    .filter(index => index !== -1);
-  
-  if (selectedIpIndices.length === 0) {
-    this.showWarning('Selection Required', 'Please select at least one IP address.');
-    return;
-  }
-  
-  const selectedIpData = selectedIpIndices.map(index => this.filteredIpAddresses[index]);
-  
-  const propertyToUpdate = this.getPropertyToUpdate();
-  if (!propertyToUpdate) {
-    this.showWarning('Configuration Error', 'Please add components to your formula first!');
-    return;
-  }
-  
-  this.closeIpModal();
-  
-  const calculationMode = 'calculate';
-  
-  const ipAddresses = selectedIpData.map(ip => ip.ip).join(', ');
-  const displayIps = ipAddresses.length > 100 ? ipAddresses.substring(0, 100) + '...' : ipAddresses;
-  const confirmMessage = `Calculate "${propertyToUpdate}" using existing Node property values for selected IPs?\n\nIPs: ${displayIps}\nMethod: ${this.selectedMethod.replace('_', ' ')}\nComponents: ${this.riskFormula.length}\n\nThis will use property values from Node objects. Continue?`;
-  
-  const confirmed = await this.showConfirm(
-    'Apply to IP Addresses',
-    confirmMessage,
-    'Continue',
-    'Cancel'
-  );
-  
-  if (!confirmed) return;
-
-  const frequency = await this.askUpdateFrequency();
-  if (!frequency) return;
-  
-  try {
-    const config: RiskConfigurationRequest = {
-      formulaName: this.currentFormulaName || 'Custom Formula',
-      components: this.prepareComponentData(),
-      targetType: 'ip',
-      targetValues: selectedIpData.map(ip => ip.ip),
-      calculationMode: calculationMode,
-      calculationMethod: this.selectedMethod,
-      customFormula: this.customFormula,
-      updateFrequency: frequency,
-      targetProperty: this.targetProperty || 'Risk Score'
-    };
-
-    const response = await this.riskConfigService.applyRiskConfiguration(config).toPromise();
-    
-    if (response?.success) {
-      this.showSuccess(
-        'Configuration Applied', 
-        `Updated ${response.nodesUpdated} nodes for ${selectedIpData.length} IP addresses\nAverage Risk Score: ${response.avgRiskScore.toFixed(2)}`
-      );
-      
-      if (response.automationEnabled) {
-        this.showInfo('Automation Enabled', `Risk calculation will run ${frequency}`);
-      }
-      
-      // Clear the formula after successful save
-      this.riskFormula = [];
-    }
-    
-    this.selectedIps = [];
-    this.selectAllIps = false;
-    await this.refreshComponents();
-    
-  } catch (error) {
-    console.error('Error applying to IPs:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    this.showError('Update Failed', `Error updating Node property:\n\n${errorMessage}`);
-  }
-}
 
 private getPropertyToUpdate(): string | null {
   if (this.riskFormula.length === 0) {
@@ -1450,49 +1556,6 @@ private getPropertyToUpdate(): string | null {
   }
   
   return this.targetProperty || 'Risk Score';
-}
-
-async testConfiguration() {
-  if (this.riskFormula.length === 0) {
-    this.showWarning('Configuration Error', 'Please add components to your formula first!');
-    return;
-  }
-  
-  const testResult = this.calculatePreviewRisk();
-  const riskLevel = testResult >= 8 ? 'Critical' : testResult >= 6 ? 'High' : testResult >= 4 ? 'Medium' : 'Low';
-  
-  const componentInfo = this.riskFormula.map(comp => {
-    const value = comp.currentValue || comp.statistics?.avg || 0;
-    return `${comp.name}: ${value.toFixed(2)} (ISIM: ${comp.neo4jProperty})`;
-  }).join('\n');
-  
-  const writeToDb = confirm(`Test Results using ISIM Data:\n\nSample Risk Score: ${testResult.toFixed(2)}\nRisk Level: ${riskLevel}\nMethod: ${this.selectedMethod.replace('_', ' ')}\nComponents: ${this.riskFormula.length}\n\nComponent Values:\n${componentInfo}\n\nDo you want to write this as a test component to ISIM?`);
-  
-  if (writeToDb) {
-    const testPropertyName = prompt('Enter a test property name:', 'testRiskFormula');
-    if (!testPropertyName) return;
-    
-    const cleanTestName = testPropertyName.trim().replace(/[^a-zA-Z0-9_]/g, '_');
-    
-    try {
-      const result = await this.riskComponentsService.writeCustomComponent(
-        'Test Formula',
-        cleanTestName,
-        this.customFormula || this.getSumFormulaExpression(),
-        this.selectedMethod,
-        this.riskFormula,
-        'all',
-        []
-      );
-      
-      this.showSuccess('Test Component Created', `Test component written to ISIM!\n\nProperty: ${result.results.neo4jProperty}\nUpdated Nodes: ${result.results.updatedNodes}\nAverage Value: ${result.results.avgValue}\n\nYou can now see the "${cleanTestName}" property in your ISIM browser.`);
-      
-    } catch (error) {
-      console.error('Error writing test component:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      this.showError('Test Failed', `Error writing test component: ${errorMessage}`);
-    }
-  }
 }
 
 async refreshComponents() {
@@ -1621,7 +1684,7 @@ private loadComponentsFromConfig(): void {
     weight: 0.2,
     maxValue: this.customComponent.maxValue,
     currentValue: 0,
-    neo4jProperty: componentKey,  // Use the generated key
+    neo4jProperty: componentKey,
     isComposite: false
   };
   
@@ -1632,22 +1695,18 @@ private loadComponentsFromConfig(): void {
       // Write to Neo4j
       await this.writeComponentToNeo4j(newComponent);
       
-      // IMPORTANT: Update the component with the backend's component_key
       const serverComponentKey = response.component_key;
       
       const componentToAdd = {
         ...newComponent,
-        id: serverComponentKey,  // Use the backend's component_key as ID
-        neo4jProperty: serverComponentKey,  // Ensure consistency
+        id: serverComponentKey,
+        neo4jProperty: serverComponentKey,
         weight: this.validateNumber(newComponent.weight, 0.2),
         currentValue: this.validateNumber(newComponent.currentValue, 0),
         maxValue: this.validateNumber(newComponent.maxValue, 100)
       };
       
-      // Add to available components
       this.availableComponents.push(componentToAdd);
-      
-      // Also add to custom components list if you maintain one
       this.customComponents.push(componentToAdd);
       
       this.closeCustomComponentModal();
@@ -1668,7 +1727,6 @@ private loadComponentsFromConfig(): void {
 }
 
 private async writeComponentToNeo4j(component: any): Promise<any> {
-  // Use the existing API to write to Neo4j
   const componentData = {
     componentName: component.name,
     neo4jProperty: component.neo4jProperty,
@@ -1687,79 +1745,6 @@ private async writeComponentToNeo4j(component: any): Promise<any> {
   };
 
   return await this.http.post('http://localhost:3000/api/write-custom-risk-component', componentData).toPromise();
-}
-
-  // Network selection methods
-  toggleAllNetworks(event: any) {
-    const selectAll = event.target.checked;
-    this.selectedNetworks = new Array(this.availableNetworks.length).fill(selectAll);
-    this.selectAllNetworks = selectAll;
-  }
-
-  updateNetworkSelection() {
-    const selectedCount = this.getSelectedNetworksCount();
-    const totalCount = this.availableNetworks.length;
-    
-    if (selectedCount === 0) {
-      this.selectAllNetworks = false;
-    } else if (selectedCount === totalCount) {
-      this.selectAllNetworks = true;
-    } else {
-      this.selectAllNetworks = false;
-    }
-  }
-
-  isSelectAllIndeterminate(): boolean {
-    const selectedCount = this.getSelectedNetworksCount();
-    const totalCount = this.availableNetworks.length;
-    return selectedCount > 0 && selectedCount < totalCount;
-  }
-
-  getSelectedNetworksCount(): number {
-    return this.selectedNetworks.filter(selected => selected).length;
-  }
-
-  getSelectionCountText(): string {
-    const count = this.getSelectedNetworksCount();
-    if (count === 0) {
-      return '0 networks selected';
-    } else if (count === 1) {
-      return '1 network selected';
-    } else {
-      return `${count} networks selected`;
-    }
-  }
-
-  // Modal methods
-  closeConfigModal() {
-    this.showConfigModal = false;
-  }
-
-  closeNetworkModal() {
-    this.showNetworkModal = false;
-    this.selectedNetworks = new Array(this.availableNetworks.length).fill(false);
-    this.selectAllNetworks = false;
-  }
-
-  closeSubnetModal() {
-    this.showSubnetModal = false;
-  }
-  
-  selectApplyOption(option: string) {
-  this.closeConfigModal();
-  
-  switch(option) {
-    case 'network':
-      this.showNetworkModal = true;
-      break;
-    case 'subnet':
-      this.showSubnetModal = true;
-      break;
-    case 'ip':
-      this.loadIpAddresses();
-      this.showIpModal = true;
-      break;
-  }
 }
 
 loadFormulas(): void {
@@ -1808,16 +1793,15 @@ loadCustomComponents() {
     next: (components) => {
       console.log('Loaded custom components:', components);
       
-      // Map the components with correct IDs
       this.customComponents = components.map(comp => ({
         ...comp,
-        id: comp.id || comp.neo4jProperty,  // Use the id from backend
+        id: comp.id || comp.neo4jProperty,
         neo4jProperty: comp.neo4jProperty || comp.id
       }));
     },
     error: (error) => {
       console.error('Error loading custom components:', error);
-    }
+      }
   });
 }
 
@@ -2246,72 +2230,6 @@ closeFormulaInputModal() {
   this.formulaInputModalData.description = '';
 }
 
-async confirmNetworkApplication() {
-  const selectedNetworks = this.availableNetworks
-    .filter((_, index) => this.selectedNetworks[index])
-    .map(network => network.prefix);
-
-  if (selectedNetworks.length === 0) {
-    this.showWarning('Selection Error', 'Please select at least one network');
-    return;
-  }
-
-  const calculationMode = 'calculate';
-  
-  const propertyToUpdate = this.getPropertyToUpdate();
-  const networkNames = selectedNetworks.map(n => n + '.x.x').join(', ');
-  const confirmMessage = `Calculate "${propertyToUpdate}" using existing Node property values in selected networks?\n\nNetworks: ${networkNames}\nMethod: ${this.selectedMethod.replace('_', ' ')}\nComponents: ${this.riskFormula.length}\n\nThis will use property values from Node objects. Continue?`;
-  
-  // Show confirmation
-  const confirmed = await this.showConfirm(
-    'Apply Configuration',
-    confirmMessage,
-    'Continue',
-    'Cancel'
-  );
-  
-  if (!confirmed) return;
-
-  // Ask for update frequency
-  const updateFrequency = await this.askUpdateFrequency();
-  if (!updateFrequency) return;
-
-  const config: RiskConfigurationRequest = {
-    formulaName: this.currentFormulaName || 'Custom Formula',
-    components: this.prepareComponentData(),
-    targetType: 'network',
-    targetValues: selectedNetworks,
-    calculationMode: calculationMode,
-    calculationMethod: this.selectedMethod,
-    customFormula: this.customFormula,
-    updateFrequency: updateFrequency,
-    targetProperty: this.targetProperty || 'Risk Score'
-  };
-
-  try {
-    const response = await this.riskConfigService.applyRiskConfiguration(config).toPromise();
-    
-    if (response?.success) {
-      this.showSuccess(
-        'Configuration Applied',
-        `Updated ${response.nodesUpdated} nodes with average risk score: ${response.avgRiskScore.toFixed(2)}`
-      );
-      
-      if (response.automationEnabled) {
-        this.showInfo('Automation Enabled', `Risk calculation will run ${updateFrequency}`);
-      }
-    }
-    
-    this.closeNetworkModal();
-    await this.refreshComponents();
-    
-  } catch (error) {
-    console.error('Error applying configuration:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    this.showError('Application Failed', `Failed to apply risk configuration: ${errorMessage}`);
-  }
-}
-
   private prepareComponentData(): ComponentData[] {
     return this.riskFormula.map(comp => ({
       name: comp.name,
@@ -2321,98 +2239,5 @@ async confirmNetworkApplication() {
       neo4jProperty: comp.neo4jProperty || comp.name.toLowerCase().replace(/ /g, '_')
     }));
   }
-
-  async confirmSubnetApplication() {
-  // Get selected subnets
-  const selectedSubnets = this.selectedSubnets
-    .map(subnet => subnet.subnet);
-
-  if (selectedSubnets.length === 0) {
-    this.showWarning('Selection Error', 'Please select at least one subnet');
-    return;
-  }
-
-  const calculationMode = 'calculate';
-
-  const frequency = await this.askUpdateFrequency();
-  if (!frequency) return;
-
-  const config: RiskConfigurationRequest = {
-    formulaName: this.currentFormulaName || 'Custom Formula',
-    components: this.prepareComponentData(),
-    targetType: 'subnet',
-    targetValues: selectedSubnets,
-    calculationMode: calculationMode,
-    calculationMethod: this.selectedMethod,
-    customFormula: this.customFormula,
-    updateFrequency: frequency,
-    targetProperty: this.targetProperty || 'Risk Score'
-  };
-
-  try {
-    const response = await this.riskConfigService.applyRiskConfiguration(config).toPromise();
-    
-    if (response?.success) {
-      this.showSuccess(
-        'Configuration Applied',
-        `Updated ${response.nodesUpdated} nodes with average risk score: ${response.avgRiskScore.toFixed(2)}`
-      );
-    }
-    
-    this.showSubnetModal = false;
-  } catch (error) {
-    console.error('Error applying configuration:', error);
-    this.showError('Application Failed', 'Failed to apply risk configuration');
-  }
-}
-
-  async applyToAll() {
-  if (this.riskFormula.length === 0) {
-    this.showWarning('Configuration Error', 'Please add components to your formula first');
-    return;
-  }
-
-  const confirmed = await this.showConfirm(
-    'Apply to All Nodes',
-    'This will apply the risk calculation to ALL nodes in the network. Continue?'
-  );
-
-  if (!confirmed) return;
-
-  const calculationMode = 'calculate';
-
-  const frequency = await this.askUpdateFrequency();
-  if (!frequency) return;
-
-  const config: RiskConfigurationRequest = {
-    formulaName: this.currentFormulaName || 'Custom Formula',
-    components: this.prepareComponentData(),
-    targetType: 'all',
-    targetValues: [],
-    calculationMode: calculationMode,
-    calculationMethod: this.selectedMethod,
-    customFormula: this.customFormula,
-    updateFrequency: frequency,
-    targetProperty: this.targetProperty || 'Risk Score'
-  };
-
-  try {
-    const response = await this.riskConfigService.applyRiskConfiguration(config).toPromise();
-    
-    if (response?.success) {
-      this.showSuccess(
-        'Configuration Applied',
-        `Updated ${response.nodesUpdated} nodes with average risk score: ${response.avgRiskScore.toFixed(2)}`
-      );
-      
-      if (response.automationEnabled) {
-        this.showInfo('Automation Enabled', `Risk calculation will run ${frequency}`);
-      }
-    }
-  } catch (error) {
-    console.error('Error applying configuration:', error);
-    this.showError('Application Failed', 'Failed to apply risk configuration');
-  }
-}
 
 }
