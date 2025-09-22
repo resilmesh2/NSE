@@ -190,6 +190,34 @@ showDeviceTooltip(event: MouseEvent, device: any): void {
   this.show(event, content);
 }
 
+showOrganizationTooltip(event: MouseEvent, org: any): void {
+  const content = `
+    <div class="tooltip-content">
+      <div class="tooltip-title">${org.name}</div>
+      <div class="tooltip-body">
+        <div class="tooltip-grid">
+          <span>Subnets:</span><span>${org.totalSubnets}</span>
+          <span>Total Devices:</span><span>${org.totalDevices}</span>
+          <span>Avg Risk Score:</span><span class="risk-${this.getRiskLevel(org.avgRiskScore)}">${org.avgRiskScore.toFixed(1)}</span>
+          <span>High Risk Subnets:</span><span class="risk-${org.highRiskSubnets > 0 ? 'high' : 'low'}">${org.highRiskSubnets}</span>
+        </div>
+        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.2); text-align: center; color: #87CEEB; font-weight: 500;">
+          📊 Click to view in treemap
+        </div>
+      </div>
+    </div>
+  `;
+  
+  this.show(event, content);
+}
+
+private getRiskLevel(riskScore: number): string {
+  if (riskScore >= 8.0) return 'critical';
+  if (riskScore >= 6.0) return 'high';  
+  if (riskScore >= 4.0) return 'medium';
+  return 'low';
+}
+
   private getRiskClass(riskScore: number, hasRiskScore?: boolean): string {
   if (hasRiskScore === false) return 'no-score';
   if (riskScore >= 8.0) return 'critical';

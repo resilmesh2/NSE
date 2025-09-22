@@ -9,7 +9,6 @@
       </button>
       <button class="btn btn-secondary" (click)="clearFormula()">Clear Formula</button>
       <button class="btn btn-primary" (click)="saveConfiguration()">Save Configuration</button>
-      <!-- <button class="btn btn-success" (click)="testConfiguration()">Test on Sample Data</button> -->
     </div>
   </div>
 
@@ -94,6 +93,97 @@
           </div>
         </div>
 
+        <!-- Active Automations Section -->
+        <div class="automations-management" style="margin-top: 20px; border-top: 1px solid #dee2e6; padding-top: 15px;">
+          <div class="automations-header-simple">
+            <h5 style="margin: 0 0 10px 0; display: flex; justify-content: space-between; align-items: center;">
+              <span>Active Automations</span>
+              <button (click)="loadActiveAutomations()" class="btn btn-outline-primary btn-xs" [disabled]="isLoadingAutomations">
+                <span *ngIf="isLoadingAutomations">...</span>
+                <span *ngIf="!isLoadingAutomations">Refresh</span>
+              </button>
+            </h5>
+            
+            <div class="automation-filters-simple" style="margin-bottom: 10px;">
+              <button 
+                (click)="automationFilter = 'all'" 
+                class="btn btn-xs filter-btn"
+                [class.active]="automationFilter === 'all'">
+                All ({{ activeAutomations.length }})
+              </button>
+              <button 
+                (click)="automationFilter = 'enabled'" 
+                class="btn btn-xs filter-btn"
+                [class.active]="automationFilter === 'enabled'">
+                Active ({{ getActiveAutomationsCount() }})
+              </button>
+              <button 
+                (click)="automationFilter = 'disabled'" 
+                class="btn btn-xs filter-btn"
+                [class.active]="automationFilter === 'disabled'">
+                Paused ({{ getDisabledAutomationsCount() }})
+              </button>
+            </div>
+          </div>
+
+          <div class="automations-list-compact" *ngIf="!isLoadingAutomations">
+            <div *ngIf="getFilteredAutomations().length === 0" class="no-automations-compact">
+              <p style="font-size: 12px; color: #6c757d; margin: 10px 0; text-align: center;">
+                No automations match current filter
+              </p>
+            </div>
+
+            <div 
+              *ngFor="let automation of getFilteredAutomations()" 
+              class="automation-card-compact"
+              [class.disabled]="!automation.enabled">
+              
+              <div class="automation-info-compact">
+                <div class="automation-name-compact">{{ getComponentName(automation) }}</div>
+                <div class="automation-details-compact">
+                  <span class="automation-status-compact" [class]="getAutomationStatusClass(automation)">
+                    {{ getAutomationStatusText(automation) }}
+                  </span>
+                  <span class="automation-frequency-compact">{{ formatUpdateFrequency(automation.update_frequency || automation.updateFrequency) }}</span>
+                  <span class="automation-target-compact">{{ getAutomationTarget(automation) }}</span>
+                </div>
+                <div class="automation-timing-compact" *ngIf="getAutomationStatusText(automation) !== 'Paused'">
+                  <span class="automation-next-run-compact">Next: {{ getNextRunTime(automation) }}</span>
+                  <span class="automation-last-run-compact">Last: {{ formatLastRun(automation.last_run || automation.lastRun) }}</span>
+                  <span class="automation-nodes-compact" *ngIf="getNodesUpdated(automation)">{{ getNodesUpdated(automation) }}</span>
+                </div>
+              </div>
+              
+              <div class="automation-actions-compact">
+                <button 
+                  *ngIf="automation.enabled" 
+                  (click)="pauseAutomation(automation)"
+                  class="btn btn-xs btn-warning"
+                  title="Pause">
+                  ⏸
+                </button>
+                <button 
+                  *ngIf="!automation.enabled" 
+                  (click)="resumeAutomation(automation)"
+                  class="btn btn-xs btn-success"
+                  title="Resume">
+                  ▶
+                </button>
+                <button 
+                  (click)="deleteAutomation(automation)"
+                  class="btn btn-xs btn-danger"
+                  title="Delete">
+                  ×
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div *ngIf="isLoadingAutomations" class="loading-automations">
+            <p style="font-size: 12px; color: #6c757d; text-align: center;">Loading...</p>
+          </div>
+        </div>
+
         <!-- Create Custom Component Button -->
         <div class="config-section" style="margin-top: 20px; border-top: 1px solid #dee2e6; padding-top: 15px;">
           <label>Add Custom Component:</label>
@@ -102,6 +192,7 @@
       </div>
     </div>
 
+    <!-- Rest of your existing template remains the same -->
     <!-- Risk Formula Builder -->
     <div class="formula-builder">
       <h4>Risk Calculation Formula</h4>
@@ -364,14 +455,6 @@
             <div class="option-desc">Apply to individual IP addresses/devices</div>
           </div>
         </div>
-        
-        <div class="apply-option" (click)="selectApplyOption('sample')">
-          <div class="option-icon">🎲</div>
-          <div class="option-info">
-            <div class="option-title">Random Sample</div>
-            <div class="option-desc">Apply to 10 random subnets to see the effect</div>
-          </div>
-        </div>
       </div>
             
       <div class="modal-actions">
@@ -441,14 +524,27 @@
       <button (click)="closeSubnetModal()" class="close-btn">×</button>
     </div>
     <div class="selector-modal-content">
-      <p>Choose a subnet to apply your risk calculation (showing first 20):</p>
-      <div class="subnet-options">
-        <div *ngFor="let subnet of availableSubnets" 
+      <p>Choose a subnet to apply your risk calculation:</p>
+      
+      <div style="margin-bottom: 15px;">
+        <input type="text" 
+               [(ngModel)]="subnetSearchTerm" 
+               (input)="filterSubnets()"
+               placeholder="Search subnets..." 
+               style="width: 100%; padding: 8px; border: 1px solid #dee2e6; border-radius: 4px;">
+      </div>
+      
+      <div class="subnet-options" style="max-height: 300px; overflow-y: auto;">
+        <div *ngFor="let subnet of filteredSubnets" 
              class="subnet-option" 
              (click)="applyToSubnet(subnet)">
           <div class="subnet-name">{{subnet.subnet}}</div>
           <div class="subnet-stats">{{subnet.deviceCount}} devices, Current Risk: {{subnet.riskScore.toFixed(1)}}</div>
         </div>
+      </div>
+      
+      <div *ngIf="filteredSubnets.length === 0 && subnetSearchTerm" style="text-align: center; padding: 20px; color: #666;">
+        No subnets found matching "{{subnetSearchTerm}}"
       </div>
     </div>
   </div>
@@ -462,43 +558,57 @@
       <button (click)="closeIpModal()" class="close-btn">×</button>
     </div>
     <div class="selector-modal-content">
-      <p>Choose specific IP addresses to apply your risk calculation (showing first 50 IPs):</p>
-      
-      <div style="margin-bottom: 15px;">
-        <input type="text" 
-               [(ngModel)]="ipSearchTerm" 
-               (input)="filterIpAddresses()"
-               placeholder="Search IP addresses..." 
-               style="width: 100%; padding: 8px; border: 1px solid #dee2e6; border-radius: 4px;">
+      <div *ngIf="availableIpAddresses.length === 0" style="text-align: center; padding: 40px; color: #666;">
+        <div style="font-size: 16px; margin-bottom: 8px;">Click on a node or subnet to process IPs</div>
+        <div style="font-size: 14px;">Select subnets from the network graph to load their device IP addresses</div>
+        <div style="font-size: 12px; color: #999; margin-top: 10px;">
+          Currently showing {{getExpandedSubnetsCount()}} expanded subnets
+        </div>
       </div>
       
-      <div style="margin-bottom: 15px;">
-        <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer;">
-          <input type="checkbox" 
-                 [(ngModel)]="selectAllIps" 
-                 [indeterminate]="isSelectAllIpsIndeterminate()"
-                 (change)="toggleAllIps($event)" 
-                 style="margin: 0; transform: scale(1.2);">
-          <strong>Select All IPs</strong>
-        </label>
-      </div>
-      
-      <div class="ip-options" style="max-height: 300px; overflow-y: auto;">
-        <label *ngFor="let ip of filteredIpAddresses; let i = index" 
-               class="ip-option-checkbox" 
-               [class.selected]="selectedIps[i]"
-               style="display: flex; align-items: center; gap: 12px; padding: 10px; border: 1px solid #dee2e6; border-radius: 6px; margin-bottom: 6px; cursor: pointer; transition: all 0.2s ease;"
-               [style.border-color]="selectedIps[i] ? '#007bff' : '#dee2e6'"
-               [style.background-color]="selectedIps[i] ? '#f8f9fa' : 'white'">
-          <input type="checkbox" 
-                 [(ngModel)]="selectedIps[i]"
-                 (change)="updateIpSelection()"
-                 style="margin: 0; transform: scale(1.1);">
-          <div style="flex: 1;">
-            <div class="ip-address" style="font-weight: 600; color: #333; font-family: 'Courier New', monospace;">{{ip.ip}}</div>
-            <div class="ip-details" style="font-size: 11px; color: #666;">{{ip.subnet}} | Risk: {{ip.riskScore?.toFixed(1) || '0.0'}}</div>
-          </div>
-        </label>
+      <div *ngIf="availableIpAddresses.length > 0">
+        <p>Choose specific IP addresses to apply your risk calculation ({{availableIpAddresses.length}} total IPs loaded):</p>
+        
+        <div style="margin-bottom: 15px;">
+          <input type="text" 
+                [(ngModel)]="ipSearchTerm" 
+                (input)="filterIpAddresses()"
+                placeholder="Search IP addresses..." 
+                style="width: 100%; padding: 8px; border: 1px solid #dee2e6; border-radius: 4px;">
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer;">
+            <input type="checkbox" 
+                  [(ngModel)]="selectAllIps" 
+                  [indeterminate]="isSelectAllIpsIndeterminate()"
+                  (change)="toggleAllIps($event)" 
+                  style="margin: 0; transform: scale(1.2);">
+            <strong>Select All IPs</strong>
+          </label>
+        </div>
+        
+        <div class="ip-options" style="max-height: 300px; overflow-y: auto;">
+          <label *ngFor="let ip of filteredIpAddresses; let i = index" 
+                class="ip-option-checkbox" 
+                [class.selected]="selectedIps[i]"
+                style="display: flex; align-items: center; gap: 12px; padding: 10px; border: 1px solid #dee2e6; border-radius: 6px; margin-bottom: 6px; cursor: pointer; transition: all 0.2s ease;"
+                [style.border-color]="selectedIps[i] ? '#007bff' : '#dee2e6'"
+                [style.background-color]="selectedIps[i] ? '#f8f9fa' : 'white'">
+            <input type="checkbox" 
+                  [(ngModel)]="selectedIps[i]"
+                  (change)="updateIpSelection()"
+                  style="margin: 0; transform: scale(1.1);">
+            <div style="flex: 1;">
+              <div class="ip-address" style="font-weight: 600; color: #333; font-family: 'Courier New', monospace;">{{ip.ip}}</div>
+              <div class="ip-details" style="font-size: 11px; color: #666;">{{ip.subnet}} | Risk: {{ip.riskScore?.toFixed(1) || '0.0'}}</div>
+            </div>
+          </label>
+        </div>
+        
+        <div *ngIf="filteredIpAddresses.length === 0 && ipSearchTerm" style="text-align: center; padding: 20px; color: #666;">
+          No IP addresses found matching "{{ipSearchTerm}}"
+        </div>
       </div>
       
       <div class="modal-actions" style="margin-top: 20px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #eee; padding-top: 15px;">
@@ -506,7 +616,7 @@
         <div>
           <button (click)="closeIpModal()" class="btn btn-secondary" style="margin-right: 10px;">Cancel</button>
           <button (click)="applyToSelectedIps()" 
-                  [disabled]="getSelectedIpsCount() === 0" 
+                  [disabled]="getSelectedIpsCount() === 0 || availableIpAddresses.length === 0" 
                   class="btn btn-primary">Apply Configuration</button>
         </div>
       </div>

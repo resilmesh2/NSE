@@ -3,6 +3,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { SubnetData } from '../../models/network-data';
 import { TooltipService } from '../../services/tooltip.service';
+import { Router, ActivatedRoute } from '@angular/router';
+import { DeviceStateService } from '../../services/device-state.service';
 
 declare var d3: any;
 
@@ -27,14 +29,53 @@ export class TreemapComponent implements OnInit, OnChanges {
   orgsPerPage = 6;
   totalOrgPages = 1;
   allOrganizationsData: any[] = [];
+  selectedOrganization: any = null;
+  originalNetworkData: SubnetData[] = [];
 
-  constructor(private tooltipService: TooltipService) {}
+  constructor(private tooltipService: TooltipService,
+              private route: ActivatedRoute,
+              private deviceStateService: DeviceStateService
+  ) {}
 
   ngOnInit() {
-    setTimeout(() => {
+  this.originalNetworkData = [...this.networkData];
+  
+  // Listen for view changes to clear organization filter
+  this.deviceStateService.selectedOrganization$.subscribe(org => {
+    if (org) {
+      console.log('Organization selected from service:', org);
+      this.selectedOrganization = org;
+      this.filterForOrganization(org.name);
+    } else {
+      // Organization was cleared - reset to show all data
+      console.log('Organization filter cleared');
+      this.clearOrganizationFilter();
+    }
+  });
+  
+  // Check for organization parameter in route
+  this.route.queryParams.subscribe(params => {
+    if (params['organization'] && params['groupBy'] === 'organization') {
+      console.log('Route params detected:', params);
+      this.filterForOrganization(params['organization']);
+    } else if (this.selectedOrganization) {
+      // No organization in URL but we have one selected - clear it
+      this.clearOrganizationFilter();
+    }
+  });
+
+  setTimeout(() => {
+    if (!this.selectedOrganization) {
       this.initTreemap();
-    }, 100);
-  }
+    }
+  }, 100);
+}
+
+clearOrganizationFilter(): void {
+  this.selectedOrganization = null;
+  this.networkData = [...this.originalNetworkData];
+  this.initTreemap();
+}
 
   ngOnChanges(changes: SimpleChanges) {
     if (changes['networkData'] && !changes['networkData'].firstChange) {
@@ -47,6 +88,25 @@ export class TreemapComponent implements OnInit, OnChanges {
     this.initTreemap();
   }
   
+private filterForOrganization(organizationName: string): void {
+  console.log(`Filtering treemap for organization: ${organizationName}`);
+  
+  // Filter networkData to only show subnets from this organization
+  this.networkData = this.originalNetworkData.filter(subnet => 
+    subnet.organizationName === organizationName
+  );
+  
+  // Force groupBy to be 'organization' but only show this one organization
+  this.groupBy = 'organization';
+  
+  console.log(`Filtered to ${this.networkData.length} subnets for ${organizationName}`);
+  
+  // Add a delay to ensure data is fully processed before rendering
+  setTimeout(() => {
+    this.initTreemap();
+  }, 100);
+}
+
   private initTreemap() {
   if (!this.networkData || this.networkData.length === 0) {
     this.showNoDataMessage();
@@ -65,55 +125,66 @@ export class TreemapComponent implements OnInit, OnChanges {
   const width = containerElement.clientWidth || 800;
   
   const legendHeight = 100;
-  const treemapHeight = 500; // Base treemap height
+  const treemapHeight = 500;
   const totalHeight = treemapHeight + legendHeight;
 
-  // Create color scales
   const colorScale = this.createColorScale();
-  const parentColorScale = this.createColorScale();
 
-  // Create legend
   this.createLegend(container, colorScale, width);
 
-  // Group data based on toggle selection
-  const groups = this.groupBy === 'subnet' ? 
-    this.groupDataBySubnetRange() : 
-    this.groupDataByOrganization();
+  // Properly type the groups variable
+  let groups: { [key: string]: any };
+  
+  if (this.selectedOrganization && this.networkData.length > 0) {
+    // Create a single group for the selected organization
+    const orgName = this.selectedOrganization.name;
+    groups = {};
+    groups[orgName] = {
+      name: orgName,
+      children: this.networkData.map(subnet => ({
+        name: subnet.subnet,
+        value: Math.log(Math.max(subnet.deviceCount, 1) + 1) * 10, // Add proper value calculation
+        deviceCount: subnet.deviceCount,
+        threat: subnet.riskScore,
+        riskLevel: subnet.riskLevel,
+        isVulnerable: subnet.isVulnerable,
+        originalData: subnet
+      })),
+      totalRisk: this.networkData.reduce((sum, subnet) => sum + subnet.riskScore, 0),
+      avgRisk: this.networkData.reduce((sum, subnet) => sum + subnet.riskScore, 0) / this.networkData.length,
+      totalDevices: this.networkData.reduce((sum, subnet) => sum + subnet.deviceCount, 0),
+      vulnerableCount: this.networkData.filter(subnet => subnet.isVulnerable).length
+    };
     
-  const sortedGroups = Object.values(groups).sort((a: any, b: any) => b.avgRisk - a.avgRisk);
+    // No pagination needed for single organization
+    this.allOrganizationsData = [groups[orgName]];
+    this.totalOrgPages = 1;
+    this.currentOrgPage = 1;
+    
+    console.log('Organization treemap data prepared:', groups[orgName]);
+  } else {
+    // Use existing grouping logic for normal view
+    groups = this.groupBy === 'subnet' ? 
+      this.groupDataBySubnetRange() : 
+      this.groupDataByOrganization();
+  }
 
-  // Create hierarchy
-  const root = d3.hierarchy({ children: sortedGroups })
-    .sum((d: any) => d.value || 0)
-    .sort((a: any, b: any) => {
-      if (a.depth === 1 && b.depth === 1) {
-        return b.data.avgRisk - a.data.avgRisk;
-      }
-      if (a.depth === 2 && b.depth === 2) {
-        return b.data.threat - a.data.threat;
-      }
-      const aRisk = a.data.threat || a.data.avgRisk || 0;
-      const bRisk = b.data.threat || b.data.avgRisk || 0;
-      return bRisk - aRisk;
-    });
-
-  const treemap = d3.treemap()
-    .size([width, treemapHeight])
-    .paddingInner(8)
-    .paddingOuter(8)
-    .paddingTop((d: any) => d.depth === 1 ? 30 : 8)
-    .round(true);
-
-  treemap(root);
-
+  // Rest of the method stays the same...
   const svg = container.append('svg')
     .attr('width', width)
-    .attr('height', treemapHeight);
+    .attr('height', treemapHeight)
+    .style('margin-top', '20px');
 
-  // Draw parent rectangles
-  this.drawParentRectangles(svg, root, parentColorScale);
+  const root = d3.hierarchy({ children: Object.values(groups) }, (d: any) => d.children)
+  .sum((d: any) => d.value || d.deviceCount || 1)
+  .sort((a: any, b: any) => (b.value || 0) - (a.value || 0));
 
-  // Draw leaf rectangles
+  d3.treemap()
+    .size([width, treemapHeight])
+    .padding(1)
+    .paddingTop(20)(root);
+
+  this.drawParentRectangles(svg, root, colorScale);
   this.drawLeafRectangles(svg, root, colorScale);
 }
 
@@ -341,31 +412,31 @@ goToOrgPage(page: number) {
 
     const defs = svg.append('defs');
 
-    parents.each((d: any, i: number, nodes: any) => {
-      const clipId = `clip-org-${i}`;
-      
-      defs.append('clipPath')
-        .attr('id', clipId)
-        .append('rect')
-        .attr('x', d.x0)
-        .attr('y', d.y0)
-        .attr('width', d.x1 - d.x0)
-        .attr('height', d.y1 - d.y0);
-      
-      d3.select(nodes[i]).attr('clip-path', `url(#${clipId})`);
-    });
+    parents.each((d: any, i: number, nodes: any[]) => {
+    const clipId = `clip-org-${i}`;
+    
+    defs.append('clipPath')
+      .attr('id', clipId)
+      .append('rect')
+      .attr('x', d.x0)
+      .attr('y', d.y0)
+      .attr('width', d.x1 - d.x0)
+      .attr('height', d.y1 - d.y0);
+    
+    d3.select(nodes[i]).attr('clip-path', `url(#${clipId})`);
+  });
 
     // Add text labels
     parents.filter((d: any) => this.shouldShowOrgText(d))
-      .append('text')
-      .attr('x', (d: any) => d.x0 + 6)
-      .attr('y', (d: any) => d.y0 + this.calculateHeaderFontSize(d) + 6)
-      .text((d: any) => this.truncateOrgName(d.data.name, d))
-      .attr('font-size', (d: any) => this.calculateHeaderFontSize(d) + 'px')
-      .attr('font-weight', 'bold')
-      .attr('fill', '#2d3748')
-      .style('pointer-events', 'none')
-      .style('overflow', 'hidden');
+    .append('text')
+    .attr('x', (d: any) => d.x0 + 6)
+    .attr('y', (d: any) => d.y0 + this.calculateHeaderFontSize(d) + 6)
+    .text((d: any) => this.truncateOrgName(d.data.name, d))
+    .attr('font-size', (d: any) => this.calculateHeaderFontSize(d) + 'px')
+    .attr('font-weight', 'bold')
+    .attr('fill', '#2d3748')
+    .style('pointer-events', 'none')
+    .style('overflow', 'hidden');
 
     // Add stats text
     parents.filter((d: any) => this.shouldShowStatsText(d))
@@ -432,16 +503,16 @@ goToOrgPage(page: number) {
         const height = d.y1 - d.y0;
         const fontSize = this.calculateSubnetLabelFontSize(d);
         
-        if (width > 60 && height > 15) {
+        if (width > 40 && height > 12) {
           const parts = d.data.name.split('.');
           const subnet = parts.length >= 3 ? `${parts[2]}.${parts[3]}` : d.data.name;
-          const maxChars = Math.floor(width / (fontSize * 0.5));
+          const maxChars = Math.floor(width / (fontSize * 0.4));
           return subnet.length <= maxChars ? subnet : subnet.substring(0, maxChars - 1);
         }
         return '';
       })
       .attr('font-size', (d: any) => this.calculateSubnetLabelFontSize(d) + 'px')
-      .attr('font-weight', '500')
+      .attr('font-weight', '600')
       .attr('fill', 'black')
       .style('pointer-events', 'none');
 
@@ -452,16 +523,17 @@ goToOrgPage(page: number) {
       .text((d: any) => {
         const width = d.x1 - d.x0;
         const height = d.y1 - d.y0;
-        if (width > 80 && height > 25) {
+        if (width > 60 && height > 20) {
           return `${d.data.deviceCount} devices`;
-        } else if (width > 50 && height > 20) {
+        } else if (width > 35 && height > 15) {
           return `${d.data.deviceCount}`;
         }
         return '';
       })
       .attr('font-size', (d: any) => this.calculateDeviceCountFontSize(d) + 'px')
-      .attr('fill', 'black')
-      .attr('opacity', 0.9)
+      .attr('fill', 'black') // Changed to white
+      .attr('font-weight', '500')
+      .attr('opacity', 0.95) // Slightly more opaque
       .style('pointer-events', 'none');
 
     // Add vulnerability indicators
@@ -520,16 +592,18 @@ goToOrgPage(page: number) {
   private calculateSubnetLabelFontSize(d: any): number {
     const width = d.x1 - d.x0;
     const height = d.y1 - d.y0;
-    let fontSize = Math.min(width / 8, height / 3, 11);
-    fontSize = Math.max(fontSize, 6);
+    // Increased minimum font size and made scaling more aggressive
+    let fontSize = Math.min(width / 6, height / 2.5, 14); // Changed from width/8, height/3
+    fontSize = Math.max(fontSize, 8); // Increased minimum from 6 to 8
     return Math.floor(fontSize);
   }
 
   private calculateDeviceCountFontSize(d: any): number {
     const width = d.x1 - d.x0;
     const height = d.y1 - d.y0;
-    let fontSize = Math.min(width / 12, height / 4, 9);
-    fontSize = Math.max(fontSize, 5);
+    // Made device count text more readable
+    let fontSize = Math.min(width / 8, height / 3.5, 11); // Changed from width/12, height/4
+    fontSize = Math.max(fontSize, 7); // Increased minimum from 5 to 7
     return Math.floor(fontSize);
   }
 
@@ -644,4 +718,5 @@ goToOrgPage(page: number) {
     }
     return pages;
   }
+  
 }
