@@ -2451,6 +2451,7 @@ textarea.form-control {
   cursor: pointer;
   transition: all 0.2s;
   position: relative;
+  background: white;
 }
 
 .subnet-item:last-child {
@@ -2741,4 +2742,122 @@ textarea.form-control {
   .ip-item {
     padding-left: 60px;
   }
+}
+
+/* Subnet Container */
+.subnet-container {
+  border-bottom: 1px solid #f1f3f4;
+}
+
+.subnet-container:last-child {
+  border-bottom: none;
+}
+
+.subnet-container.search-hidden {
+  display: none;
+}
+
+/* IP Devices List - Hierarchical Layout */
+.ip-devices-list {
+  background: #fafafa;
+  border-left: 2px solid #e9ecef;
+  margin-left: 30px;
+}
+
+.ip-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 15px 8px 45px; /* Extra left padding for hierarchy */
+  border-bottom: 1px solid #f1f3f4;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 12px;
+  background: #fafafa;
+}
+
+.ip-item:last-child {
+  border-bottom: none;
+}
+
+.ip-item:hover {
+  background: #f1f8ff;
+}
+
+.ip-item.selected {
+  background: #fff3e0;
+  border-left: 3px solid #ff9800;
+}
+
+.ip-item.search-match {
+  background: #fff3e0;
+}
+
+.ip-item.search-hidden {
+  display: none;
+}
+
+/* Load More Button Styling */
+.load-more-ips {
+  padding: 12px 15px;
+  background: #f8f9fa;
+  border-top: 1px solid #e9ecef;
+  text-align: center;
+  margin-left: 30px;
+}
+
+.load-more-btn {
+  padding: 6px 16px;
+  background: #e3f2fd;
+  border: 1px solid #2196f3;
+  border-radius: 4px;
+  color: #2196f3;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.load-more-btn:hover {
+  background: #2196f3;
+  color: white;
+}
+
+/* Update existing IP checkbox and icon styles for hierarchy */
+.ip-checkbox {
+  margin-right: 8px;
+  transform: scale(0.9);
+}
+
+.ip-icon {
+  color: #ff9800;
+  font-size: 12px;
+  margin-right: 8px;
+}
+
+.ip-address {
+  flex: 1;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.ip-info {
+  font-size: 10px;
+  color: #666;
+  margin-right: 8px;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-status {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4caf50;
+  margin-left: 8px;
+}
+
+.device-status.inactive {
+  background: #bbb;
 }

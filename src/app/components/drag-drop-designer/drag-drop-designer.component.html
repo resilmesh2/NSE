@@ -504,31 +504,36 @@
           
           <div class="subnet-list" *ngIf="network.expanded">
             <div *ngFor="let subnet of network.subnets; let subnetIndex = index" 
-                class="subnet-item" 
-                [class.expanded]="subnet.expanded"
-                [class.selected]="subnet.selected"
-                [class.search-hidden]="subnet.hidden"
-                [class.search-match]="subnet.isMatch"
-                [attr.data-subnet]="subnet.subnet">
+                class="subnet-container"
+                [class.search-hidden]="subnet.hidden">
               
-              <span class="subnet-expand" 
-                    (click)="toggleSubnetExpansion(networkIndex, subnetIndex, $event)">
-                {{subnet.expanded ? '▼' : '▶'}}
-              </span>
-              <input type="checkbox" 
-                    class="subnet-checkbox" 
-                    [(ngModel)]="subnet.selected"
-                    (change)="selectEntireSubnet(networkIndex, subnetIndex)"
-                    (click)="$event.stopPropagation()">
-              <span class="subnet-icon">🔗</span>
-              <span class="subnet-name">{{subnet.subnet}}</span>
-              <span class="subnet-stats">{{(subnet.devices?.length || subnet.deviceCount || 0)}} IPs</span>
-              <div class="risk-indicator" 
-                  [class.risk-high]="(subnet.riskScore || 0) >= 7"
-                  [class.risk-medium]="(subnet.riskScore || 0) >= 4 && (subnet.riskScore || 0) < 7"
-                  [class.risk-low]="(subnet.riskScore || 0) < 4"></div>
+              <!-- Subnet Header Row -->
+              <div class="subnet-item" 
+                  [class.expanded]="subnet.expanded"
+                  [class.selected]="subnet.selected"
+                  [class.search-match]="subnet.isMatch"
+                  [attr.data-subnet]="subnet.subnet">
+                
+                <span class="subnet-expand" 
+                      (click)="toggleSubnetExpansion(networkIndex, subnetIndex, $event)">
+                  {{subnet.expanded ? '▼' : '▶'}}
+                </span>
+                <input type="checkbox" 
+                      class="subnet-checkbox" 
+                      [(ngModel)]="subnet.selected"
+                      (change)="selectEntireSubnet(networkIndex, subnetIndex)"
+                      (click)="$event.stopPropagation()">
+                <span class="subnet-icon">🔗</span>
+                <span class="subnet-name">{{subnet.subnet}}</span>
+                <span class="subnet-stats">{{(subnet.devices?.length || subnet.deviceCount || 0)}} IPs</span>
+                <div class="risk-indicator" 
+                    [class.risk-high]="(subnet.riskScore || 0) >= 7"
+                    [class.risk-medium]="(subnet.riskScore || 0) >= 4 && (subnet.riskScore || 0) < 7"
+                    [class.risk-low]="(subnet.riskScore || 0) < 4"></div>
+              </div>
               
-              <div class="ip-list" *ngIf="subnet.expanded && subnet.visibleDevices && subnet.visibleDevices.length > 0">
+              <!-- IP Devices List - Now as separate rows -->
+              <div class="ip-devices-list" *ngIf="subnet.expanded && subnet.visibleDevices && subnet.visibleDevices.length > 0">
                 <div *ngFor="let ip of subnet.visibleDevices; let ipIndex = index" 
                     class="ip-item" 
                     [class.selected]="ip.selected"
@@ -546,16 +551,17 @@
                   <span class="ip-info">{{ip.hostname || 'Unknown'}}</span>
                   <div class="device-status" [class.inactive]="!ip.isActive"></div>
                 </div>
-                
-                <div class="load-more-ips" 
-                    *ngIf="subnet.devices && subnet.devices.length > 0 && subnet.visibleDevices && subnet.devices.length > subnet.visibleDevices.length"
-                    (click)="loadMoreIPs(networkIndex, subnetIndex)">
-                  <span>📋 Showing {{subnet.visibleDevices?.length || 0}} of {{subnet.devices.length}} IPs</span>
-                  <button class="load-more-btn">Load More IPs ({{subnet.devices.length - (subnet.visibleDevices?.length || 0)}} remaining)</button>
-                </div>
-              </div>
-            </div>
-          </div>
+      
+        <!-- Load More Button -->
+        <div class="load-more-ips" 
+            *ngIf="subnet.devices && subnet.devices.length > 0 && subnet.visibleDevices && subnet.visibleDevices.length < subnet.devices.length">
+          <button (click)="loadMoreIPs(networkIndex, subnetIndex)" class="load-more-btn">
+            Load More ({{subnet.devices.length - subnet.visibleDevices.length}} remaining)
+          </button>
+        </div>
+    </div>
+  </div>
+</div>
                   </div>
                 </div>
                 

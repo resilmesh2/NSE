@@ -546,10 +546,61 @@ toggleNetworkExpansion(networkIndex: number, event: Event): void {
 
 toggleSubnetExpansion(networkIndex: number, subnetIndex: number, event: Event): void {
   event.stopPropagation();
-  const subnet = this.hierarchicalNetworks[networkIndex]?.subnets[subnetIndex];
+  const network = this.hierarchicalNetworks[networkIndex];
+  const subnet = network?.subnets[subnetIndex];
   if (subnet) {
     subnet.expanded = !subnet.expanded;
+    
+    // Re-sort subnets to move expanded ones to the top
+    network.subnets = this.sortSubnets(network.subnets);
+    
+    // If we expanded and there are devices, load them if needed
+    if (subnet.expanded && (!subnet.devices || subnet.devices.length === 0)) {
+      this.loadSubnetDevices(subnet);
+    }
   }
+}
+
+private async loadSubnetDevices(subnet: SubnetData): Promise<void> {
+  try {
+    console.log(`Loading devices for subnet: ${subnet.subnet}`);
+    const result = await this.networkDataService.getSubnetDetails(subnet.subnet);
+    if (result && result.devices) {
+      // Convert DeviceData[] to NetworkDevice[] and ensure type compatibility
+      subnet.devices = result.devices.map((device: any) => ({
+        ip: String(device.ip || device.address || ''),
+        hostname: device.hostname || device.name || 'Unknown',
+        riskScore: typeof device.riskScore === 'number' ? device.riskScore : 0,
+        isActive: device.isActive !== false,
+        selected: false,
+        hidden: false,
+        isMatch: false,
+        deviceType: device.deviceType || device.type || 'Network Device',
+        os: device.os || device.operatingSystem || 'Unknown',
+        vulnerabilities: Array.isArray(device.vulnerabilities) ? device.vulnerabilities.length : (typeof device.vulnerabilities === 'number' ? device.vulnerabilities : 0)
+      }));
+      
+      subnet.hasDetailedData = true;
+      
+      // Initialize visible devices
+      subnet.visibleDevices = subnet.devices.slice(0, 15).map((device: NetworkDevice) => ({
+        ...device,
+        selected: false,
+        hidden: false,
+        isMatch: false
+      }));
+      
+      console.log(`Loaded ${subnet.devices.length} devices for subnet ${subnet.subnet}`);
+    }
+  } catch (error) {
+    console.error(`Error loading devices for subnet ${subnet.subnet}:`, error);
+  }
+}
+
+private reSortAllSubnets(): void {
+  this.hierarchicalNetworks.forEach(network => {
+    network.subnets = this.sortSubnets(network.subnets);
+  });
 }
 
 // Selection methods
@@ -685,8 +736,55 @@ private initializeHierarchicalNetworks(): void {
     network.totalDevices += subnetData.devices?.length || subnet.deviceCount || 0;
   });
 
+  // Sort subnets within each network
+  networkMap.forEach(network => {
+    network.subnets = this.sortSubnets(network.subnets);
+  });
+
   this.hierarchicalNetworks = Array.from(networkMap.values());
   console.log('Initialized hierarchical networks with real data:', this.hierarchicalNetworks);
+}
+
+private sortSubnets(subnets: SubnetData[]): SubnetData[] {
+  return subnets.sort((a, b) => {
+    // First priority: expanded subnets come first
+    if (a.expanded !== b.expanded) {
+      return a.expanded ? -1 : 1;
+    }
+    
+    // Second priority: subnets with detailed data (devices loaded) come next
+    const aHasData = (a.devices && a.devices.length > 0) || a.hasDetailedData;
+    const bHasData = (b.devices && b.devices.length > 0) || b.hasDetailedData;
+    if (aHasData !== bHasData) {
+      return aHasData ? -1 : 1;
+    }
+    
+    // Third priority: sort by IP address numerically
+    return this.compareIPAddresses(a.subnet, b.subnet);
+  });
+}
+
+private compareIPAddresses(subnetA: string, subnetB: string): number {
+  // Extract IP parts from subnet CIDR (e.g., "192.168.1.0/24" -> [192, 168, 1, 0])
+  const getIPParts = (subnet: string): number[] => {
+    const ip = subnet.split('/')[0]; // Remove CIDR suffix
+    return ip.split('.').map(part => parseInt(part, 10));
+  };
+  
+  const partsA = getIPParts(subnetA);
+  const partsB = getIPParts(subnetB);
+  
+  // Compare each octet
+  for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+    const partA = partsA[i] || 0;
+    const partB = partsB[i] || 0;
+    
+    if (partA !== partB) {
+      return partA - partB;
+    }
+  }
+  
+  return 0; // Equal
 }
 
 performNetworkSearch(): void {
@@ -694,7 +792,12 @@ performNetworkSearch(): void {
   this.networkSearchResults = [];
   
   if (!searchTerm) {
-    this.clearNetworkSearchResults();
+    // If no search term but we have an active filter, apply it
+    if (this.networkSearchFilter && this.networkSearchFilter !== 'all') {
+      this.setNetworkSearchFilter(this.networkSearchFilter);
+    } else {
+      this.clearNetworkSearchResults();
+    }
     return;
   }
   
@@ -722,29 +825,29 @@ performNetworkSearch(): void {
       }
       
       // Search real device data
-      if ((this.networkSearchFilter === 'all' || this.networkSearchFilter === 'ips') && subnet.devices) {
-        subnet.devices.forEach((device: NetworkDevice) => {
-          const ipMatch = device.ip && device.ip.includes(searchTerm);
-          const hostnameMatch = device.hostname && device.hostname.toLowerCase().includes(searchTerm);
-          
-          if (ipMatch || hostnameMatch) {
-            device.isMatch = true;
-            subnetMatches = true;
-            networkMatches = true;
-            this.networkSearchResults.push({ type: 'ip', element: device });
-            
-            // Make sure this device is visible
-            if (subnet.visibleDevices && !subnet.visibleDevices.some((vd: NetworkDevice) => vd.ip === device.ip)) {
-              subnet.visibleDevices.push({
-                ...device,
-                selected: false,
-                hidden: false,
-                isMatch: true
-              });
-            }
-          }
+      if ((this.networkSearchFilter === 'all' || this.networkSearchFilter === 'ips') && subnet.devices && subnet.devices.length > 0) {
+  subnet.devices.forEach((device: NetworkDevice) => {
+    const ipMatch = device.ip && device.ip.includes(searchTerm);
+    const hostnameMatch = device.hostname && device.hostname.toLowerCase().includes(searchTerm);
+    
+    if (ipMatch || hostnameMatch) {
+      device.isMatch = true;
+      subnetMatches = true;
+      networkMatches = true;
+      this.networkSearchResults.push({ type: 'ip', element: device });
+      
+      // Make sure this device is visible
+      if (subnet.visibleDevices && !subnet.visibleDevices.some((vd: NetworkDevice) => vd.ip === device.ip)) {
+        subnet.visibleDevices.push({
+          ...device,
+          selected: false,
+          hidden: false,
+          isMatch: true
         });
       }
+    }
+  });
+}
       
       subnet.hidden = !subnetMatches;
     });
@@ -769,7 +872,7 @@ private filterHighRiskItems(): void {
       }
       
       // Check devices for high risk
-      if (subnet.devices) {
+      if (subnet.devices && subnet.devices.length > 0) {
         subnet.devices.forEach((device: NetworkDevice) => {
           if (device.riskScore && device.riskScore >= 7) {
             device.isMatch = true;
@@ -836,13 +939,95 @@ private updateSelectionCounts(): void {
 
 setNetworkSearchFilter(filter: string): void {
   this.networkSearchFilter = filter;
+  console.log('Filter changed to:', filter);
+  
+  // Clear previous results and reset visibility
+  this.clearNetworkSearchResults();
   
   if (filter === 'high-risk') {
-    this.clearNetworkSearchResults();
     this.filterHighRiskItems();
+  } else if (filter === 'all') {
+    // Show all networks and subnets
+    this.showAllNetworks();
   } else {
-    this.performNetworkSearch();
+    // Apply the filter even without search term
+    this.applyFilterCriteria(filter);
   }
+}
+
+private showAllNetworks(): void {
+  this.hierarchicalNetworks.forEach((network: NetworkData) => {
+    network.hidden = false;
+    network.isMatch = false;
+    
+    network.subnets.forEach((subnet: SubnetData) => {
+      subnet.hidden = false;
+      subnet.isMatch = false;
+      
+      if (subnet.devices) {
+        subnet.devices.forEach((device: NetworkDevice) => {
+          device.hidden = false;
+          device.isMatch = false;
+        });
+      }
+      
+      if (subnet.visibleDevices) {
+        subnet.visibleDevices.forEach((device: NetworkDevice) => {
+          device.hidden = false;
+          device.isMatch = false;
+        });
+      }
+    });
+  });
+}
+
+private applyFilterCriteria(filter: string): void {
+  this.hierarchicalNetworks.forEach((network: NetworkData) => {
+    let networkHasMatches = false;
+    
+    network.subnets.forEach((subnet: SubnetData) => {
+      let subnetHasMatches = false;
+      
+      // Apply filter based on type
+      if (filter === 'networks') {
+        // Networks filter - always show networks but hide subnets/IPs
+        networkHasMatches = true;
+        subnetHasMatches = false;
+      } else if (filter === 'subnets') {
+        // Subnets filter - show networks that have subnets
+        subnetHasMatches = true;
+        networkHasMatches = true;
+        subnet.isMatch = true;
+        this.networkSearchResults.push({ type: 'subnet', element: subnet });
+      } else if (filter === 'ips') {
+        // IPs Only filter - show networks/subnets that have devices
+        if (subnet.devices && subnet.devices.length > 0) {
+          subnetHasMatches = true;
+          networkHasMatches = true;
+          
+          // Mark matching devices and ensure they're visible
+          subnet.devices.forEach((device: NetworkDevice) => {
+            device.isMatch = true;
+            this.networkSearchResults.push({ type: 'ip', element: device });
+            
+            // Make sure device is in visible devices
+            if (subnet.visibleDevices && !subnet.visibleDevices.some((vd: NetworkDevice) => vd.ip === device.ip)) {
+              subnet.visibleDevices.push({
+                ...device,
+                selected: false,
+                hidden: false,
+                isMatch: true
+              });
+            }
+          });
+        }
+      }
+      
+      subnet.hidden = !subnetHasMatches;
+    });
+    
+    network.hidden = !networkHasMatches;
+  });
 }
 
 
@@ -854,16 +1039,23 @@ clearNetworkSearch(): void {
 private clearNetworkSearchResults(): void {
   this.networkSearchResults = [];
   
-  this.hierarchicalNetworks.forEach(network => {
+  this.hierarchicalNetworks.forEach((network: NetworkData) => {
     network.hidden = false;
     network.isMatch = false;
     
-    network.subnets.forEach(subnet => {
+    network.subnets.forEach((subnet: SubnetData) => {
       subnet.hidden = false;
       subnet.isMatch = false;
       
-      if (subnet.devices) {
-        subnet.devices.forEach(device => {
+      if (subnet.devices && subnet.devices.length > 0) {
+        subnet.devices.forEach((device: NetworkDevice) => {
+          device.hidden = false;
+          device.isMatch = false;
+        });
+      }
+      
+      if (subnet.visibleDevices && subnet.visibleDevices.length > 0) {
+        subnet.visibleDevices.forEach((device: NetworkDevice) => {
           device.hidden = false;
           device.isMatch = false;
         });
@@ -873,14 +1065,22 @@ private clearNetworkSearchResults(): void {
 }
 
 expandAllNetworkResults(): void {
+  let hasChanges = false;
+  
   this.networkSearchResults.forEach(result => {
     if (result.type === 'ip') {
       const device = result.element;
       this.hierarchicalNetworks.forEach(network => {
         network.subnets.forEach(subnet => {
           if (subnet.devices && subnet.devices.some(d => d.ip === device.ip)) {
-            network.expanded = true;
-            subnet.expanded = true;
+            if (!network.expanded) {
+              network.expanded = true;
+              hasChanges = true;
+            }
+            if (!subnet.expanded) {
+              subnet.expanded = true;
+              hasChanges = true;
+            }
           }
         });
       });
@@ -888,13 +1088,24 @@ expandAllNetworkResults(): void {
       const subnetElement = result.element;
       this.hierarchicalNetworks.forEach(network => {
         if (network.subnets.includes(subnetElement)) {
-          network.expanded = true;
+          if (!network.expanded) {
+            network.expanded = true;
+            hasChanges = true;
+          }
         }
       });
     } else if (result.type === 'network') {
-      result.element.expanded = true;
+      if (!result.element.expanded) {
+        result.element.expanded = true;
+        hasChanges = true;
+      }
     }
   });
+  
+  // Re-sort if any changes were made
+  if (hasChanges) {
+    this.reSortAllSubnets();
+  }
 }
 
 // Selection summary methods
