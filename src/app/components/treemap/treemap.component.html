@@ -1,5 +1,21 @@
 <div class="treemap-wrapper">
-  <div class="treemap-controls">
+  <!-- Show organization filter status -->
+  <div class="organization-filter" *ngIf="selectedOrganization">
+    <div class="filter-header">
+      <h4>{{ selectedOrganization.name }} - Subnets</h4>
+      <button class="btn btn-sm btn-secondary" (click)="clearOrganizationFilter()">
+        ← Back to All Organizations
+      </button>
+    </div>
+    <div class="filter-stats">
+      <span>{{ networkData.length }} subnets</span>
+      <span>{{ selectedOrganization.totalDevices }} devices</span>
+      <span>{{ selectedOrganization.avgRiskScore | number:'1.1-1' }} avg risk</span>
+    </div>
+  </div>
+
+  <!-- Regular treemap controls for non-filtered view -->
+  <div class="treemap-controls" *ngIf="!selectedOrganization">
     <div class="control-group">
       <label>Group By:</label>
       <div class="btn-group">
@@ -21,8 +37,8 @@
   
   <div #treemapContainer class="treemap-container"></div>
   
-  <!-- Pagination controls -->
-  <div class="pagination-controls" *ngIf="totalOrgPages > 1">
+  <!-- Pagination controls - show when not filtering by organization -->
+  <div class="pagination-controls" *ngIf="totalOrgPages > 1 && !selectedOrganization">
     <div class="pagination-info">{{ organizationPaginationInfo }}</div>
     <div class="pagination-buttons">
       <button (click)="prevOrgPage()" [disabled]="currentOrgPage === 1" class="btn btn-sm">

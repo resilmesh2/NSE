@@ -3,7 +3,6 @@
   "version": "0.0.0",
   "scripts": {
     "start": "concurrently --names \"ANGULAR,SERVER\" --colors \"blue,green\" \"ng serve\" \"npm run start:server\"",
-    "postinstall": "cd servers && npm install",
     "start:angular": "ng serve",
     "start:server": "cd servers && node server.js",
     "start:servers": "concurrently --names \"SERVER\" --colors \"green\" \"npm run start:server\"",
@@ -20,9 +19,7 @@
     "@angular/platform-browser": "^19.2.0",
     "@angular/platform-browser-dynamic": "^19.2.0",
     "@angular/router": "^19.2.0",
-    "@types/server": "^3.21.9",
     "@types/d3": "^7.4.3",
-    "server": "^3.32.0",
     "d3": "^7.9.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",

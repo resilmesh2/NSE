@@ -30,6 +30,8 @@ export class DeviceStateService {
   public selectedSubnet$: Observable<SubnetData | null> = this.selectedSubnetSubject.asObservable();
   public selectedDevice$: Observable<DeviceData | null> = this.selectedDeviceSubject.asObservable();
   public deviceTableState$: Observable<DeviceTableState> = this.deviceTableStateSubject.asObservable();
+  private selectedOrganizationSource = new BehaviorSubject<any>(null);
+  selectedOrganization$ = this.selectedOrganizationSource.asObservable();
 
   setSelectedSubnet(subnet: SubnetData | null): void {
     this.selectedSubnetSubject.next(subnet);
@@ -82,4 +84,17 @@ export class DeviceStateService {
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
   }
+
+  setSelectedOrganization(organization: any): void {
+  this.selectedOrganizationSource.next(organization);
+}
+
+getSelectedOrganization(): any {
+  return this.selectedOrganizationSource.value;
+}
+
+clearSelectedOrganization(): void {
+  this.selectedOrganizationSource.next(null);
+  console.log('Organization selection cleared from service');
+}
 }

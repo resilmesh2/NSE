@@ -16,6 +16,45 @@ interface CalculationMethod {
   description: string;
 }
 
+interface ActiveAutomation {
+  id: string;
+  componentName?: string;
+  componentId?: string;
+  updateFrequency?: string;
+  update_frequency?: string;
+  enabled?: boolean;
+  lastRun?: string;
+  last_run?: string; 
+  createdAt?: string;
+  created_date?: string; 
+  expiresAt?: string;
+  dataSource?: {
+    type: string;
+    query?: string;
+  };
+  calculationMethod?: string;
+  calculation_method?: string;
+  
+  avg_risk_score?: number;
+  calculation_mode?: string;
+  components?: Array<{
+    currentValue: number;
+    maxValue: number;
+    name: string;
+    neo4jProperty: string;
+    weight: number;
+  }>;
+  custom_formula?: string;
+  formula_config?: { [key: string]: number };
+  formula_name?: string;
+  nodes_updated?: number;
+  target_property?: string;
+  target_type?: string;
+  target_values?: string[];
+  targetType?: string;
+  targetValues?: string[];
+}
+
 @Component({
   selector: 'app-drag-drop-designer',
   standalone: true,
@@ -35,6 +74,15 @@ export class DragDropDesignerComponent implements OnInit {
   selectedIps: boolean[] = [];
   selectAllIps = false;
   ipSearchTerm = '';
+  subnetSearchTerm: string = '';
+  filteredSubnets: any[] = [];
+
+  selectedSubnetForIps: string = '';
+
+  showingAutomations = false;
+  activeAutomations: ActiveAutomation[] = [];
+  isLoadingAutomations = false;
+  automationFilter = 'all';
 
   predefinedFormulas: RiskFormula[] = [];
   customFormulas: RiskFormula[] = [];
@@ -174,128 +222,481 @@ private notificationId = 0;
   }, 100);
   
   this.loadNetworkData();
+  this.loadActiveAutomations();
   
   // Load formulas after components are loaded
   setTimeout(() => {
     this.loadFormulas();
   }, 500);
   
-  // Switch to components view when active formula is loaded
-  this.showingFormulas = false;
-  this.toggleButtonText = 'Switch to Formulas';
 }
 
-toggleView(): void {
-  this.showingFormulas = !this.showingFormulas;
-  this.toggleButtonText = this.showingFormulas 
-    ? 'Switch to Components' 
-    : 'Switch to Formulas';
-  
-  // Clear any temporary selections when switching views
-  if (!this.showingFormulas && this.riskFormula.length === 0 && this.activeFormula) {
-    // Auto-load active formula when switching to components view
-    this.loadPredefinedFormula(this.activeFormula);
-  }
+openIpModalForSubnet(subnet?: string) {
+  this.selectedSubnetForIps = subnet || '';
+  this.loadIpAddressesFromSubnet(this.selectedSubnetForIps);
+  this.showIpModal = true;
 }
+
+loadActiveAutomations(): void {
+  this.isLoadingAutomations = true;
   
-  private loadNetworkData() {
-    const currentData = this.networkDataService.getCurrentNetworkData();
-    
-    // Extract unique networks
-    const networkMap = new Map();
-    currentData.forEach(subnet => {
-      const networkPrefix = subnet.subnet.split('.').slice(0, 2).join('.');
-      if (!networkMap.has(networkPrefix)) {
-        networkMap.set(networkPrefix, {
-          prefix: networkPrefix,
-          subnets: [],
-          totalDevices: 0
-        });
+  // Use the correct endpoint for risk automations
+  this.http.get<any>('http://localhost:5000/api/risk/automations/active')
+    .subscribe({
+      next: (response) => {
+        if (response.success && response.automations) {
+          this.activeAutomations = Object.keys(response.automations).map(key => ({
+            id: key,
+            enabled: response.automations[key].enabled !== false, // Handle missing enabled field
+            ...response.automations[key]
+          }));
+        } else {
+          this.activeAutomations = [];
+        }
+        this.isLoadingAutomations = false;
+      },
+      error: (error) => {
+        console.error('Error loading active automations:', error);
+        this.showError('Load Failed', 'Failed to load active automations');
+        this.activeAutomations = [];
+        this.isLoadingAutomations = false;
       }
-      const network = networkMap.get(networkPrefix);
-      network.subnets.push(subnet);
-      network.totalDevices += subnet.deviceCount;
     });
+}
 
-    this.availableNetworks = Array.from(networkMap.values());
-    this.availableSubnets = currentData.slice(0, 20);
-    
-    // Initialize selection arrays
-    this.selectedNetworks = new Array(this.availableNetworks.length).fill(false);
+getFilteredAutomations(): ActiveAutomation[] {
+  switch (this.automationFilter) {
+    case 'enabled':
+      return this.activeAutomations.filter(a => a.enabled !== false);
+    case 'disabled':
+      return this.activeAutomations.filter(a => a.enabled === false);
+    default:
+      return this.activeAutomations;
   }
+}
+
+getActiveAutomationsCount(): number {
+  return this.activeAutomations.filter(a => a.enabled !== false).length;
+}
+
+getDisabledAutomationsCount(): number {
+  return this.activeAutomations.filter(a => a.enabled === false).length;
+}
+
+async pauseAutomation(automation: ActiveAutomation): Promise<void> {
+  const confirmed = await this.showConfirm(
+    'Pause Automation',
+    `Are you sure you want to pause "${this.getComponentName(automation)}" automation?`,
+    'Pause',
+    'Cancel'
+  );
+  
+  if (!confirmed) return;
+  
+  this.http.put(`http://localhost:5000/api/components/automation/${automation.id}/pause`, {})
+    .subscribe({
+      next: () => {
+        // Update the local automation object
+        automation.enabled = false;
+        this.showSuccess('Automation Paused', `${this.getComponentName(automation)} automation has been paused`);
+      },
+      error: (error) => {
+        this.showError('Pause Failed', error.error?.message || 'Failed to pause automation');
+      }
+    });
+}
+
+async resumeAutomation(automation: ActiveAutomation): Promise<void> {
+  const confirmed = await this.showConfirm(
+    'Resume Automation',
+    `Are you sure you want to resume "${this.getComponentName(automation)}" automation?`,
+    'Resume',
+    'Cancel'
+  );
+  
+  if (!confirmed) return;
+  
+  this.http.put(`http://localhost:5000/api/components/automation/${automation.id}/resume`, {})
+    .subscribe({
+      next: () => {
+        // Update the local automation object
+        automation.enabled = true;
+        this.showSuccess('Automation Resumed', `${this.getComponentName(automation)} automation has been resumed`);
+      },
+      error: (error) => {
+        this.showError('Resume Failed', error.error?.message || 'Failed to resume automation');
+      }
+    });
+}
+
+getAutomationStatusText(automation: ActiveAutomation): string {
+  // Check if enabled property exists, if not default to true, if explicitly false then paused
+  const enabled = automation.enabled !== false;
+  if (!enabled) return 'Paused';
+  
+  const lastRun = automation.last_run || automation.lastRun;
+  const updateFreq = automation.update_frequency || automation.updateFrequency;
+  
+  if (updateFreq === 'manual') return 'Manual';
+  if (!lastRun) return 'Pending';
+  
+  return 'Active';
+}
+
+async deleteAutomation(automation: ActiveAutomation): Promise<void> {
+  const confirmed = await this.showConfirm(
+    'Delete Automation',
+    `Are you sure you want to delete "${automation.componentName}" automation?\n\nThis action cannot be undone.`,
+    'Delete',
+    'Cancel'
+  );
+  
+  if (!confirmed) return;
+  
+  this.http.delete(`http://localhost:5000/api/components/automation/${automation.id}`)
+    .subscribe({
+      next: () => {
+        this.activeAutomations = this.activeAutomations.filter(a => a.id !== automation.id);
+        this.showSuccess('Automation Deleted', `${automation.componentName} automation has been deleted`);
+      },
+      error: (error) => {
+        this.showError('Delete Failed', error.error?.message || 'Failed to delete automation');
+      }
+    });
+}
+
+getAutomationStatusClass(automation: ActiveAutomation): string {
+  const status = this.getAutomationStatusText(automation);
+  switch (status) {
+    case 'Active': return 'status-active';
+    case 'Paused': return 'status-paused';
+    case 'Expired': return 'status-expired';
+    default: return '';
+  }
+}
+
+getAutomationTarget(automation: ActiveAutomation): string {
+  // Get the actual target values from the automation data
+  const targetType = automation.target_type || automation.targetType;
+  const targetValues = automation.target_values || automation.targetValues || [];
+  
+  switch (targetType) {
+    case 'subnet':
+      if (targetValues.length === 1) {
+        return `Subnet: ${targetValues[0]}`;
+      } else if (targetValues.length > 1) {
+        return `${targetValues.length} Subnets`;
+      }
+      return 'Subnet';
+    case 'ip':
+      if (targetValues.length === 1) {
+        return `IP: ${targetValues[0]}`;
+      } else if (targetValues.length > 1) {
+        return `${targetValues.length} IPs`;
+      }
+      return 'IP';
+    case 'network':
+      if (targetValues.length === 1) {
+        return `Net: ${targetValues[0]}`;
+      } else if (targetValues.length > 1) {
+        return `${targetValues.length} Networks`;
+      }
+      return 'Network';
+    case 'all':
+      return 'All Nodes';
+    default:
+      return targetType || 'Unknown';
+  }
+}
+
+getNextRunTime(automation: ActiveAutomation): string {
+  const enabled = automation.enabled;
+  if (enabled === false) return 'Paused';
+  
+  const updateFrequency = automation.update_frequency || automation.updateFrequency;
+  if (updateFrequency === 'manual') return 'Manual';
+  
+  const lastRunStr = automation.last_run || automation.lastRun;
+  if (!lastRunStr) {
+    return 'Pending';
+  }
+  
+  const lastRun = new Date(lastRunStr);
+  let nextRun = new Date(lastRun);
+  
+  switch (updateFrequency) {
+    case 'minute':
+      nextRun.setMinutes(nextRun.getMinutes() + 1);
+      break;
+    case 'hourly':
+      nextRun.setHours(nextRun.getHours() + 1);
+      break;
+    case 'daily':
+      nextRun.setDate(nextRun.getDate() + 1);
+      break;
+    case 'weekly':
+      nextRun.setDate(nextRun.getDate() + 7);
+      break;
+    case 'monthly':
+      nextRun.setMonth(nextRun.getMonth() + 1);
+      break;
+    default:
+      return 'Unknown';
+  }
+  
+  const now = new Date();
+  const diffMs = nextRun.getTime() - now.getTime();
+  
+  if (diffMs <= 0) return 'Due now';
+  
+  const diffMins = Math.floor(diffMs / (1000 * 60));
+  if (diffMins < 60) return `${diffMins}m`;
+  
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h`;
+  
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}d`;
+}
+
+formatLastRun(lastRun: string | undefined): string {
+  if (!lastRun) return 'Never';
+  
+  const date = new Date(lastRun);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / (1000 * 60));
+  
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 30) return `${diffDays}d ago`;
+  
+  const diffMonths = Math.floor(diffDays / 30);
+  return `${diffMonths}mo ago`;
+}
+
+getComponentName(automation: ActiveAutomation): string {
+  // Handle both component and formula automations
+  return automation.formula_name || 
+         automation.componentName || 
+         'Unknown Formula';
+}
+
+getNodesUpdated(automation: ActiveAutomation): string {
+  const nodesUpdated = automation.nodes_updated;
+  if (nodesUpdated === undefined || nodesUpdated === null) return '';
+  if (nodesUpdated === 0) return '0 nodes';
+  if (nodesUpdated === 1) return '1 node';
+  return `${nodesUpdated} nodes`;
+}
+
+getRiskScore(automation: ActiveAutomation): string {
+  const avgRisk = automation.avg_risk_score;
+  if (avgRisk === null || avgRisk === undefined) return '';
+  return `Risk: ${avgRisk.toFixed(1)}`;
+}
+
+formatUpdateFrequency(frequency: string | undefined): string {
+  if (!frequency) return 'Manual'; // Handle undefined/null/empty cases
+  
+  const frequencyMap: { [key: string]: string } = {
+    'manual': 'Manual',
+    'minute': 'Every Min',
+    'hourly': 'Hourly', 
+    'daily': 'Daily',
+    'weekly': 'Weekly',
+    'monthly': 'Monthly'
+  };
+  return frequencyMap[frequency] || frequency;
+}
+  
+  private async loadNetworkData() {
+  console.log('Loading network data...');
+  const currentData = this.networkDataService.getCurrentNetworkData();
+  
+  // Store all subnets without limit
+  this.availableSubnets = currentData;
+  this.filteredSubnets = currentData; // Initialize filtered subnets
+  
+  const networkMap = new Map();
+  
+  currentData.forEach(subnet => {
+    const networkPrefix = subnet.subnet.split('.').slice(0, 2).join('.');
+    if (!networkMap.has(networkPrefix)) {
+      networkMap.set(networkPrefix, {
+        prefix: networkPrefix,
+        subnets: [],
+        totalDevices: 0
+      });
+    }
+    const network = networkMap.get(networkPrefix);
+    network.subnets.push(subnet);
+    network.totalDevices += subnet.deviceCount;
+  });
+
+  this.availableNetworks = Array.from(networkMap.values());
+  this.selectedNetworks = new Array(this.availableNetworks.length).fill(false);
+}
+
+filterSubnets() {
+  if (!this.subnetSearchTerm || this.subnetSearchTerm.trim() === '') {
+    this.filteredSubnets = this.availableSubnets;
+  } else {
+    const searchTerm = this.subnetSearchTerm.toLowerCase();
+    this.filteredSubnets = this.availableSubnets.filter(subnet => 
+      subnet.subnet.toLowerCase().includes(searchTerm) ||
+      subnet.deviceCount.toString().includes(searchTerm)
+    );
+  }
+}
 
   private async loadIpAddresses() {
-    console.log('Loading IP addresses...');
+  console.log('Loading IP addresses...');
+  this.availableIpAddresses = [];
+  
+  try {
+    const networkData = this.networkDataService.getCurrentNetworkData();
+    console.log('Network data:', networkData.length, 'subnets');
+    
+    // Only process subnets that have devices loaded (hasDetailedData = true)
+    const subnetsWithDevices = networkData.filter(subnet => 
+      subnet.hasDetailedData && subnet.devices && subnet.devices.length > 0
+    );
+    
+    console.log(`Found ${subnetsWithDevices.length} subnets with loaded devices`);
+    
+    if (subnetsWithDevices.length === 0) {
+      console.log('No subnets with loaded device data found');
+      this.filteredIpAddresses = [];
+      return;
+    }
+    
+    // Extract all devices from subnets that have been loaded
+    subnetsWithDevices.forEach(subnet => {
+      subnet.devices.forEach(device => {
+        if (device.ip) {
+          this.availableIpAddresses.push({
+            ip: device.ip,
+            subnet: subnet.subnet,
+            riskScore: device.riskScore || 0,
+            hostname: device.hostname || 'Unknown',
+            deviceData: device
+          });
+        }
+      });
+    });
+    
+    // Sort by IP address
+    this.availableIpAddresses.sort((a, b) => {
+      const aOctets = a.ip.split('.').map(Number);
+      const bOctets = b.ip.split('.').map(Number);
+      for (let i = 0; i < 4; i++) {
+        if (aOctets[i] !== bOctets[i]) {
+          return aOctets[i] - bOctets[i];
+        }
+      }
+      return 0;
+    });
+    
+    // Initialize with all available IPs (no 50 limit)
+    this.filteredIpAddresses = [...this.availableIpAddresses];
+    this.selectedIps = new Array(this.availableIpAddresses.length).fill(false);
+    this.selectAllIps = false;
+    this.ipSearchTerm = '';
+    
+    console.log(`Loaded ${this.availableIpAddresses.length} IP addresses from expanded subnets`);
+    
+  } catch (error) {
+    console.error('Error loading IP addresses:', error);
+    this.availableIpAddresses = [];
+    this.filteredIpAddresses = [];
+  }
+}
+
+  private loadIpAddressesFromSubnet(selectedSubnet?: string) {
+  if (!selectedSubnet) {
+    this.availableIpAddresses = [];
+    this.filteredIpAddresses = [];
+    return;
+  }
+
+  try {
+    const networkData = this.networkDataService.getCurrentNetworkData();
+    console.log('Network data:', networkData.length, 'subnets');
+    
     this.availableIpAddresses = [];
     
-    try {
-      // Get all network data
-      const networkData = this.networkDataService.getCurrentNetworkData();
-      console.log('Network data:', networkData.length, 'subnets');
-      
-      // If no devices loaded, we need to create mock IPs from subnets
-      networkData.forEach(subnet => {
-        if (subnet.devices && subnet.devices.length > 0) {
-          // Use device IPs if available
-          subnet.devices.forEach(device => {
-            if (device.ip) {
-              this.availableIpAddresses.push({
-                ip: device.ip,
-                subnet: subnet.subnet,
-                riskScore: device.riskScore || 0,
-                hostname: device.hostname || 'Unknown',
-                deviceData: device
-              });
-            }
-          });
-        } else {
-          // Generate sample IPs from subnet range for demonstration
-          const baseIp = subnet.subnet.split('/')[0];
-          const baseOctets = baseIp.split('.');
-          
-          // Create 3-5 sample IPs per subnet
-          const ipCount = Math.min(5, Math.max(3, subnet.deviceCount || 3));
-          for (let i = 1; i <= ipCount; i++) {
-            const lastOctet = Math.floor(Math.random() * 200) + 10; // Random IP in range
-            const sampleIp = `${baseOctets[0]}.${baseOctets[1]}.${baseOctets[2]}.${lastOctet}`;
-            
+    // Find the specific subnet or load from clicked subnet
+    const subnetsToProcess = selectedSubnet ? 
+      networkData.filter(subnet => subnet.subnet === selectedSubnet) : 
+      networkData;
+    
+    subnetsToProcess.forEach(subnet => {
+      if (subnet.devices && subnet.devices.length > 0) {
+        subnet.devices.forEach(device => {
+          if (device.ip) {
             this.availableIpAddresses.push({
-              ip: sampleIp,
+              ip: device.ip,
               subnet: subnet.subnet,
-              riskScore: subnet.riskScore || 0,
-              hostname: `host-${lastOctet}`,
-              deviceData: null
+              riskScore: device.riskScore || 0,
+              hostname: device.hostname || 'Unknown',
+              deviceData: device
             });
           }
+        });
+      } else {
+        // Generate sample IPs from subnet range for demonstration
+        const baseIp = subnet.subnet.split('/')[0];
+        const baseOctets = baseIp.split('.');
+        
+        const ipCount = Math.min(5, Math.max(3, subnet.deviceCount || 3));
+        for (let i = 1; i <= ipCount; i++) {
+          const lastOctet = Math.floor(Math.random() * 200) + 10;
+          const sampleIp = `${baseOctets[0]}.${baseOctets[1]}.${baseOctets[2]}.${lastOctet}`;
+          
+          this.availableIpAddresses.push({
+            ip: sampleIp,
+            subnet: subnet.subnet,
+            riskScore: subnet.riskScore || 0,
+            hostname: `host-${lastOctet}`,
+            deviceData: null
+          });
         }
-      });
+      }
+    });
+    
+    // Sort by IP address
+    this.availableIpAddresses.sort((a, b) => {
+      const aOctets = a.ip.split('.').map(Number);
+      const bOctets = b.ip.split('.').map(Number);
       
-      // Sort by IP address
-      this.availableIpAddresses.sort((a, b) => {
-        const aOctets = a.ip.split('.').map(Number);
-        const bOctets = b.ip.split('.').map(Number);
-        for (let i = 0; i < 4; i++) {
-          if (aOctets[i] !== bOctets[i]) {
-            return aOctets[i] - bOctets[i];
-          }
+      for (let i = 0; i < 4; i++) {
+        if (aOctets[i] !== bOctets[i]) {
+          return aOctets[i] - bOctets[i];
         }
-        return 0;
-      });
-      
-      // Take first 50 for performance
-      this.availableIpAddresses = this.availableIpAddresses.slice(0, 50);
-      this.filteredIpAddresses = [...this.availableIpAddresses];
-      this.selectedIps = new Array(this.availableIpAddresses.length).fill(false);
-      this.selectAllIps = false;
-      this.ipSearchTerm = '';
-      
-      console.log(`Loaded ${this.availableIpAddresses.length} IP addresses for selection`);
-      
-    } catch (error) {
-      console.error('Error loading IP addresses:', error);
-      this.showError('Loading Error', 'Error loading IP addresses. Please check the console.');
-    }
+      }
+      return 0;
+    });
+    
+    // Initialize filtered list with all IPs
+    this.filteredIpAddresses = [...this.availableIpAddresses];
+    this.selectedIps = new Array(this.filteredIpAddresses.length).fill(false);
+    
+  } catch (error) {
+    console.error('Error loading IP addresses:', error);
+    this.availableIpAddresses = [];
+    this.filteredIpAddresses = [];
   }
+}
+
+getExpandedSubnetsCount(): number {
+  return this.networkDataService.getCurrentNetworkData().filter(s => s.hasDetailedData).length;
+}
 
 //  private async askCalculationMode(): Promise<'setValue' | 'calculate' | null> {
 //   return new Promise((resolve) => {
@@ -1043,70 +1444,6 @@ async applyToSelectedIps() {
   }
 }
 
-async applyToRandomSample() {
-  const sampleSize = Math.min(10, this.availableSubnets.length);
-  const sample = this.availableSubnets.slice(0, sampleSize);
-  
-  const propertyToUpdate = this.getPropertyToUpdate();
-  if (!propertyToUpdate) {
-    this.showWarning('Configuration Error', 'Please add components to your formula first!');
-    return;
-  }
-  
-  const calculationMode = 'calculate';
-  
-  const confirmMessage = `Calculate "${propertyToUpdate}" using existing Node property values in ${sampleSize} sample subnets?\n\nMethod: ${this.selectedMethod.replace('_', ' ')}\nComponents: ${this.riskFormula.length}\n\nSample subnets: ${sample.slice(0, 3).map(s => s.subnet).join(', ')}${sample.length > 3 ? '...' : ''}\n\nThis will use property values from Node objects. Continue?`;
-  
-  const confirmed = await this.showConfirm(
-    'Apply to Sample',
-    confirmMessage,
-    'Continue',
-    'Cancel'
-  );
-  
-  if (!confirmed) return;
-  
-  const frequency = await this.askUpdateFrequency();
-  if (!frequency) return;
-  
-  try {
-    const config: RiskConfigurationRequest = {
-      formulaName: this.currentFormulaName || 'Custom Formula',
-      components: this.prepareComponentData(),
-      targetType: 'sample',
-      targetValues: sample.map(s => s.subnet),
-      calculationMode: calculationMode,
-      calculationMethod: this.selectedMethod,
-      customFormula: this.customFormula,
-      updateFrequency: frequency,
-      targetProperty: this.targetProperty || 'Risk Score'
-    };
-
-    const response = await this.riskConfigService.applyRiskConfiguration(config).toPromise();
-    
-    if (response?.success) {
-      this.showSuccess(
-        'Configuration Applied', 
-        `Updated ${response.nodesUpdated} nodes in ${sampleSize} sample subnets\nAverage Risk Score: ${response.avgRiskScore.toFixed(2)}`
-      );
-      
-      if (response.automationEnabled) {
-        this.showInfo('Automation Enabled', `Risk calculation will run ${frequency}`);
-      }
-      
-      // Clear the formula after successful save
-      this.riskFormula = [];
-    }
-    
-    await this.refreshComponents();
-    
-  } catch (error) {
-    console.error('Error applying to sample:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    this.showError('Update Failed', `Error updating Node property:\n\n${errorMessage}`);
-  }
-}
-
 private getPropertyToUpdate(): string | null {
   if (this.riskFormula.length === 0) {
     return null;
@@ -1422,9 +1759,6 @@ private async writeComponentToNeo4j(component: any): Promise<any> {
       this.loadIpAddresses();
       this.showIpModal = true;
       break;
-    case 'sample':
-      this.applyToRandomSample();
-      break;
   }
 }
 
@@ -1507,9 +1841,6 @@ private autoLoadActiveFormula(): void {
     
     // Load the formula
     this.loadPredefinedFormula(this.activeFormula);
-    
-    this.showingFormulas = false;
-    this.toggleButtonText = 'Switch to Formulas';
   }
 }
 

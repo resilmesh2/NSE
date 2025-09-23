@@ -18,7 +18,7 @@ const user = process.env.NEO4J_USERNAME || 'neo4j';
 const password = process.env.NEO4J_PASSWORD || 'supertestovaciheslo';
 const driver = neo4j.driver(uri, neo4j.auth.basic(user, password));
 
-const ISIM_API_BASE = 'http://192.168.200.137:5000/api';
+const ISIM_API_BASE = (process.env.ISIM_API_URL || 'http://192.168.200.137:5000') + '/api';
 
 
 // Initialize Express.js

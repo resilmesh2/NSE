@@ -87,6 +87,9 @@ ngOnInit() {
   console.log('   Full URL:', currentUrl);
   console.log('   Path only:', pathWithoutQuery);
   console.log('   isRoutedPage:', this.isRoutedPage);
+
+  this.clearUrl();
+  this.activeView = 'graph';
   
   // Handle view query parameter
   this.route.queryParams.pipe(takeUntil(this.destroy$)).subscribe(params => {
@@ -99,6 +102,12 @@ ngOnInit() {
   this.initializeData().then(() => {
     this.setupSubscriptions();
   });
+}
+
+private clearUrl(): void {
+  if (window.location.search) {
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
 }
 
 ngOnDestroy() {
@@ -205,20 +214,48 @@ ngOnDestroy() {
   }
 
   switchView(viewName: string) {
-  console.log(' Switching to view:', viewName);
-  console.log(' Current networkData length:', this.networkData.length);
-  console.log(' Current isLoading state:', this.isLoading);
+  console.log('Switching to view:', viewName);
+  console.log('Current networkData length:', this.networkData.length);
+  console.log('Current isLoading state:', this.isLoading);
+  
+  // Clear organization filter when switching away from treemap
+  if (viewName !== 'treemap') {
+    this.clearOrganizationState();
+  }
   
   if (this.isRoutedPage) {
+    // Always use clean navigation
     this.router.navigate(['/'], { 
-      queryParams: { view: viewName }
+      queryParams: { view: viewName },
+      replaceUrl: true
     }).then(() => {
       this.activeView = viewName;
-      console.log(' Navigation complete, activeView set to:', this.activeView);
+      console.log('Navigation complete, activeView set to:', this.activeView);
     });
   } else {
+    // For non-routed pages, still clear the URL if needed
+    if (viewName !== 'treemap' && window.location.search.includes('organization')) {
+      this.router.navigate(['/'], { 
+        queryParams: { view: viewName },
+        replaceUrl: true 
+      });
+    }
     this.activeView = viewName;
-    console.log(' View switched to:', this.activeView);
+    console.log('View switched to:', this.activeView);
+  }
+}
+
+private clearOrganizationState(): void {
+  // Clear organization selection from service
+  this.deviceStateService.clearSelectedOrganization();
+  
+  // Force navigate to clean URL immediately
+  if (window.location.search.includes('organization')) {
+    console.log('Clearing organization URL parameters');
+    this.router.navigate(['/'], { 
+      queryParams: {},
+      replaceUrl: true 
+    });
   }
 }
 

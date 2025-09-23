@@ -2059,3 +2059,136 @@ textarea.form-control {
   background: #c82333;
   transform: scale(1.1);
 }
+
+/* Compact Automations Styles */
+.automations-management {
+  font-size: 12px;
+}
+
+.automation-filters-simple {
+  display: flex;
+  gap: 4px;
+}
+
+.automation-filters-simple .filter-btn {
+  padding: 2px 6px;
+  font-size: 10px;
+  border: 1px solid #dee2e6;
+  background: white;
+  color: #666;
+}
+
+.automation-filters-simple .filter-btn.active {
+  background: #007bff;
+  color: white;
+  border-color: #007bff;
+}
+
+.automations-list-compact {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.automation-card-compact {
+  background: white;
+  border: 1px solid #e9ecef;
+  border-radius: 4px;
+  padding: 8px;
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.automation-card-compact.disabled {
+  background: #f8f9fa;
+  border-color: #e9ecef;
+  opacity: 0.7;
+}
+
+.automation-info-compact {
+  flex: 1;
+}
+
+.automation-name-compact {
+  font-weight: 600;
+  font-size: 11px;
+  color: #333;
+  margin-bottom: 2px;
+}
+
+.automation-details-compact {
+  display: flex;
+  gap: 8px;
+  font-size: 9px;
+  color: #666;
+}
+
+.automation-status-compact {
+  padding: 1px 4px;
+  border-radius: 2px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.automation-actions-compact {
+  display: flex;
+  gap: 2px;
+}
+
+.automation-actions-compact .btn {
+  padding: 2px 4px;
+  font-size: 10px;
+  border-radius: 2px;
+  min-width: 20px;
+}
+
+.automation-details-compact {
+  display: flex;
+  gap: 6px;
+  font-size: 9px;
+  color: #666;
+}
+
+.automation-frequency-compact {
+  background: #e9ecef;
+  padding: 1px 4px;
+  border-radius: 2px;
+  font-weight: 500;
+}
+
+.automation-target-compact {
+  background: #f8f9fa;
+  padding: 1px 4px;
+  border-radius: 2px;
+  color: #495057;
+}
+
+.automation-next-run-compact {
+  color: #007bff;
+  font-weight: 500;
+}
+
+.automation-timing-compact {
+  display: flex;
+  gap: 6px;
+  font-size: 8px;
+  color: #6c757d;
+  margin-top: 2px;
+}
+
+.automation-nodes-compact {
+  background: #e3f2fd;
+  padding: 1px 3px;
+  border-radius: 2px;
+  color: #1976d2;
+}
+
+.automation-next-run-compact {
+  color: #28a745;
+  font-weight: 500;
+}
+
+.automation-last-run-compact {
+  color: #6c757d;
+}

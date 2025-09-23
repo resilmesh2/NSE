@@ -4,16 +4,20 @@
       type="text" 
       [(ngModel)]="searchTerm"
       (input)="onSearchChange()"
-      placeholder="Search table..." />
+      [placeholder]="viewMode === 'organizations' ? 'Search organizations...' : 'Search table...'" />
+    
     <select [(ngModel)]="filterType" (change)="onFilterChange()">
       <option value="all">All Subnets</option>
       <option value="high-risk">High Risk Only</option>
       <option value="large">Large Subnets (>500 devices)</option>
+      <option disabled>──────────</option>
+      <option value="organizations">📁 View Organizations</option>
     </select>
   </div>
 
   <div class="table-container">
-    <table class="subnet-table">
+    <!-- Subnet table when viewing subnets -->
+    <table class="subnet-table" *ngIf="viewMode === 'subnets'">
       <thead>
         <tr>
           <th class="sortable" (click)="sort('subnet')">
@@ -31,7 +35,7 @@
           <th class="sortable" (click)="sort('riskScore')">
             Risk Score 
             <span class="sort-indicator">
-              {{sortField === 'riskScore' ? (sortDirection === 'asc' ? '▲' : '▼') : (sortField === '' ? '▼' : '')}}
+              {{sortField === 'riskScore' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}}
             </span>
           </th>
           <th class="sortable" (click)="sort('riskLevel')">
@@ -43,24 +47,83 @@
         </tr>
       </thead>
       <tbody>
-        <tr *ngFor="let item of paginatedData" (click)="onRowClick(item)"
-            (mouseenter)="showTooltip($event, item)" (mouseleave)="hideTooltip()">
-          <td>{{item.subnet}}</td>
-          <td>{{item.deviceCount | number}}</td>
-          <td>{{item.riskScore | number:'1.2-2'}}</td>
+        <tr *ngFor="let item of paginatedData" 
+            (click)="showSubnetDetails(item)"
+            (mouseenter)="showTooltip($event, item)" 
+            (mouseleave)="hideTooltip()">
+          <td>{{ item.subnet }}</td>
+          <td>{{ item.deviceCount }}</td>
           <td>
-            <span [class]="getRiskClass(item.riskLevel)">
-              {{item.riskLevel.toUpperCase()}}
+            <span [class]="'risk-' + item.riskLevel.toLowerCase()">
+              {{ item.riskScore | number:'1.1-1' }}
+            </span>
+          </td>
+          <td>
+            <span [class]="'badge badge-' + item.riskLevel.toLowerCase()">
+              {{ item.riskLevel }}
             </span>
           </td>
         </tr>
-        <tr *ngIf="paginatedData.length === 0">
-          <td colspan="4" class="text-center">No data found</td>
+      </tbody>
+    </table>
+    
+    <!-- Organization table when viewing organizations -->
+    <table class="subnet-table" *ngIf="viewMode === 'organizations'">
+      <thead>
+        <tr>
+          <th class="sortable" (click)="sort('name')">
+            Organization
+            <span class="sort-indicator">
+              {{sortField === 'name' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}}
+            </span>
+          </th>
+          <th class="sortable" (click)="sort('totalSubnets')">
+            Subnets
+            <span class="sort-indicator">
+              {{sortField === 'totalSubnets' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}}
+            </span>
+          </th>
+          <th class="sortable" (click)="sort('totalDevices')">
+            Total Devices
+            <span class="sort-indicator">
+              {{sortField === 'totalDevices' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}}
+            </span>
+          </th>
+          <th class="sortable" (click)="sort('avgRiskScore')">
+            Avg Risk Score
+            <span class="sort-indicator">
+              {{sortField === 'avgRiskScore' ? (sortDirection === 'asc' ? '▲' : '▼') : ''}}
+            </span>
+          </th>
+          <th>High Risk Subnets</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let org of paginatedData" 
+          (click)="onOrganizationRowClick(org)"
+          (mouseenter)="showOrganizationTooltip($event, org)" 
+          (mouseleave)="hideTooltip()"
+          (mousedown)="hideTooltip()"
+          class="organization-row clickable">
+          <td><strong>{{ org.name }}</strong></td>
+          <td>{{ org.totalSubnets }}</td>
+          <td>{{ org.totalDevices }}</td>
+          <td>
+            <span [class]="'risk-' + getRiskLevel(org.avgRiskScore).toLowerCase()">
+              {{ org.avgRiskScore | number:'1.1-1' }}
+            </span>
+          </td>
+          <td>
+            <span class="high-risk-count" *ngIf="org.highRiskSubnets > 0">
+              {{ org.highRiskSubnets }} subnets
+            </span>
+            <span class="no-risk" *ngIf="org.highRiskSubnets === 0">None</span>
+          </td>
         </tr>
       </tbody>
     </table>
   </div>
-
+  
   <div class="pagination-container">
     <div class="pagination-info">
       {{paginationInfo}}
