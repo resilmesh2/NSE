@@ -9,7 +9,7 @@ services:
       - NEO4J_SERVER_URL=bolt://neo4j:7687  # Use service name instead of host.docker.internal
       - NEO4J_USERNAME=neo4j
       - NEO4J_PASSWORD=supertestovaciheslo  # Match ISIM's password
-      - ISIM_API_URL=http://risk-api:5000   # Connect to ISIM's risk-api service
+      - ISIM_API_URL=http://neo4j_automation:5000
     volumes:
       - ./servers/data:/app/data
     networks:
