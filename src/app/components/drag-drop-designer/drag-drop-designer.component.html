@@ -12,6 +12,22 @@
     </div>
   </div>
 
+  <!-- Workflow Mode Header -->
+<div *ngIf="automationWorkflowMode && selectedAutomation" class="automation-workflow-header">
+  <h4>Editing Automation: {{ getComponentName(selectedAutomation) }}</h4>
+  <p style="margin: 0; font-size: 14px; color: #666;">
+    Modify the components and workflow of this automation. Changes will be saved to the automation configuration.
+  </p>
+  <div class="workflow-actions">
+    <button class="btn btn-success btn-workflow" (click)="saveAutomationWorkflow()">
+      Save Workflow Changes
+    </button>
+    <button class="btn btn-secondary btn-workflow" (click)="exitAutomationWorkflowMode()">
+      Exit Without Saving
+    </button>
+  </div>
+</div>
+
   <div class="designer-workspace">
     <!-- Components Palette -->
     <div class="components-palette">
@@ -136,7 +152,10 @@
             <div 
               *ngFor="let automation of getFilteredAutomations()" 
               class="automation-card-compact"
-              [class.disabled]="!automation.enabled">
+              [class.disabled]="!automation.enabled"
+              [class.clickable]="true"
+              (click)="loadAutomationWorkflow(automation, $event)"
+              style="cursor: pointer;">
               
               <div class="automation-info-compact">
                 <div class="automation-name-compact">{{ getComponentName(automation) }}</div>
@@ -192,7 +211,6 @@
       </div>
     </div>
 
-    <!-- Rest of your existing template remains the same -->
     <!-- Risk Formula Builder -->
     <div class="formula-builder">
       <h4>Risk Calculation Formula</h4>

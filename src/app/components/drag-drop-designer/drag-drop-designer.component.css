@@ -2192,3 +2192,46 @@ textarea.form-control {
 .automation-last-run-compact {
   color: #6c757d;
 }
+
+.automation-card-compact {
+  background: white;
+  border: 1px solid #e9ecef;
+  border-radius: 4px;
+  padding: 8px;
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.2s ease;
+}
+
+.automation-card-compact:hover {
+  background: #f8f9fa;
+  border-color: #007bff;
+  box-shadow: 0 2px 4px rgba(0,123,255,0.1);
+}
+
+.automation-workflow-mode {
+  background: #e3f2fd;
+  border: 2px solid #2196f3;
+}
+
+.automation-workflow-header {
+  background: #e3f2fd;
+  padding: 10px 15px;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  border: 1px solid #2196f3;
+}
+
+.workflow-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.btn-workflow {
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 4px;
+}

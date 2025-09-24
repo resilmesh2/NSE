@@ -17,6 +17,7 @@ interface CalculationMethod {
 }
 
 interface ActiveAutomation {
+  selectedFormula?: RiskFormula;
   id: string;
   componentName?: string;
   componentId?: string;
@@ -83,6 +84,10 @@ export class DragDropDesignerComponent implements OnInit {
   activeAutomations: ActiveAutomation[] = [];
   isLoadingAutomations = false;
   automationFilter = 'all';
+
+  selectedAutomation: ActiveAutomation | null = null;
+  automationWorkflowMode: boolean = false;
+  originalRiskFormula: any[] = [];
 
   predefinedFormulas: RiskFormula[] = [];
   customFormulas: RiskFormula[] = [];
@@ -240,14 +245,13 @@ openIpModalForSubnet(subnet?: string) {
 loadActiveAutomations(): void {
   this.isLoadingAutomations = true;
   
-  // Use the correct endpoint for risk automations
   this.http.get<any>('http://localhost:5000/api/risk/automations/active')
     .subscribe({
       next: (response) => {
         if (response.success && response.automations) {
           this.activeAutomations = Object.keys(response.automations).map(key => ({
             id: key,
-            enabled: response.automations[key].enabled !== false, // Handle missing enabled field
+            enabled: response.automations[key].enabled !== false,
             ...response.automations[key]
           }));
         } else {
@@ -330,7 +334,6 @@ async resumeAutomation(automation: ActiveAutomation): Promise<void> {
 }
 
 getAutomationStatusText(automation: ActiveAutomation): string {
-  // Check if enabled property exists, if not default to true, if explicitly false then paused
   const enabled = automation.enabled !== false;
   if (!enabled) return 'Paused';
   
@@ -376,7 +379,6 @@ getAutomationStatusClass(automation: ActiveAutomation): string {
 }
 
 getAutomationTarget(automation: ActiveAutomation): string {
-  // Get the actual target values from the automation data
   const targetType = automation.target_type || automation.targetType;
   const targetValues = automation.target_values || automation.targetValues || [];
   
@@ -406,6 +408,323 @@ getAutomationTarget(automation: ActiveAutomation): string {
       return 'All Nodes';
     default:
       return targetType || 'Unknown';
+  }
+}
+
+async loadAutomationWorkflow(automation: ActiveAutomation, event?: Event): Promise<void> {
+  if (event) {
+    event.stopPropagation();
+    
+    const target = event.target as HTMLElement;
+    if (target.closest('.automation-actions-compact')) {
+      return;
+    }
+  }
+
+  try {
+    this.selectedAutomation = automation;
+    this.automationWorkflowMode = true;
+    
+    this.originalRiskFormula = [...this.riskFormula];
+    
+    const componentsToReturn: RiskComponent[] = [];
+    this.riskFormula.forEach(component => {
+      const existsInAvailable = this.availableComponents.some(
+        c => c.neo4jProperty === component.neo4jProperty || c.id === component.id
+      );
+      if (!existsInAvailable) {
+        component.weight = 0; // Reset weight
+        componentsToReturn.push(component);
+      }
+    });
+    
+    this.availableComponents.push(...componentsToReturn);
+    
+    // Clear current formula
+    this.riskFormula = [];
+    
+    // Load workflow components
+    try {
+      const response = await this.http.get<any>(`http://localhost:5000/api/components/automation/${automation.id}/workflow`).toPromise();
+      
+      if (response && response.success && response.workflow) {
+        const workflowComponents = this.convertWorkflowToComponents(response.workflow);
+        this.loadWorkflowComponents(workflowComponents);
+        this.showSuccess('Workflow Loaded', `${this.getComponentName(automation)} workflow loaded for editing`);
+      } else {
+        const workflowComponents = this.createWorkflowFromAutomation(automation);
+        this.loadWorkflowComponents(workflowComponents);
+        this.showInfo('Workflow Created', `Created workflow from ${this.getComponentName(automation)} configuration`);
+      }
+    } catch (apiError) {
+      const workflowComponents = this.createWorkflowFromAutomation(automation);
+      this.loadWorkflowComponents(workflowComponents);
+      this.showInfo('Workflow Created', `Created workflow from ${this.getComponentName(automation)} configuration`);
+    }
+    
+  } catch (error) {
+    console.error('Error loading automation workflow:', error);
+    this.showError('Load Failed', 'Failed to load automation workflow');
+    this.exitAutomationWorkflowMode();
+  }
+}
+
+private loadWorkflowComponents(workflowComponents: RiskComponent[]): void {
+  const existingNeo4jProperties = new Set();
+  
+  workflowComponents.forEach(workflowComp => {
+    if (existingNeo4jProperties.has(workflowComp.neo4jProperty)) {
+      return;
+    }
+    
+    existingNeo4jProperties.add(workflowComp.neo4jProperty);
+    
+    const availableIndex = this.availableComponents.findIndex(
+      c => c.neo4jProperty === workflowComp.neo4jProperty || 
+           c.name === workflowComp.name ||
+           c.id === workflowComp.id
+    );
+    
+    if (availableIndex !== -1) {
+      const existingComponent = this.availableComponents.splice(availableIndex, 1)[0];
+      existingComponent.weight = workflowComp.weight;
+      existingComponent.currentValue = workflowComp.currentValue;
+      this.riskFormula.push(existingComponent);
+    } else {
+      const existsInFormula = this.riskFormula.some(
+        c => c.neo4jProperty === workflowComp.neo4jProperty
+      );
+      if (!existsInFormula) {
+        this.riskFormula.push(workflowComp);
+      }
+    }
+  });
+}
+
+private convertWorkflowToComponents(workflow: any): RiskComponent[] {
+  const components: RiskComponent[] = [];
+  
+  if (workflow.components && Array.isArray(workflow.components)) {
+    workflow.components.forEach((comp: any, index: number) => {
+      const component: RiskComponent = {
+        id: `workflow-${index}`,
+        name: comp.name || comp.component_name || `Component ${index + 1}`,
+        type: comp.type || 'custom',
+        description: comp.description || 'Workflow component',
+        icon: this.getComponentIcon(comp.type || 'custom'),
+        weight: this.validateNumber(comp.weight, 1),
+        currentValue: this.validateNumber(comp.current_value, 0),
+        maxValue: this.validateNumber(comp.max_value || comp.maxValue, 100),
+        neo4jProperty: comp.neo4jProperty || comp.name || `component_${index}`,
+        isComposite: false
+      };
+      components.push(component);
+    });
+  }
+  
+  if (components.length === 0 && workflow.formula) {
+    const formulaComponents = this.parseFormulaComponents(workflow.formula);
+    return formulaComponents;
+  }
+  
+  return components;
+}
+
+private createWorkflowFromAutomation(automation: ActiveAutomation): RiskComponent[] {
+  const components: RiskComponent[] = [];
+  
+  const baseComponent: RiskComponent = {
+    id: `auto-${automation.id}`,
+    name: this.getComponentName(automation),
+    type: 'custom',
+    description: `Automation: ${automation.update_frequency || 'manual'} updates`,
+    icon: this.getComponentIcon('custom'),
+    weight: 1,
+    currentValue: this.validateNumber(automation.avg_risk_score, 0),
+    maxValue: 10,
+    neo4jProperty: automation.target_property || 'riskScore',
+    isComposite: false
+  };
+  
+  components.push(baseComponent);
+  
+  if (automation.components && Array.isArray(automation.components)) {
+    automation.components.forEach((comp: any, index: number) => {
+      const subComponent: RiskComponent = {
+        id: `sub-${automation.id}-${index}`,
+        name: comp.name || `Sub-component ${index + 1}`,
+        type: comp.type || 'metric',
+        description: comp.description || 'Sub-component',
+        icon: this.getComponentIcon(comp.type || 'metric'),
+        weight: this.validateNumber(comp.weight, 0.5),
+        currentValue: this.validateNumber(comp.currentValue || comp.value, 0),
+        maxValue: this.validateNumber(comp.maxValue, 100),
+        neo4jProperty: comp.neo4jProperty || comp.name || `sub_${index}`,
+        isComposite: false
+      };
+      components.push(subComponent);
+    });
+  }
+  
+  return components;
+}
+
+private parseFormulaComponents(formula: string): RiskComponent[] {
+  const components: RiskComponent[] = [];
+  
+  const componentMatches = formula.match(/\b[A-Z][a-zA-Z_]+\b/g) || [];
+  
+  componentMatches.forEach((match, index) => {
+    if (!components.find(c => c.name === match)) {
+      const component: RiskComponent = {
+        id: `formula-${index}`,
+        name: match,
+        type: 'custom',
+        description: 'Formula component',
+        icon: this.getComponentIcon('custom'),
+        weight: 1 / componentMatches.length,
+        currentValue: 0,
+        maxValue: 10,
+        neo4jProperty: match.toLowerCase().replace(/[^a-z0-9]/g, '_'),
+        isComposite: false
+      };
+      components.push(component);
+    }
+  });
+  
+  return components;
+}
+
+private getComponentIcon(type: string): string {
+  const iconMap: { [key: string]: string } = {
+    'metric': '📊',
+    'custom': '⚙️',
+    'composite': '📈',
+    'compliance': '✅',
+    'business': '💼',
+    'maintenance': '🔧',
+    'centrality': '🎯',
+    'vulnerability': '🔐',
+    'threat': '⚠️'
+  };
+  
+  return iconMap[type] || '📊';
+}
+
+exitAutomationWorkflowMode(): void {
+  this.automationWorkflowMode = false;
+  this.selectedAutomation = null;
+  this.originalRiskFormula = [];
+  
+  this.removeDuplicateComponents();
+  
+  this.showSuccess('Workflow Exited', 'Returned to normal designer mode');
+}
+
+private removeDuplicateComponents(): void {
+  const seen = new Set();
+  this.availableComponents = this.availableComponents.filter(comp => {
+    if (seen.has(comp.neo4jProperty)) {
+      return false;
+    }
+    seen.add(comp.neo4jProperty);
+    return true;
+  });
+}
+
+saveAutomationWorkflow(): void {
+  if (!this.selectedAutomation) return;
+  
+  const workflowData = {
+    automation_id: this.selectedAutomation.id,
+    components: this.riskFormula.map(comp => ({
+      name: comp.name,
+      type: comp.type,
+      weight: comp.weight,
+      current_value: comp.currentValue,
+      neo4jProperty: comp.neo4jProperty
+    })),
+    formula: this.buildFormulaFromComponents(),
+    selectedFormula: this.selectedAutomation.selectedFormula,
+    calculationMethod: this.selectedMethod
+  };
+  
+  this.http.put(`http://localhost:5000/api/components/automation/${this.selectedAutomation.id}/workflow`, workflowData)
+    .subscribe({
+      next: (response) => {
+        this.showSuccess('Workflow Saved', 'Automation workflow updated successfully');
+        
+        this.originalRiskFormula = [];
+        this.automationWorkflowMode = false;
+        this.selectedAutomation = null;
+        
+        this.loadActiveAutomations();
+      },
+      error: (error) => {
+        console.log('Workflow endpoint not available, trying regular automation update');
+        this.updateAutomationConfiguration(workflowData);
+      }
+    });
+}
+
+private updateAutomationConfiguration(workflowData: any): void {
+  const updateData = {
+    enabled: this.selectedAutomation?.enabled,
+    components: workflowData.components,
+    formula: workflowData.formula
+  };
+  
+  this.http.put(`http://localhost:5000/api/components/automation/${this.selectedAutomation?.id}`, updateData)
+    .subscribe({
+      next: (response) => {
+        this.showSuccess('Configuration Updated', 'Automation configuration updated successfully');
+        this.exitAutomationWorkflowMode();
+        this.loadActiveAutomations();
+      },
+      error: (error) => {
+        this.showError('Save Failed', 'Failed to save automation workflow');
+      }
+    });
+}
+
+private buildFormulaFromComponents(): string {
+  if (this.riskFormula.length === 0) return '';
+  
+  const terms = this.riskFormula.map(comp => `${comp.name} * ${comp.weight}`);
+  return `(${terms.join(' + ')})`;
+}
+
+async refreshComponentsAfterWorkflow(): Promise<void> {
+  try {
+    this.loadCustomComponents();
+    
+    this.riskConfigService.getAvailableComponents().subscribe({
+      next: (data) => {
+        const newComponents = (data.available_components || []).map(comp => ({
+          ...comp,
+          id: comp.id || `comp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          neo4jProperty: comp.neo4jProperty || comp.name.replace(/[^a-zA-Z0-9]/g, '_'),
+          weight: this.validateNumber(comp.weight, 0),
+          currentValue: this.validateNumber(comp.currentValue, 0),
+          maxValue: this.validateNumber(comp.maxValue, 100)
+        }));
+        
+        newComponents.forEach(newComp => {
+          const exists = this.availableComponents.some(
+            existing => existing.neo4jProperty === newComp.neo4jProperty
+          );
+          if (!exists) {
+            this.availableComponents.push(newComp);
+          }
+        });
+      },
+      error: (error) => {
+        console.error('Error refreshing components:', error);
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error refreshing components after workflow:', error);
   }
 }
 
@@ -481,7 +800,6 @@ formatLastRun(lastRun: string | undefined): string {
 }
 
 getComponentName(automation: ActiveAutomation): string {
-  // Handle both component and formula automations
   return automation.formula_name || 
          automation.componentName || 
          'Unknown Formula';
@@ -502,7 +820,7 @@ getRiskScore(automation: ActiveAutomation): string {
 }
 
 formatUpdateFrequency(frequency: string | undefined): string {
-  if (!frequency) return 'Manual'; // Handle undefined/null/empty cases
+  if (!frequency) return 'Manual'; 
   
   const frequencyMap: { [key: string]: string } = {
     'manual': 'Manual',
@@ -519,7 +837,6 @@ formatUpdateFrequency(frequency: string | undefined): string {
   console.log('Loading network data...');
   const currentData = this.networkDataService.getCurrentNetworkData();
   
-  // Store all subnets without limit
   this.availableSubnets = currentData;
   this.filteredSubnets = currentData; // Initialize filtered subnets
   
@@ -563,7 +880,6 @@ filterSubnets() {
     const networkData = this.networkDataService.getCurrentNetworkData();
     console.log('Network data:', networkData.length, 'subnets');
     
-    // Only process subnets that have devices loaded (hasDetailedData = true)
     const subnetsWithDevices = networkData.filter(subnet => 
       subnet.hasDetailedData && subnet.devices && subnet.devices.length > 0
     );
@@ -576,7 +892,6 @@ filterSubnets() {
       return;
     }
     
-    // Extract all devices from subnets that have been loaded
     subnetsWithDevices.forEach(subnet => {
       subnet.devices.forEach(device => {
         if (device.ip) {
@@ -603,7 +918,6 @@ filterSubnets() {
       return 0;
     });
     
-    // Initialize with all available IPs (no 50 limit)
     this.filteredIpAddresses = [...this.availableIpAddresses];
     this.selectedIps = new Array(this.availableIpAddresses.length).fill(false);
     this.selectAllIps = false;
@@ -631,7 +945,6 @@ filterSubnets() {
     
     this.availableIpAddresses = [];
     
-    // Find the specific subnet or load from clicked subnet
     const subnetsToProcess = selectedSubnet ? 
       networkData.filter(subnet => subnet.subnet === selectedSubnet) : 
       networkData;
@@ -650,7 +963,6 @@ filterSubnets() {
           }
         });
       } else {
-        // Generate sample IPs from subnet range for demonstration
         const baseIp = subnet.subnet.split('/')[0];
         const baseOctets = baseIp.split('.');
         
@@ -727,10 +1039,9 @@ getExpandedSubnetsCount(): number {
 
 private askUpdateFrequency(): Promise<string | null> { 
   return new Promise((resolve) => {
-    this.updateFrequency = 'manual'; // Default selection
+    this.updateFrequency = 'manual';
     this.showFrequencyModal = true;
     
-    // Store the resolve function to use when modal closes
     this.frequencyResolve = resolve;
   });
 }
@@ -887,14 +1198,11 @@ closeIpModal() {
     component.weight = newWeight;
     console.log(`Updated weight for ${component.name} to ${newWeight}`);
   } else {
-    // Keep the existing weight if invalid input
     console.warn(`Invalid weight input: ${inputValue}, keeping ${component.weight}`);
-    // Reset the input to show the valid weight
     (event.target as HTMLInputElement).value = component.weight.toString();
   }
 }
   
-  // Simulate risk calculation preview using data
   calculatePreviewRisk(): number {
     if (this.riskFormula.length === 0) return 0;
 
@@ -984,7 +1292,6 @@ private showNotification(type: 'success' | 'info' | 'warning' | 'error', title: 
   
   this.notifications.push(notification);
   
-  // Auto-dismiss after 5 seconds (except for errors which stay longer)
   const dismissTime = type === 'error' ? 8000 : 5000;
   setTimeout(() => {
     this.dismissNotification(notification.id);
@@ -1202,7 +1509,6 @@ saveConfiguration() {
     return;
   }
   
-  // Show the configuration modal instead of immediate save
   this.showConfigModal = true;
 }
 
@@ -1212,7 +1518,6 @@ async applyConfiguration() {
       return;
     }
     
-    // Show the apply options modal
     this.showConfigModal = true;
   }
 
@@ -1606,14 +1911,13 @@ private loadComponentsFromConfig(): void {
     'custom': '🔧'
   };
   
-  // Generate the component key the same way backend does
   const componentKey = this.customComponent.name.trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '');
   
   const newComponent: RiskComponent = {
-    id: Date.now(),  // Keep numeric ID for now
+    id: Date.now(), 
     name: this.customComponent.name.trim(),
     type: 'custom',
     icon: categoryIcons[this.customComponent.category] || '🔧',
@@ -1621,7 +1925,7 @@ private loadComponentsFromConfig(): void {
     weight: 0.2,
     maxValue: this.customComponent.maxValue,
     currentValue: 0,
-    neo4jProperty: componentKey,  // Use the generated key
+    neo4jProperty: componentKey,
     isComposite: false
   };
   
@@ -1632,13 +1936,12 @@ private loadComponentsFromConfig(): void {
       // Write to Neo4j
       await this.writeComponentToNeo4j(newComponent);
       
-      // IMPORTANT: Update the component with the backend's component_key
       const serverComponentKey = response.component_key;
       
       const componentToAdd = {
         ...newComponent,
-        id: serverComponentKey,  // Use the backend's component_key as ID
-        neo4jProperty: serverComponentKey,  // Ensure consistency
+        id: serverComponentKey,
+        neo4jProperty: serverComponentKey,
         weight: this.validateNumber(newComponent.weight, 0.2),
         currentValue: this.validateNumber(newComponent.currentValue, 0),
         maxValue: this.validateNumber(newComponent.maxValue, 100)
@@ -1647,7 +1950,6 @@ private loadComponentsFromConfig(): void {
       // Add to available components
       this.availableComponents.push(componentToAdd);
       
-      // Also add to custom components list if you maintain one
       this.customComponents.push(componentToAdd);
       
       this.closeCustomComponentModal();
@@ -1668,7 +1970,6 @@ private loadComponentsFromConfig(): void {
 }
 
 private async writeComponentToNeo4j(component: any): Promise<any> {
-  // Use the existing API to write to Neo4j
   const componentData = {
     componentName: component.name,
     neo4jProperty: component.neo4jProperty,
@@ -1811,7 +2112,7 @@ loadCustomComponents() {
       // Map the components with correct IDs
       this.customComponents = components.map(comp => ({
         ...comp,
-        id: comp.id || comp.neo4jProperty,  // Use the id from backend
+        id: comp.id || comp.neo4jProperty,
         neo4jProperty: comp.neo4jProperty || comp.id
       }));
     },
@@ -1875,26 +2176,21 @@ private autoLoadActiveFormula(): void {
 }
 
   getComponentDisplayName(componentKey: string): string {
-  // First try to find in available components
   let component = this.availableComponents.find(c => c.neo4jProperty === componentKey);
   
-  // If not found, try custom components
   if (!component) {
     component = this.customComponents.find(c => 
       c.neo4jProperty === componentKey || c.name === componentKey
     );
   }
   
-  // If still not found, check if it's in the current formula
   if (!component) {
     component = this.riskFormula.find(c => c.neo4jProperty === componentKey);
   }
   
-  // Return the display name or a formatted version of the key
   if (component) {
     return component.name;
   } else {
-    // Fallback: format the key as a readable name
     console.warn(`Component not found for key: ${componentKey}`);
     return componentKey.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim().toUpperCase();
   }
@@ -1919,14 +2215,11 @@ onWeightChange(): void {
 }
 
 resetFormula(): void {
-  // Return all formula components back to available components
-  // Only add components that aren't already in available list
   this.riskFormula.forEach(component => {
     const exists = this.availableComponents.some(
       c => c.neo4jProperty === component.neo4jProperty
     );
     if (!exists) {
-      // Reset weight to default before returning to available pool
       component.weight = 0;
       this.availableComponents.push(component);
     }
@@ -1935,7 +2228,6 @@ resetFormula(): void {
   // Clear the formula array
   this.riskFormula = [];
   
-  // Clear custom formula if using that method
   if (this.selectedMethod === 'custom_formula') {
     this.customFormula = '';
   }
@@ -1973,44 +2265,38 @@ validateFormula(): { valid: boolean; errors: string[] } {
 }
 
 loadPredefinedFormula(formula: RiskFormula): void {
-  // Return all current formula components to available pool
+  if (this.automationWorkflowMode && this.selectedAutomation) {
+    this.selectedAutomation.selectedFormula = formula;
+  }
+  
   this.availableComponents.push(...this.riskFormula);
   
-  // Clear the formula array
   this.riskFormula = [];
   
-  // Clear custom formula if in custom mode
   if (this.selectedMethod === 'custom_formula') {
     this.customFormula = '';
   }
   
-  // Load components from the selected formula
   if (formula.components) {
     const loadedComponents: RiskComponent[] = [];
     const missingComponents: string[] = [];
     
     Object.entries(formula.components).forEach(([componentId, weight]) => {
-      // Find component in available components
       const componentIndex = this.availableComponents.findIndex(
         c => c.neo4jProperty === componentId
       );
       
       if (componentIndex !== -1) {
-        // Remove from available and add to formula with correct weight
         const component = this.availableComponents.splice(componentIndex, 1)[0];
         component.weight = this.validateNumber(weight, 0.2);
         loadedComponents.push(component);
       } else {
-        // Component not found - create a placeholder
-        console.warn(`Component ${componentId} not found - creating placeholder`);
         missingComponents.push(componentId);
         
-        // Look in custom components for metadata
         const customComp = this.customComponents.find(c => 
           c.neo4jProperty === componentId || c.name === componentId
         );
         
-        // Create placeholder with available metadata
         const placeholderComponent: RiskComponent = {
           id: `placeholder_${Date.now()}`,
           name: customComp?.name || componentId.replace(/_/g, ' ').toUpperCase(),
@@ -2028,10 +2314,8 @@ loadPredefinedFormula(formula: RiskFormula): void {
       }
     });
     
-    // Set the new formula components
     this.riskFormula = loadedComponents;
     
-    // Show warning if there were missing components
     if (missingComponents.length > 0) {
       this.showWarning(
         'Missing Components',
@@ -2040,16 +2324,11 @@ loadPredefinedFormula(formula: RiskFormula): void {
     }
   }
   
-  // Close formula selector
   this.showFormulaSelector = false;
-  
-  // Show success notification
   this.showSuccess(
     'Formula Loaded', 
     `Loaded "${formula.name}" with ${this.riskFormula.length} components`
   );
-  
-  console.log('Loaded formula into designer:', formula.name, this.riskFormula);
 }
 
 saveCurrentFormulaAsCustom(): void {
@@ -2113,7 +2392,7 @@ saveCurrentFormulaAsCustom(): void {
         next: (response) => {
           console.log('Custom formula saved:', response);
           this.showSuccess('Formula Saved', `"${formulaName}" saved successfully!`);
-          this.loadFormulas(); // Reload to show the new custom formula
+          this.loadFormulas();
           this.closeFormulaInputModal();
         },
         error: (error) => {
@@ -2154,10 +2433,8 @@ async deleteCustomFormula(formula: RiskFormula): Promise<void> {
         `"${formula.name}" has been deleted successfully`
       );
       
-      // Reload formulas to refresh the list
       this.loadFormulas();
       
-      // If this was the active formula, clear it from display
       if (this.isActiveFormula(formula)) {
         this.activeFormula = null;
       }
@@ -2198,7 +2475,6 @@ async deleteCustomComponent(component: any): Promise<void> {
     next: async (response) => {
       console.log('Delete response:', response);
       
-      // Call the Neo4j property deletion endpoint
       try {
         const neo4jResponse = await this.http.delete(`http://localhost:5000/api/components/neo4j-property/${component.neo4jProperty}`).toPromise();
         console.log('Neo4j deletion response:', neo4jResponse);
