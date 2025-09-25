@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { environment } from '../../environments/environment';
 
 export interface ComponentConfig {
   id: number;
@@ -51,7 +52,8 @@ export interface ComponentAutomation {
   providedIn: 'root'
 })
 export class ComponentConfigService {
-  private apiUrl = 'http://localhost:5000/api';
+  private apiUrl = environment.riskApiUrl;
+  private nodeApiUrl = environment.apiUrl;
 
   constructor(private http: HttpClient) { }
 
@@ -68,43 +70,43 @@ export class ComponentConfigService {
   }
 
   deleteCustomComponent(componentId: number): Observable<any> {
-  return this.http.delete(`http://localhost:3000/api/risk/components/custom/${componentId}`);
-}
+    return this.http.delete(`${this.nodeApiUrl}/risk/components/custom/${componentId}`);
+  }
 
   executeComponentCalculation(componentId: number): Observable<any> {
     return this.http.post(`${this.apiUrl}/components/custom/${componentId}/execute`, {});
   }
 
   saveCustomComponent(component: any): Observable<any> {
-  return this.http.post(`${this.apiUrl}/risk/components/custom`, component);
-}
+    return this.http.post(`${this.apiUrl}/risk/components/custom`, component);
+  }
 
-saveComponentAutomation(automation: ComponentAutomation): Observable<any> {
-  return this.http.post(`${this.apiUrl}/components/automation/save`, automation);
-}
+  saveComponentAutomation(automation: ComponentAutomation): Observable<any> {
+    return this.http.post(`${this.apiUrl}/components/automation/save`, automation);
+  }
 
-getActiveComponentAutomations(): Observable<any> {
-  return this.http.get(`${this.apiUrl}/components/automation/active`);
-}
+  getActiveComponentAutomations(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/components/automation/active`);
+  }
 
-testComponentQuery(query: string, sourceType: string): Observable<any> {
-  return this.http.post(`${this.apiUrl}/components/automation/test`, {
-    query,
-    sourceType
-  });
-}
+  testComponentQuery(query: string, sourceType: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/components/automation/test`, {
+      query,
+      sourceType
+    });
+  }
 
-getComponentAutomationConfig(componentId: string): Observable<any> {
-  return this.http.get(`${this.apiUrl}/components/automation/${componentId}`);
-}
+  getComponentAutomationConfig(componentId: string): Observable<any> {
+    return this.http.get(`${this.apiUrl}/components/automation/${componentId}`);
+  }
 
-applyAutomationConfig(componentId: number, automationId: string): Observable<any> {
-  return this.http.post(`${this.apiUrl}/components/${componentId}/apply-automation`, {
-    automation_id: automationId
-  });
-}
+  applyAutomationConfig(componentId: number, automationId: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/components/${componentId}/apply-automation`, {
+      automation_id: automationId
+    });
+  }
 
-getAvailableAutomations(): Observable<any> {
-  return this.http.get(`${this.apiUrl}/components/automations/list`);
-}
+  getAvailableAutomations(): Observable<any> {
+    return this.http.get(`${this.apiUrl}/components/automations/list`);
+  }
 }

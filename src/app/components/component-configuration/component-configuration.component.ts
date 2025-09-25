@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { ComponentConfigService, ComponentConfig, ComponentDataSource, ComponentSchedule } from '../../services/component-config.service';
+import { environment } from '../../../environments/environment';
 
 @Component({
  selector: 'app-component-configuration',
@@ -93,34 +94,34 @@ private notificationId = 0;
  }
 
  configureComponent(component: ComponentConfig): void {
-   const componentIdentifier = component.neo4jProperty || component.name?.toLowerCase().replace(/\s+/g, '_') || component.id.toString();
-   
-   this.showInfo('Fetching Configuration', 
-     `Loading configuration for ${component.name} (ID: ${componentIdentifier})...`);
-   
-   this.loading = true;
-   
-   this.http.get(`http://localhost:5000/api/components/custom/${componentIdentifier}/config`).subscribe({
-     next: (response: any) => {
-       this.loading = false;
-       
-       if (response.automation) {
-         this.applyAutomationFromConfig(component, response.automation);
-       } else {
-         this.showWarning('No Automation Found', 
-           `No automation configured for "${component.name}" (ID: ${componentIdentifier}). Opening manual configuration.`);
-         this.openManualConfigModal(component);
-       }
-     },
-     error: (error) => {
-       this.loading = false;
-       console.error('Failed to fetch automation config:', error);
-       this.showError('Configuration Error', 
-         `Failed to fetch config for ID: ${componentIdentifier}. Opening manual configuration.`);
-       this.openManualConfigModal(component);
-     }
-   });
- }
+  const componentIdentifier = component.neo4jProperty || component.name?.toLowerCase().replace(/\s+/g, '_') || component.id.toString();
+  
+  this.showInfo('Fetching Configuration', 
+    `Loading configuration for ${component.name} (ID: ${componentIdentifier})...`);
+  
+  this.loading = true;
+  
+  this.http.get(`${environment.riskApiUrl}/components/custom/${componentIdentifier}/config`).subscribe({
+    next: (response: any) => {
+      this.loading = false;
+      
+      if (response.automation) {
+        this.applyAutomationFromConfig(component, response.automation);
+      } else {
+        this.showWarning('No Automation Found', 
+          `No automation configured for "${component.name}" (ID: ${componentIdentifier}). Opening manual configuration.`);
+        this.openManualConfigModal(component);
+      }
+    },
+    error: (error) => {
+      this.loading = false;
+      console.error('Failed to fetch automation config:', error);
+      this.showError('Configuration Error', 
+        `Failed to fetch config for ID: ${componentIdentifier}. Opening manual configuration.`);
+      this.openManualConfigModal(component);
+    }
+  });
+}
 
  loadComponents(): void {
    this.loading = true;
@@ -207,7 +208,7 @@ private notificationId = 0;
                              component.name?.toLowerCase().replace(/\s+/g, '_') || 
                              component.id.toString();
   
-  this.http.post(`http://localhost:5000/api/components/custom/${componentIdentifier}/execute`, {
+  this.http.post(`${environment.riskApiUrl}/components/custom/${componentIdentifier}/execute`, {
     query: automation.data_source.query,
     update_neo4j: true,
     target_property: automation.target_property || componentIdentifier
@@ -237,32 +238,32 @@ private notificationId = 0;
   });
 }
 
- private updateNeo4jProperty(component: ComponentConfig, value: number): void {
-   const componentIdentifier = component.neo4jProperty || 
-                              component.name?.toLowerCase().replace(/\s+/g, '_') || 
-                              component.id.toString();
-   
-   this.http.post(`http://localhost:5000/api/components/neo4j/update`, {
-     property: componentIdentifier,
-     value: value
-   }).subscribe({
-     next: () => {
-       component.currentValue = value;
-       this.showSuccess('Neo4j Updated', 
-         `${component.name} value set to ${value} in Neo4j`);
-     },
-     error: (error) => {
-       this.showError('Update Failed', `Failed to update Neo4j: ${error.message}`);
-     }
-   });
- }
+private updateNeo4jProperty(component: ComponentConfig, value: number): void {
+  const componentIdentifier = component.neo4jProperty || 
+                             component.name?.toLowerCase().replace(/\s+/g, '_') || 
+                             component.id.toString();
+  
+  this.http.post(`${environment.riskApiUrl}/components/neo4j/update`, {
+    property: componentIdentifier,
+    value: value
+  }).subscribe({
+    next: () => {
+      component.currentValue = value;
+      this.showSuccess('Neo4j Updated', 
+        `${component.name} value set to ${value} in Neo4j`);
+    },
+    error: (error) => {
+      this.showError('Update Failed', `Failed to update Neo4j: ${error.message}`);
+    }
+  });
+}
 
  private executeQueryForComponent(component: ComponentConfig, query: string): void {
   const componentIdentifier = component.neo4jProperty || 
                              component.name?.toLowerCase().replace(/\s+/g, '_') || 
                              component.id.toString();
-  
-  this.http.post(`http://localhost:5000/api/components/custom/${componentIdentifier}/execute`, {
+
+  this.http.post(`${environment.riskApiUrl}/components/custom/${componentIdentifier}/execute`, {
     query: query,
     update_neo4j: true,
     target_property: component.neo4jProperty || componentIdentifier
@@ -275,7 +276,6 @@ private notificationId = 0;
       }
     },
     error: (error) => {
-      // Handle specific error types
       if (error.error?.user_action_required) {
         this.showError('Configuration Required', 
           error.error.message || 'Please edit the query in component_automation_config.yaml file');
@@ -343,7 +343,7 @@ saveComponentConfiguration(): void {
     target_property: this.selectedComponent.neo4jProperty || componentIdentifier
   };
   
-  this.http.put(`http://localhost:5000/api/components/custom/${componentIdentifier}/config`, configUpdate)
+  this.http.put(`${environment.riskApiUrl}/components/custom/${componentIdentifier}/config`, configUpdate)
     .subscribe({
       next: (response) => {
         this.showSuccess('Configuration Saved', 
@@ -628,7 +628,7 @@ saveComponentConfiguration(): void {
      calculationMode: 'setValue'
    };
 
-   return await this.http.post('http://localhost:3000/api/write-custom-risk-component', componentData).toPromise();
+   return await this.http.post(`${environment.apiUrl}/write-custom-risk-component`, componentData).toPromise();
  }
 
  getCategoryIcon(category: string): string {

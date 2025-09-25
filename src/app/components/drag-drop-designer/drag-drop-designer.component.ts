@@ -7,6 +7,7 @@ import { NetworkDataService } from '../../services/network-data.service';
 import { RiskComponentsService, RiskComponent } from '../../services/risk-components.service';
 import { HttpClient } from '@angular/common/http';
 import { RiskConfigService, RiskFormula, RiskConfigurationRequest, ConfigurationResponse, ComponentData  } from '../../services/risk-config.service';
+import { environment } from '../../../environments/environment';
 
 interface CalculationMethod {
   id: string;
@@ -245,7 +246,7 @@ openIpModalForSubnet(subnet?: string) {
 loadActiveAutomations(): void {
   this.isLoadingAutomations = true;
   
-  this.http.get<any>('http://localhost:5000/api/risk/automations/active')
+  this.http.get<any>(`${environment.riskApiUrl}/risk/automations/active`)
     .subscribe({
       next: (response) => {
         if (response.success && response.automations) {
@@ -297,7 +298,7 @@ async pauseAutomation(automation: ActiveAutomation): Promise<void> {
   
   if (!confirmed) return;
   
-  this.http.put(`http://localhost:5000/api/components/automation/${automation.id}/pause`, {})
+  this.http.put(`${environment.riskApiUrl}/components/automation/${automation.id}/pause`, {})
     .subscribe({
       next: () => {
         // Update the local automation object
@@ -320,7 +321,7 @@ async resumeAutomation(automation: ActiveAutomation): Promise<void> {
   
   if (!confirmed) return;
   
-  this.http.put(`http://localhost:5000/api/components/automation/${automation.id}/resume`, {})
+  this.http.put(`${environment.riskApiUrl}/components/automation/${automation.id}/resume`, {})
     .subscribe({
       next: () => {
         // Update the local automation object
@@ -356,7 +357,7 @@ async deleteAutomation(automation: ActiveAutomation): Promise<void> {
   
   if (!confirmed) return;
   
-  this.http.delete(`http://localhost:5000/api/components/automation/${automation.id}`)
+  this.http.delete(`${environment.riskApiUrl}/components/automation/${automation.id}`)
     .subscribe({
       next: () => {
         this.activeAutomations = this.activeAutomations.filter(a => a.id !== automation.id);
@@ -445,7 +446,7 @@ async loadAutomationWorkflow(automation: ActiveAutomation, event?: Event): Promi
     
     // Load workflow components
     try {
-      const response = await this.http.get<any>(`http://localhost:5000/api/components/automation/${automation.id}/workflow`).toPromise();
+      const response = await this.http.get<any>(`${environment.riskApiUrl}/components/automation/${automation.id}/workflow`).toPromise();
       
       if (response && response.success && response.workflow) {
         const workflowComponents = this.convertWorkflowToComponents(response.workflow);
@@ -649,7 +650,7 @@ saveAutomationWorkflow(): void {
     calculationMethod: this.selectedMethod
   };
   
-  this.http.put(`http://localhost:5000/api/components/automation/${this.selectedAutomation.id}/workflow`, workflowData)
+  this.http.put(`${environment.riskApiUrl}/components/automation/${this.selectedAutomation.id}/workflow`, workflowData)
     .subscribe({
       next: (response) => {
         this.showSuccess('Workflow Saved', 'Automation workflow updated successfully');
@@ -674,7 +675,7 @@ private updateAutomationConfiguration(workflowData: any): void {
     formula: workflowData.formula
   };
   
-  this.http.put(`http://localhost:5000/api/components/automation/${this.selectedAutomation?.id}`, updateData)
+  this.http.put(`${environment.riskApiUrl}/components/automation/${this.selectedAutomation?.id}`, updateData)
     .subscribe({
       next: (response) => {
         this.showSuccess('Configuration Updated', 'Automation configuration updated successfully');
@@ -1987,7 +1988,7 @@ private async writeComponentToNeo4j(component: any): Promise<any> {
     calculationMode: 'setValue'
   };
 
-  return await this.http.post('http://localhost:3000/api/write-custom-risk-component', componentData).toPromise();
+  return await this.http.post(`${environment.apiUrl}/write-custom-risk-component`, componentData).toPromise();
 }
 
   // Network selection methods
@@ -2476,7 +2477,7 @@ async deleteCustomComponent(component: any): Promise<void> {
       console.log('Delete response:', response);
       
       try {
-        const neo4jResponse = await this.http.delete(`http://localhost:5000/api/components/neo4j-property/${component.neo4jProperty}`).toPromise();
+        const neo4jResponse = await this.http.delete(`${environment.riskApiUrl}/components/neo4j-property/${component.neo4jProperty}`).toPromise();
         console.log('Neo4j deletion response:', neo4jResponse);
       } catch (neo4jError) {
         console.error('Error deleting from Neo4j:', neo4jError);
