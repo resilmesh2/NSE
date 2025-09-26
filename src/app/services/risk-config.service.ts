@@ -56,7 +56,7 @@ export class RiskConfigService {
 
   constructor(private http: HttpClient) {}
 
-  // Formula methods (unchanged)
+  // Formula methods
   getPredefinedFormulas(): Observable<{ formulas: RiskFormula[] }> {
     return this.http.get<{ formulas: RiskFormula[] }>(`${this.baseUrl}/formulas/predefined`);
   }

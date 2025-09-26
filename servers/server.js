@@ -99,7 +99,7 @@ async function getInitialData() {
     }
 }
 
-// From port 3000 server - detailed subnet node queries
+// Detailed subnet node queries
 async function getInitialSubnetNode(netRange){
     const session = driver.session();
 
@@ -141,7 +141,7 @@ async function getInitialSubnetNode(netRange){
     }
 }
 
-// From port 3000 server - neighbor node queries for expansion
+// Neighbor node queries for expansion
 async function getNeighborNodes(nodeId, nodeType, cidrNotation = '147.251.96.0/24') {
     const session = driver.session();
     const { baseNetwork, fullCIDR } = parseCIDR(cidrNotation);
@@ -449,7 +449,7 @@ async function loadVirtualNetwork() {
     }
 }
 
-// CIDR Treemap function from port 3001 server
+// CIDR Treemap function
 async function buildCIDRTreemap(supernet, cidrDict) {
     const IPCIDR = await import('ip-cidr');
     
@@ -629,9 +629,7 @@ async function collapseVirtualNetwork(expandedData) {
     });
 }
 
-// API Routes - Combined from both servers
-
-// Network data endpoints from port 3001
+// Network data endpoints
 app.get('/api/fetch-cidr-data', async (req, res) => {
     try {
         const initialData = await getInitialData();
@@ -664,7 +662,7 @@ app.post('/api/build-cidr-treemap', async (req, res) => {
     }
 });
 
-// Detailed network endpoints from port 3000
+// Detailed network endpoints
 app.get('/api/fetch-subnet-data', async (req, res) => {
     const { netRange } = req.query;
     if (!netRange) {
@@ -817,7 +815,7 @@ app.get('/api/expand-virtual-network/:nodeId/:nodeType', async (req, res) => {
     }
 });
 
-// Direct subnet data retrieval without expansion
+// Direct subnet data retrieval
 app.get('/api/get-subnet-devices/:subnetCidr', async (req, res) => {
   const { subnetCidr } = req.params;
   const session = driver.session();
@@ -1141,7 +1139,7 @@ app.post('/api/collapse-virtual-network', async (req, res) => {
     }
 });
 
-// Debug endpoints from port 3000
+// Debug endpoints
 app.get('/api/debug-node-properties', async (req, res) => {
     const session = driver.session();
     
@@ -1226,7 +1224,7 @@ app.get('/api/debug-ip-targeting', async (req, res) => {
     }
 });
 
-// Node attributes endpoint from port 3000
+// Node attributes endpoint
 app.get('/api/get-node-attributes', async (req, res) => {
     const session = driver.session();
     
@@ -1336,7 +1334,7 @@ app.get('/api/get-node-attributes', async (req, res) => {
     }
 });
 
-// Custom risk component endpoint from port 3000
+// Custom risk component
 app.post('/api/write-custom-risk-component', async (req, res) => {
     const session = driver.session();
     

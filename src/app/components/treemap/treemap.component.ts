@@ -169,7 +169,6 @@ private filterForOrganization(organizationName: string): void {
       this.groupDataByOrganization();
   }
 
-  // Rest of the method stays the same...
   const svg = container.append('svg')
     .attr('width', width)
     .attr('height', treemapHeight)
@@ -531,9 +530,9 @@ goToOrgPage(page: number) {
         return '';
       })
       .attr('font-size', (d: any) => this.calculateDeviceCountFontSize(d) + 'px')
-      .attr('fill', 'black') // Changed to white
+      .attr('fill', 'black') 
       .attr('font-weight', '500')
-      .attr('opacity', 0.95) // Slightly more opaque
+      .attr('opacity', 0.95) 
       .style('pointer-events', 'none');
 
     // Add vulnerability indicators
@@ -592,18 +591,16 @@ goToOrgPage(page: number) {
   private calculateSubnetLabelFontSize(d: any): number {
     const width = d.x1 - d.x0;
     const height = d.y1 - d.y0;
-    // Increased minimum font size and made scaling more aggressive
-    let fontSize = Math.min(width / 6, height / 2.5, 14); // Changed from width/8, height/3
-    fontSize = Math.max(fontSize, 8); // Increased minimum from 6 to 8
+    let fontSize = Math.min(width / 6, height / 2.5, 14);
+    fontSize = Math.max(fontSize, 8);
     return Math.floor(fontSize);
   }
 
   private calculateDeviceCountFontSize(d: any): number {
     const width = d.x1 - d.x0;
     const height = d.y1 - d.y0;
-    // Made device count text more readable
-    let fontSize = Math.min(width / 8, height / 3.5, 11); // Changed from width/12, height/4
-    fontSize = Math.max(fontSize, 7); // Increased minimum from 5 to 7
+    let fontSize = Math.min(width / 8, height / 3.5, 11);
+    fontSize = Math.max(fontSize, 7);
     return Math.floor(fontSize);
   }
 
