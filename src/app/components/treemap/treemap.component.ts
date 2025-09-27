@@ -31,41 +31,52 @@ export class TreemapComponent implements OnInit, OnChanges {
   allOrganizationsData: any[] = [];
   selectedOrganization: any = null;
   originalNetworkData: SubnetData[] = [];
+  showingAutomations = false;
+  automationTreemapData: any[] = [];
+  private currentAutomationGroups: any = {};
+  automationGroupBy: 'targetType' | 'organization' = 'targetType';
 
   constructor(private tooltipService: TooltipService,
               private route: ActivatedRoute,
-              private deviceStateService: DeviceStateService
+              private deviceStateService: DeviceStateService,
+              private router: Router
   ) {}
 
   ngOnInit() {
   this.originalNetworkData = [...this.networkData];
   
-  // Listen for view changes to clear organization filter
   this.deviceStateService.selectedOrganization$.subscribe(org => {
     if (org) {
       console.log('Organization selected from service:', org);
       this.selectedOrganization = org;
       this.filterForOrganization(org.name);
     } else {
-      // Organization was cleared - reset to show all data
       console.log('Organization filter cleared');
       this.clearOrganizationFilter();
     }
   });
   
-  // Check for organization parameter in route
   this.route.queryParams.subscribe(params => {
-    if (params['organization'] && params['groupBy'] === 'organization') {
+    if (params['showAutomations'] === 'true') {
+      const storedData = sessionStorage.getItem('automationTreemapData');
+      if (storedData) {
+        this.loadAutomationTreemapView();
+      } else {
+        console.log('No automation data found, showing normal treemap');
+        this.showingAutomations = false;
+        this.initTreemap();
+      }
+    } else if (params['organization'] && params['groupBy'] === 'organization') {
       console.log('Route params detected:', params);
       this.filterForOrganization(params['organization']);
-    } else if (this.selectedOrganization) {
-      // No organization in URL but we have one selected - clear it
+    } else if (this.selectedOrganization || this.showingAutomations) {
       this.clearOrganizationFilter();
+      this.showingAutomations = false;
     }
   });
 
   setTimeout(() => {
-    if (!this.selectedOrganization) {
+    if (!this.selectedOrganization && !this.showingAutomations) {
       this.initTreemap();
     }
   }, 100);
@@ -719,4 +730,554 @@ goToOrgPage(page: number) {
     return pages;
   }
   
+  private loadAutomationTreemapView(): void {
+  const storedData = sessionStorage.getItem('automationTreemapData');
+  
+  if (!storedData) {
+    console.error('No automation data found');
+    return;
+  }
+  
+  this.automationTreemapData = JSON.parse(storedData);
+  this.showingAutomations = true;
+  
+  console.log('Loaded automation data for treemap:', this.automationTreemapData);
+  
+  this.prepareAutomationTreemapData();
+}
+
+private prepareAutomationTreemapData(): void {
+  let automationGroups: any = {};
+  
+  if (this.automationGroupBy === 'organization') {
+    automationGroups = this.groupAutomationsByOrganization();
+  } else {
+    automationGroups = this.groupAutomationsByTargetType();
+  }
+  
+  Object.values(automationGroups).forEach((group: any) => {
+    if (group.affectedTargets instanceof Set) {
+      group.affectedTargets = group.affectedTargets.size;
+    }
+  });
+  
+  this.currentAutomationGroups = automationGroups;
+  this.renderAutomationTreemap(automationGroups);
+}
+
+private groupAutomationsByTargetType(): any {
+  const groups: any = {};
+  
+  this.automationTreemapData.forEach(automation => {
+    const groupKey = automation.targetType || 'unknown';
+    
+    if (!groups[groupKey]) {
+      groups[groupKey] = {
+        name: this.formatTargetTypeName(groupKey),
+        children: [],
+        totalAutomations: 0,
+        affectedTargets: new Set()
+      };
+    }
+    
+    groups[groupKey].children.push({
+      name: automation.name,
+      value: 10,
+      automation: automation,
+      enabled: automation.enabled,
+      expanded: false
+    });
+    
+    automation.targetValues.forEach((targetValue: string) => {
+      groups[groupKey].affectedTargets.add(targetValue);
+    });
+    
+    groups[groupKey].totalAutomations++;
+  });
+  
+  return groups;
+}
+
+private groupAutomationsByOrganization(): any {
+  const groups: any = {};
+  
+  this.automationTreemapData.forEach(automation => {
+    const organizations = this.getOrganizationsForTargets(
+      automation.targetValues, 
+      automation.targetType
+    );
+    
+    organizations.forEach(orgName => {
+      if (!groups[orgName]) {
+        groups[orgName] = {
+          name: orgName,
+          children: [],
+          totalAutomations: 0,
+          affectedTargets: new Set()
+        };
+      }
+      
+      const existingAutomation = groups[orgName].children.find(
+        (child: any) => child.automation.id === automation.id
+      );
+      
+      if (!existingAutomation) {
+        groups[orgName].children.push({
+          name: automation.name,
+          value: 10,
+          automation: automation,
+          enabled: automation.enabled,
+          expanded: false
+        });
+        
+        groups[orgName].totalAutomations++;
+      }
+      
+      automation.targetValues.forEach((targetValue: string) => {
+        groups[orgName].affectedTargets.add(targetValue);
+      });
+    });
+  });
+  
+  return groups;
+}
+
+private getOrganizationsForTargets(targets: string[], targetType: string): string[] {
+  const organizations = new Set<string>();
+  
+  targets.forEach(target => {
+    let orgName = 'Unknown Organization';
+    
+    if (targetType === 'network') {
+      const matchingSubnets = this.originalNetworkData.filter(subnet => 
+        subnet.subnet.startsWith(target)
+      );
+      matchingSubnets.forEach(subnet => {
+        if (subnet.organizationName) {
+          organizations.add(subnet.organizationName);
+        }
+      });
+    } else if (targetType === 'subnet') {
+      const matchingSubnet = this.originalNetworkData.find(subnet => 
+        subnet.subnet === target
+      );
+      if (matchingSubnet?.organizationName) {
+        organizations.add(matchingSubnet.organizationName);
+      }
+    } else if (targetType === 'ip') {
+      const matchingSubnets = this.originalNetworkData.filter(subnet => {
+        const subnetPrefix = subnet.subnet.split('/')[0].split('.').slice(0, 3).join('.');
+        const ipPrefix = target.split('.').slice(0, 3).join('.');
+        return subnetPrefix === ipPrefix;
+      });
+      matchingSubnets.forEach(subnet => {
+        if (subnet.organizationName) {
+          organizations.add(subnet.organizationName);
+        }
+      });
+    }
+  });
+  
+  return organizations.size > 0 ? Array.from(organizations) : ['Unknown Organization'];
+}
+
+private formatTargetTypeName(targetType: string): string {
+  const typeMap: { [key: string]: string } = {
+    'subnet': 'Subnets',
+    'ip': 'IP Addresses',
+    'network': 'Networks',
+    'all': 'All Nodes'
+  };
+  return typeMap[targetType] || targetType;
+}
+
+private renderAutomationTreemap(groups: any): void {
+  if (typeof d3 === 'undefined') {
+    console.error('D3 not loaded');
+    return;
+  }
+
+  const container = d3.select(this.treemapContainer.nativeElement);
+  container.selectAll('*').remove();
+
+  const containerElement = this.treemapContainer.nativeElement;
+  const width = containerElement.clientWidth || 800;
+  const treemapHeight = 500;
+
+  // Add description and grouping toggle
+  const controlsDiv = container.append('div')
+    .style('margin', '15px 0')
+    .style('display', 'flex')
+    .style('justify-content', 'space-between')
+    .style('align-items', 'center');
+
+  controlsDiv.append('div')
+    .style('font-size', '12px')
+    .style('color', '#666')
+    .text('Active automations - Each card represents an automation and its affected targets');
+
+  const groupByDiv = controlsDiv.append('div')
+    .style('display', 'flex')
+    .style('gap', '8px')
+    .style('align-items', 'center');
+
+  groupByDiv.append('span')
+    .style('font-size', '12px')
+    .style('color', '#666')
+    .style('font-weight', '600')
+    .text('Group by:');
+
+  const buttonGroup = groupByDiv.append('div')
+    .style('display', 'flex')
+    .style('gap', '4px');
+
+  buttonGroup.append('button')
+    .text('Target Type')
+    .style('padding', '4px 12px')
+    .style('font-size', '11px')
+    .style('border', this.automationGroupBy === 'targetType' ? '2px solid #3498db' : '1px solid #ddd')
+    .style('background', this.automationGroupBy === 'targetType' ? '#ebf5fb' : 'white')
+    .style('color', this.automationGroupBy === 'targetType' ? '#2980b9' : '#666')
+    .style('border-radius', '4px')
+    .style('cursor', 'pointer')
+    .style('font-weight', this.automationGroupBy === 'targetType' ? '600' : '400')
+    .on('click', () => {
+      this.automationGroupBy = 'targetType';
+      this.prepareAutomationTreemapData();
+    });
+
+  buttonGroup.append('button')
+    .text('Organization')
+    .style('padding', '4px 12px')
+    .style('font-size', '11px')
+    .style('border', this.automationGroupBy === 'organization' ? '2px solid #3498db' : '1px solid #ddd')
+    .style('background', this.automationGroupBy === 'organization' ? '#ebf5fb' : 'white')
+    .style('color', this.automationGroupBy === 'organization' ? '#2980b9' : '#666')
+    .style('border-radius', '4px')
+    .style('cursor', 'pointer')
+    .style('font-weight', this.automationGroupBy === 'organization' ? '600' : '400')
+    .on('click', () => {
+      this.automationGroupBy = 'organization';
+      this.prepareAutomationTreemapData();
+    });
+
+  const svg = container.append('svg')
+    .attr('width', width)
+    .attr('height', treemapHeight)
+    .style('margin-top', '20px');
+
+  const root = d3.hierarchy({ children: Object.values(groups) })
+    .sum((d: any) => d.value || 0)
+    .sort((a: any, b: any) => (b.value || 0) - (a.value || 0));
+
+  d3.treemap()
+    .size([width, treemapHeight])
+    .padding(3)
+    .paddingTop(28)
+    (root);
+
+  const parents = svg.selectAll('.parent-group')
+    .data(root.descendants().filter((d: any) => d.depth === 1))
+    .enter().append('g')
+    .attr('class', 'parent-group');
+
+  parents.append('rect')
+    .attr('x', (d: any) => d.x0)
+    .attr('y', (d: any) => d.y0)
+    .attr('width', (d: any) => d.x1 - d.x0)
+    .attr('height', (d: any) => d.y1 - d.y0)
+    .attr('fill', '#2c3e50')
+    .attr('fill-opacity', 0.1)
+    .attr('stroke', '#34495e')
+    .attr('stroke-width', 2)
+    .attr('rx', 4);
+
+  parents.append('text')
+  .attr('x', (d: any) => d.x0 + 10)
+  .attr('y', (d: any) => d.y0 + 18)
+  .text((d: any) => {
+    const groupType = this.automationGroupBy === 'organization' ? 'organization' : 'target type';
+    return `${d.data.name} (${d.data.totalAutomations} automations affecting ${d.data.affectedTargets} targets)`;
+  })
+  .attr('font-size', '12px')
+  .attr('font-weight', 'bold')
+  .attr('fill', '#2c3e50')
+  .style('pointer-events', 'none');
+
+  const cells = svg.selectAll('.automation-cell')
+    .data(root.leaves())
+    .enter().append('g')
+    .attr('class', 'automation-cell');
+
+  cells.append('rect')
+    .attr('x', (d: any) => d.x0)
+    .attr('y', (d: any) => d.y0)
+    .attr('width', (d: any) => d.x1 - d.x0)
+    .attr('height', (d: any) => d.y1 - d.y0)
+    .attr('fill', '#2c3e50')
+    .attr('stroke', '#fff')
+    .attr('stroke-width', 2)
+    .attr('rx', 6)
+    .style('cursor', 'pointer')
+    .on('mouseover', (event: any, d: any) => {
+      d3.select(event.target)
+        .attr('stroke', '#3498db')
+        .attr('stroke-width', 3);
+      this.showAutomationTooltip(event, d.data);
+    })
+    .on('mouseout', (event: any) => {
+      d3.select(event.target)
+        .attr('stroke', '#fff')
+        .attr('stroke-width', 2);
+      this.tooltipService.hide();
+    });
+
+  cells.append('line')
+    .attr('x1', (d: any) => d.x0 + 8)
+    .attr('y1', (d: any) => d.y0 + 32)
+    .attr('x2', (d: any) => d.x1 - 8)
+    .attr('y2', (d: any) => d.y0 + 32)
+    .attr('stroke', 'rgba(255,255,255,0.2)')
+    .attr('stroke-width', 1);
+
+  cells.append('text')
+    .attr('x', (d: any) => d.x0 + 10)
+    .attr('y', (d: any) => d.y0 + 20)
+    .text((d: any) => {
+      const width = d.x1 - d.x0;
+      const name = d.data.name;
+      if (width < 120) return name.substring(0, 15) + '...';
+      if (width < 180) return name.substring(0, 22) + (name.length > 22 ? '...' : '');
+      return name;
+    })
+    .attr('font-size', '12px')
+    .attr('font-weight', '600')
+    .attr('fill', '#fff')
+    .style('pointer-events', 'none');
+
+  cells.append('circle')
+    .attr('cx', (d: any) => d.x1 - 15)
+    .attr('cy', (d: any) => d.y0 + 16)
+    .attr('r', 4)
+    .attr('fill', (d: any) => d.data.enabled ? '#2ecc71' : '#95a5a6')
+    .style('pointer-events', 'none');
+
+  cells.each((d: any, i: number, nodes: any[]) => {
+  const cell = d3.select(nodes[i]);
+  const width = d.x1 - d.x0;
+  const height = d.y1 - d.y0;
+  const targetCount = d.data.automation.targetValues.length;
+  
+  const startY = d.y0 + 45;
+  const maxHeight = height - 60;
+  
+  if (targetCount === 1) {
+    cell.append('rect')
+      .attr('x', d.x0 + 8)
+      .attr('y', startY)
+      .attr('width', width - 16)
+      .attr('height', 24)
+      .attr('fill', 'rgba(255,255,255,0.1)')
+      .attr('rx', 3);
+    
+    cell.append('text')
+      .attr('x', d.x0 + 12)
+      .attr('y', startY + 16)
+      .text(d.data.automation.targetValues[0])
+      .attr('font-size', '10px')
+      .attr('fill', '#fff')
+      .attr('font-family', 'monospace')
+      .style('pointer-events', 'none');
+  } else if (targetCount === 2 && maxHeight >= 60) {
+    d.data.automation.targetValues.forEach((target: string, i: number) => {
+      cell.append('rect')
+        .attr('x', d.x0 + 8)
+        .attr('y', startY + (i * 28))
+        .attr('width', width - 16)
+        .attr('height', 24)
+        .attr('fill', 'rgba(255,255,255,0.08)')
+        .attr('rx', 3);
+      
+      cell.append('text')
+        .attr('x', d.x0 + 12)
+        .attr('y', startY + (i * 28) + 16)
+        .text(target.length > 25 ? target.substring(0, 22) + '...' : target)
+        .attr('font-size', '9px')
+        .attr('fill', '#fff')
+        .attr('font-family', 'monospace')
+        .style('pointer-events', 'none');
+    });
+  } else {
+    cell.append('text')
+      .attr('x', d.x0 + 10)
+      .attr('y', startY + 10)
+      .text(`${targetCount} targets`)
+      .attr('font-size', '10px')
+      .attr('fill', '#fff')
+      .attr('opacity', 0.9)
+      .style('pointer-events', 'none');
+    
+    const targetsToShow = d.data.expanded ? targetCount : Math.min(2, targetCount);
+    const maxTargetsInView = Math.floor((height - 80) / 22);
+    const actualTargetsToShow = Math.min(targetsToShow, maxTargetsInView);
+    
+    for (let i = 0; i < actualTargetsToShow; i++) {
+      const yPos = startY + 20 + (i * 22);
+      
+      cell.append('rect')
+        .attr('x', d.x0 + 8)
+        .attr('y', yPos)
+        .attr('width', width - 16)
+        .attr('height', 20)
+        .attr('fill', 'rgba(255,255,255,0.08)')
+        .attr('rx', 3);
+      
+      cell.append('text')
+        .attr('x', d.x0 + 12)
+        .attr('y', yPos + 14)
+        .text(d.data.automation.targetValues[i].length > 25 ? 
+              d.data.automation.targetValues[i].substring(0, 22) + '...' : 
+              d.data.automation.targetValues[i])
+        .attr('font-size', '9px')
+        .attr('fill', '#fff')
+        .attr('font-family', 'monospace')
+        .style('pointer-events', 'none');
+    }
+    
+    if (!d.data.expanded && targetCount > 2) {
+      const expandButton = cell.append('g')
+        .attr('class', 'expand-button')
+        .style('cursor', 'pointer')
+        .on('click', (event: any) => {
+          event.stopPropagation();
+          d.data.expanded = true;
+          this.renderAutomationTreemap(this.prepareGroupsForRender());
+        });
+      
+      expandButton.append('rect')
+        .attr('x', d.x0 + 8)
+        .attr('y', startY + 68)
+        .attr('width', width - 16)
+        .attr('height', 20)
+        .attr('fill', 'rgba(52, 152, 219, 0.3)')
+        .attr('rx', 3)
+        .attr('stroke', 'rgba(52, 152, 219, 0.6)')
+        .attr('stroke-width', 1);
+      
+      expandButton.append('text')
+        .attr('x', d.x0 + (width / 2))
+        .attr('y', startY + 81)
+        .attr('text-anchor', 'middle')
+        .text(`Show ${targetCount - 2} more`)
+        .attr('font-size', '9px')
+        .attr('fill', '#3498db')
+        .attr('font-weight', '500');
+    } else if (d.data.expanded && actualTargetsToShow < targetCount) {
+      const collapseButton = cell.append('g')
+        .attr('class', 'collapse-button')
+        .style('cursor', 'pointer')
+        .on('click', (event: any) => {
+          event.stopPropagation();
+          d.data.expanded = false;
+          this.renderAutomationTreemap(this.prepareGroupsForRender());
+        });
+      
+      collapseButton.append('rect')
+        .attr('x', d.x0 + 8)
+        .attr('y', d.y1 - 44)
+        .attr('width', width - 16)
+        .attr('height', 20)
+        .attr('fill', 'rgba(52, 152, 219, 0.3)')
+        .attr('rx', 3)
+        .attr('stroke', 'rgba(52, 152, 219, 0.6)')
+        .attr('stroke-width', 1);
+      
+      collapseButton.append('text')
+        .attr('x', d.x0 + (width / 2))
+        .attr('y', d.y1 - 31)
+        .attr('text-anchor', 'middle')
+        .text('Show less')
+        .attr('font-size', '9px')
+        .attr('fill', '#3498db')
+        .attr('font-weight', '500');
+    }
+  }
+  
+  cell.append('line')
+    .attr('x1', d.x0 + 8)
+    .attr('y1', d.y1 - 24)
+    .attr('x2', d.x1 - 8)
+    .attr('y2', d.y1 - 24)
+    .attr('stroke', 'rgba(255,255,255,0.2)')
+    .attr('stroke-width', 1);
+  
+  cell.append('text')
+    .attr('x', d.x0 + 10)
+    .attr('y', d.y1 - 10)
+    .text(d.data.automation.targetType.toUpperCase())
+    .attr('font-size', '8px')
+    .attr('fill', '#fff')
+    .attr('opacity', 0.7)
+    .attr('text-transform', 'uppercase')
+    .style('pointer-events', 'none');
+});
+}
+
+private prepareGroupsForRender(): any {
+  return this.currentAutomationGroups;
+}
+
+private showAutomationTooltip(event: any, data: any): void {
+  const statusClass = data.enabled ? 'status-active' : 'status-paused';
+  const statusText = data.enabled ? 'Active' : 'Paused';
+  const targetCount = data.automation.targetValues.length;
+  
+  const tooltipContent = `
+    <div class="tooltip-content">
+      <div class="tooltip-title">${data.automation.name}</div>
+      <div class="tooltip-body">
+        <div class="tooltip-grid">
+          <span>Status:</span>
+          <span class="${statusClass}">${statusText}</span>
+          <span>Target Type:</span>
+          <span>${data.automation.targetType}</span>
+          <span>Targets:</span>
+          <span>${targetCount} ${targetCount === 1 ? 'target' : 'targets'}</span>
+        </div>
+        ${targetCount <= 3 ? `
+          <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.2);">
+            <div style="font-size: 10px; opacity: 0.8; margin-bottom: 4px;">Affecting:</div>
+            ${data.automation.targetValues.map((t: string) => `
+              <div style="font-family: monospace; font-size: 10px; margin: 2px 0;">${t}</div>
+            `).join('')}
+          </div>
+        ` : ''}
+      </div>
+    </div>
+  `;
+  
+  this.tooltipService.show(event, tooltipContent);
+}
+
+private getRiskClass(riskScore: number): string {
+  if (riskScore >= 8.0) return 'critical';
+  if (riskScore >= 6.0) return 'high';
+  if (riskScore >= 4.0) return 'medium';
+  return 'low';
+}
+
+clearAutomationView(): void {
+  this.showingAutomations = false;
+  this.automationTreemapData = [];
+  sessionStorage.removeItem('automationTreemapData');
+  
+  this.router.navigate(['/'], {
+    queryParams: { view: 'treemap' }
+  });
+  
+  setTimeout(() => {
+    this.initTreemap();
+  }, 100);
+}
+
 }

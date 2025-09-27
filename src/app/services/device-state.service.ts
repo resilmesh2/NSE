@@ -18,6 +18,7 @@ export interface DeviceTableState {
 export class DeviceStateService {
   private selectedSubnetSubject = new BehaviorSubject<SubnetData | null>(null);
   private selectedDeviceSubject = new BehaviorSubject<DeviceData | null>(null);
+  private selectedAutomationDataSource = new BehaviorSubject<any>(null);
   private deviceTableStateSubject = new BehaviorSubject<DeviceTableState>({
     searchTerm: '',
     filterType: 'all',
@@ -32,6 +33,7 @@ export class DeviceStateService {
   public deviceTableState$: Observable<DeviceTableState> = this.deviceTableStateSubject.asObservable();
   private selectedOrganizationSource = new BehaviorSubject<any>(null);
   selectedOrganization$ = this.selectedOrganizationSource.asObservable();
+  selectedAutomationData$ = this.selectedAutomationDataSource.asObservable();
 
   setSelectedSubnet(subnet: SubnetData | null): void {
     this.selectedSubnetSubject.next(subnet);
@@ -40,6 +42,18 @@ export class DeviceStateService {
   getSelectedSubnet(): SubnetData | null {
     return this.selectedSubnetSubject.value;
   }
+
+  setAutomationData(data: any): void {
+  this.selectedAutomationDataSource.next(data);
+}
+
+getAutomationData(): any {
+  return this.selectedAutomationDataSource.value;
+}
+
+clearAutomationData(): void {
+  this.selectedAutomationDataSource.next(null);
+}
 
   setSelectedDevice(device: DeviceData | null): void {
     this.selectedDeviceSubject.next(device);

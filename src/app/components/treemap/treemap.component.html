@@ -1,12 +1,17 @@
 <div class="treemap-wrapper">
   <!-- Show organization filter status -->
-  <div class="organization-filter" *ngIf="selectedOrganization">
+  <div class="organization-filter" *ngIf="showingAutomations">
     <div class="filter-header">
-      <h4>{{ selectedOrganization.name }} - Subnets</h4>
-      <button class="btn btn-sm btn-secondary" (click)="clearOrganizationFilter()">
-        ← Back to All Organizations
+      <h4>Active Automations - Affected Targets</h4>
+      <button class="btn btn-sm btn-secondary" (click)="clearAutomationView()">
+        ← Back to Standard View
       </button>
     </div>
+    <div class="filter-stats">
+      <span>{{ automationTreemapData.length }} automations</span>
+      <span>Multiple target types displayed</span>
+    </div>
+  </div>
     <div class="filter-stats">
       <span>{{ networkData.length }} subnets</span>
       <span>{{ selectedOrganization.totalDevices }} devices</span>
@@ -55,4 +60,3 @@
       </button>
     </div>
   </div>
-</div>

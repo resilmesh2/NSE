@@ -6,6 +6,7 @@ import { CdkDragDrop, moveItemInArray, transferArrayItem } from '@angular/cdk/dr
 import { NetworkDataService } from '../../services/network-data.service';
 import { RiskComponentsService, RiskComponent } from '../../services/risk-components.service';
 import { HttpClient } from '@angular/common/http';
+import { Router } from '@angular/router';
 import { RiskConfigService, RiskFormula, RiskConfigurationRequest, ConfigurationResponse, ComponentData  } from '../../services/risk-config.service';
 
 interface CalculationMethod {
@@ -228,7 +229,8 @@ private notificationId = 0;
     private http: HttpClient,
     private networkDataService: NetworkDataService,
     private riskComponentsService: RiskComponentsService,
-    private riskConfigService: RiskConfigService
+    private riskConfigService: RiskConfigService,
+    private router: Router
   ) {}
 
   async ngOnInit() {
@@ -293,6 +295,33 @@ getFilteredAutomations(): ActiveAutomation[] {
     default:
       return this.activeAutomations;
   }
+}
+
+viewAutomationsInTreemap(): void {
+  const automationData = this.activeAutomations.map(automation => {
+    const targetType = automation.target_type || automation.targetType;
+    const targetValues = automation.target_values || automation.targetValues || [];
+    
+    return {
+      id: automation.id,
+      name: this.getComponentName(automation),
+      targetType: targetType,
+      targetValues: targetValues,
+      enabled: automation.enabled !== false,
+      riskScore: automation.avg_risk_score
+    };
+  });
+
+  sessionStorage.setItem('automationTreemapData', JSON.stringify(automationData));
+  
+  this.router.navigate(['/'], {
+    queryParams: {
+      view: 'treemap',
+      showAutomations: 'true'
+    }
+  }).then(() => {
+    window.dispatchEvent(new Event('resize'));
+  });
 }
 
 getActiveAutomationsCount(): number {
