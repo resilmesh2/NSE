@@ -8,7 +8,7 @@ export class TooltipService {
   constructor() {}
 
   // Show method with boundary detection
-private show(event: MouseEvent, content: string): void {
+ show(event: MouseEvent, content: string): void {
   // Remove any existing tooltips first
   this.hide();
   
