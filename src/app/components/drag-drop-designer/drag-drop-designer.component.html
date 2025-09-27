@@ -139,6 +139,12 @@
                 [class.active]="automationFilter === 'disabled'">
                 Paused ({{ getDisabledAutomationsCount() }})
               </button>
+              <button 
+                (click)="viewAutomationsInTreemap()" 
+                class="btn btn-xs filter-btn"
+                style="margin-left: 8px; background: #28a745; color: white; border-color: #28a745;">
+                View All in Treemap
+              </button>
             </div>
           </div>
 

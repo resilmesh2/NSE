@@ -213,18 +213,17 @@ ngOnDestroy() {
     this.router.navigate(['/devices', subnetData.subnet]);
   }
 
-  switchView(viewName: string) {
+switchView(viewName: string) {
   console.log('Switching to view:', viewName);
   console.log('Current networkData length:', this.networkData.length);
   console.log('Current isLoading state:', this.isLoading);
   
-  // Clear organization filter when switching away from treemap
   if (viewName !== 'treemap') {
     this.clearOrganizationState();
+    this.clearAutomationState();
   }
   
   if (this.isRoutedPage) {
-    // Always use clean navigation
     this.router.navigate(['/'], { 
       queryParams: { view: viewName },
       replaceUrl: true
@@ -233,7 +232,6 @@ ngOnDestroy() {
       console.log('Navigation complete, activeView set to:', this.activeView);
     });
   } else {
-    // For non-routed pages, still clear the URL if needed
     if (viewName !== 'treemap' && window.location.search.includes('organization')) {
       this.router.navigate(['/'], { 
         queryParams: { view: viewName },
@@ -246,12 +244,22 @@ ngOnDestroy() {
 }
 
 private clearOrganizationState(): void {
-  // Clear organization selection from service
   this.deviceStateService.clearSelectedOrganization();
   
-  // Force navigate to clean URL immediately
   if (window.location.search.includes('organization')) {
     console.log('Clearing organization URL parameters');
+    this.router.navigate(['/'], { 
+      queryParams: {},
+      replaceUrl: true 
+    });
+  }
+}
+
+private clearAutomationState(): void {
+  sessionStorage.removeItem('automationTreemapData');
+  
+  if (window.location.search.includes('showAutomations')) {
+    console.log('Clearing automation URL parameters');
     this.router.navigate(['/'], { 
       queryParams: {},
       replaceUrl: true 
