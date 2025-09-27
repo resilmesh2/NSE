@@ -17,7 +17,7 @@ export class DataTableComponent implements OnInit, OnChanges {
   @Input() networkData: SubnetData[] = [];
   @Output() subnetClick = new EventEmitter<SubnetData>();
 
-  filteredData: any[] = []; // Changed to any[] to handle both subnet and org data
+  filteredData: any[] = [];
   currentPage = 1;
   pageSize = 10;
   totalPages = 1;

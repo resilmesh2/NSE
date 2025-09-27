@@ -29,7 +29,6 @@ export class NetworkGraphComponent implements OnInit, OnChanges, AfterViewInit {
   links: any[] = [];
   zoom: any = null;
   
-  // Add these new properties
   private searchSubject = new Subject<string>();
   private isSimulationReady = false;
 
