@@ -28,7 +28,7 @@ export interface ComponentDataSource {
 }
 
 export interface ComponentSchedule {
-  frequency: 'manual' | 'minute' | 'hourly' | 'daily' | 'weekly';
+  frequency: 'manual' | 'minute' | 'hourly' | 'daily' | 'weekly' | 'monthly';
   time?: string;
   enabled: boolean;
 }

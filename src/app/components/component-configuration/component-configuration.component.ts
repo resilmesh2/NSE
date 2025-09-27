@@ -18,6 +18,8 @@ export class ComponentConfigurationComponent implements OnInit {
  
  // Modal state
  showConfigModal = false;
+ showFrequencyModal = false;
+ private frequencyResolve: ((value: string | null) => void) | null = null;
  selectedComponent: ComponentConfig | null = null;
  selectedMethod: string = 'manual';
  dataSource: ComponentDataSource = { type: 'manual' };
@@ -72,12 +74,14 @@ private notificationId = 0;
    { id: 'script', name: 'Custom Script', description: 'Write custom calculation logic' }
  ];
 
- frequencies = [
-   { id: 'manual', name: 'Manual Only' },
-   { id: 'hourly', name: 'Every Hour' },
-   { id: 'daily', name: 'Daily' },
-   { id: 'weekly', name: 'Weekly' }
- ];
+updateFrequencies = [
+  { value: 'manual', label: 'Manual Only' },
+  { value: 'minute', label: 'Every Minute (Testing)' },
+  { value: 'hourly', label: 'Every Hour' },
+  { value: 'daily', label: 'Once Daily' },
+  { value: 'weekly', label: 'Once Weekly' },
+  { value: 'monthly', label: 'Once Monthly' }
+];
 
  constructor(private componentConfigService: ComponentConfigService,
              private http: HttpClient
@@ -93,63 +97,170 @@ private notificationId = 0;
    }
  }
 
- configureComponent(component: ComponentConfig): void {
-  const componentIdentifier = component.neo4jProperty || component.name?.toLowerCase().replace(/\s+/g, '_') || component.id.toString();
-  
-  this.showInfo('Fetching Configuration', 
-    `Loading configuration for ${component.name} (ID: ${componentIdentifier})...`);
-  
-  this.loading = true;
-  
-  this.http.get(`${environment.riskApiUrl}/components/custom/${componentIdentifier}/config`).subscribe({
-    next: (response: any) => {
-      this.loading = false;
-      
-      if (response.automation) {
-        this.applyAutomationFromConfig(component, response.automation);
-      } else {
-        this.showWarning('No Automation Found', 
-          `No automation configured for "${component.name}" (ID: ${componentIdentifier}). Opening manual configuration.`);
-        this.openManualConfigModal(component);
-      }
-    },
-    error: (error) => {
-      this.loading = false;
-      console.error('Failed to fetch automation config:', error);
-      this.showError('Configuration Error', 
-        `Failed to fetch config for ID: ${componentIdentifier}. Opening manual configuration.`);
-      this.openManualConfigModal(component);
+ // Replace the existing configureComponent method
+configureComponent(component: ComponentConfig): void {
+  this.selectedComponent = component;
+  this.askUpdateFrequency().then(frequency => {
+    if (frequency) {
+      this.saveComponentFrequency(frequency);
     }
   });
 }
 
+private askUpdateFrequency(): Promise<string | null> {
+  return new Promise((resolve) => {
+    this.schedule.frequency = this.selectedComponent?.schedule?.frequency || 'manual';
+    this.frequencyResolve = resolve;
+    this.showFrequencyModal = true;
+  });
+}
+
+confirmFrequency(): void {
+  if (this.frequencyResolve) {
+    this.frequencyResolve(this.schedule.frequency);
+    this.frequencyResolve = null;
+  }
+  this.showFrequencyModal = false;
+}
+
+cancelFrequencyModal(): void {
+  if (this.frequencyResolve) {
+    this.frequencyResolve(null);
+    this.frequencyResolve = null;
+  }
+  this.showFrequencyModal = false;
+}
+
+setFrequency(value: string): void {
+  this.schedule.frequency = value as 'manual' | 'minute' | 'hourly' | 'daily' | 'weekly' | 'monthly';
+}
+
+private saveComponentFrequency(frequency: string): void {
+  if (!this.selectedComponent) return;
+  
+  const componentIdentifier = this.selectedComponent.neo4jProperty || 
+                             this.selectedComponent.id.toString();
+  
+  const validFrequency = frequency as 'manual' | 'minute' | 'hourly' | 'daily' | 'weekly' | 'monthly';
+  
+  const configUpdate = {
+    component_name: this.selectedComponent.name,
+    neo4j_property: this.selectedComponent.neo4jProperty,
+    update_frequency: frequency,
+    enabled: frequency !== 'manual',
+    target_property: this.selectedComponent.neo4jProperty || componentIdentifier
+  };
+  
+  this.http.put(`${environment.riskApiUrl}/components/custom/${componentIdentifier}/config`, configUpdate)
+    .subscribe({
+      next: (response) => {
+        if (this.selectedComponent) {
+          this.selectedComponent.schedule = {
+            frequency: validFrequency,
+            enabled: frequency !== 'manual'
+          };
+        }
+        this.showSuccess('Schedule Updated', 
+          `${this.selectedComponent?.name} will run ${frequency === 'manual' ? 'manually' : frequency}`);
+        this.selectedComponent = null;
+      },
+      error: (error) => {
+        this.showError('Update Failed', error.error?.message || 'Failed to update schedule');
+        this.selectedComponent = null;
+      }
+    });
+}
+
+toggleComponentAutomation(component: ComponentConfig): void {
+  const componentIdentifier = component.neo4jProperty || component.id.toString();
+  const newEnabledState = !component.schedule?.enabled;
+  
+  const configUpdate = {
+    component_name: component.name,
+    neo4j_property: component.neo4jProperty,
+    update_frequency: component.schedule?.frequency || 'manual',
+    enabled: newEnabledState,
+    target_property: component.neo4jProperty || componentIdentifier
+  };
+  
+  this.http.put(`${environment.riskApiUrl}/components/custom/${componentIdentifier}/config`, configUpdate)
+    .subscribe({
+      next: (response) => {
+        if (component.schedule) {
+          component.schedule.enabled = newEnabledState;
+        } else {
+          component.schedule = {
+            frequency: 'manual',
+            enabled: newEnabledState
+          };
+        }
+        
+        const action = newEnabledState ? 'resumed' : 'paused';
+        this.showSuccess(`Automation ${action.charAt(0).toUpperCase() + action.slice(1)}`, 
+          `${component.name} automation has been ${action}`);
+      },
+      error: (error) => {
+        this.showError('Toggle Failed', error.error?.message || 'Failed to toggle automation');
+      }
+    });
+}
+
+getAutomationStatus(component: ComponentConfig): string {
+  return component.schedule?.enabled ? 'active' : 'paused';
+}
+
+getToggleButtonText(component: ComponentConfig): string {
+  return component.schedule?.enabled ? 'Pause' : 'Resume';
+}
+
+getToggleButtonClass(component: ComponentConfig): string {
+  return component.schedule?.enabled ? 'btn-warning' : 'btn-success';
+}
+
  loadComponents(): void {
-   this.loading = true;
-   this.componentConfigService.getAvailableComponents().subscribe({
-     next: (response) => {
-       this.components = response.available_components.map((comp: any) => {
-         return {
-           ...comp,
-           identifier: comp.neo4jProperty || comp.name?.toLowerCase().replace(/\s+/g, '_'),
-           displayId: comp.neo4jProperty || comp.name?.toLowerCase().replace(/\s+/g, '_')
-         };
-       });
-       this.loading = false;
-       
-       this.components.forEach(component => {
-         if (component.isConfigured) {
-           this.startComponentTimer(component);
-         }
-       });
-     },
-     error: (error) => {
-       console.error('Failed to load components:', error);
-       this.showError('Loading Error', 'Failed to load components from configuration file');
-       this.components = [];
-       this.loading = false;
-     }
-   });
- }
+  this.loading = true;
+  this.componentConfigService.getAvailableComponents().subscribe({
+    next: (response) => {
+      this.components = response.available_components.map((comp: any) => {
+        return {
+          ...comp,
+          identifier: comp.neo4jProperty || comp.name?.toLowerCase().replace(/\s+/g, '_'),
+          displayId: comp.neo4jProperty || comp.name?.toLowerCase().replace(/\s+/g, '_'),
+          schedule: comp.schedule || { frequency: 'manual', enabled: false }
+        };
+      });
+      this.loading = false;
+      
+      this.components.forEach(component => {
+        if (component.isConfigured) {
+          this.startComponentTimer(component);
+        }
+        
+        // Load automation config for each component to get schedule info
+        const componentIdentifier = component.neo4jProperty || component.id.toString();
+        this.http.get(`${environment.riskApiUrl}/components/custom/${componentIdentifier}/config`).subscribe({
+          next: (config: any) => {
+            if (config.automation) {
+              component.schedule = {
+                frequency: config.automation.update_frequency || 'manual',
+                enabled: config.automation.enabled || false
+              };
+            }
+          },
+          error: (error) => {
+            console.log(`No automation config for ${componentIdentifier}`);
+          }
+        });
+      });
+    },
+    error: (error) => {
+      console.error('Failed to load components:', error);
+      this.showError('Loading Error', 'Failed to load components from configuration file');
+      this.components = [];
+      this.loading = false;
+    }
+  });
+}
 
  copyComponentId(component: ComponentConfig): void {
    const identifier = component.neo4jProperty || 
@@ -534,16 +645,28 @@ saveComponentConfiguration(): void {
  }
 
  getStatusBadgeClass(component: ComponentConfig): string {
-   if (component.isConfigured) return 'badge-success';
-   if (component.currentValue === 0) return 'badge-warning';
-   return 'badge-secondary';
- }
+  if (component.schedule?.enabled && component.schedule?.frequency !== 'manual') {
+    return 'badge-active';
+  }
+  if (component.schedule?.frequency !== 'manual' && !component.schedule?.enabled) {
+    return 'badge-paused';
+  }
+  if (component.isConfigured) return 'badge-success';
+  if (component.currentValue === 0) return 'badge-warning';
+  return 'badge-secondary';
+}
 
- getStatusText(component: ComponentConfig): string {
-   if (component.isConfigured) return 'Configured';
-   if (component.currentValue === 0) return 'Needs Configuration';
-   return 'Ready';
- }
+getStatusText(component: ComponentConfig): string {
+  if (component.schedule?.enabled && component.schedule?.frequency !== 'manual') {
+    return 'Active';
+  }
+  if (component.schedule?.frequency !== 'manual' && !component.schedule?.enabled) {
+    return 'Paused';
+  }
+  if (component.isConfigured) return 'Configured';
+  if (component.currentValue === 0) return 'Needs Configuration';
+  return 'Ready';
+}
 
  addCustomComponent() {
    this.customComponent = {

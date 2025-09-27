@@ -52,9 +52,21 @@
     </div>
 
     <div class="card-actions">
-      <button class="btn btn-primary" (click)="configureComponent(component)">
+      <button 
+        class="btn btn-primary" 
+        (click)="configureComponent(component)">
         {{ component.isConfigured ? 'Edit Configuration' : 'Configure' }}
       </button>
+      
+      <button 
+        *ngIf="component.schedule && component.schedule.frequency !== 'manual'"
+        class="btn"
+        [ngClass]="getToggleButtonClass(component)"
+        (click)="toggleComponentAutomation(component)"
+        [title]="component.schedule.enabled ? 'Pause automation' : 'Resume automation'">
+        {{ getToggleButtonText(component) }}
+      </button>
+      
       <button class="btn btn-outline" (click)="deleteComponent(component)">
         Delete
       </button>
@@ -157,8 +169,8 @@
         <h3>Update Schedule</h3>
         <div class="schedule-options">
           <select [(ngModel)]="schedule.frequency">
-            <option *ngFor="let freq of frequencies" [value]="freq.id">
-              {{ freq.name }}
+            <option *ngFor="let freq of updateFrequencies" [value]="freq.value">
+              {{ freq.label }}
             </option>
           </select>
           
@@ -311,6 +323,49 @@
     <div class="confirmation-modal-actions">
       <button (click)="confirmModalData.onCancel()" class="btn btn-secondary">{{confirmModalData.cancelText}}</button>
       <button (click)="confirmModalData.onConfirm()" class="btn btn-primary">{{confirmModalData.confirmText}}</button>
+    </div>
+  </div>
+</div>
+
+<!-- Frequency Modal -->
+<div class="modal-overlay" *ngIf="showFrequencyModal" (click)="cancelFrequencyModal()">
+  <div class="selector-modal" (click)="$event.stopPropagation()">
+    <div class="selector-modal-header">
+      <h3>How often should this component automation run?</h3>
+      <button (click)="cancelFrequencyModal()" class="close-btn">×</button>
+    </div>
+    <div class="selector-modal-content">
+      <div class="frequency-options">
+        <div *ngFor="let freq of updateFrequencies" 
+          class="frequency-option"
+          [class.selected]="schedule.frequency === freq.value"
+          (click)="setFrequency(freq.value)">
+          <div class="radio-wrapper">
+            <input 
+              type="radio" 
+              name="frequency" 
+              [value]="freq.value"
+              [checked]="schedule.frequency === freq.value"
+              (click)="$event.stopPropagation()">
+          </div>
+          <div class="option-content">
+            <div class="option-label">{{ freq.label }}</div>
+            <div class="option-description" [ngSwitch]="freq.value">
+              <span *ngSwitchCase="'manual'">Run only when triggered manually</span>
+              <span *ngSwitchCase="'minute'">For testing - not recommended for production</span>
+              <span *ngSwitchCase="'hourly'">Run every hour automatically</span>
+              <span *ngSwitchCase="'daily'">Run once every 24 hours</span>
+              <span *ngSwitchCase="'weekly'">Run once per week</span>
+              <span *ngSwitchCase="'monthly'">Run once per month</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="modal-actions">
+        <button (click)="cancelFrequencyModal()" class="btn btn-secondary">Cancel</button>
+        <button (click)="confirmFrequency()" class="btn btn-primary">Save Schedule</button>
+      </div>
     </div>
   </div>
 </div>
