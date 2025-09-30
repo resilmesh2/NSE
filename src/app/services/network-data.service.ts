@@ -122,8 +122,9 @@ private async loadCachedSubnetData(subnets: SubnetData[], virtualNetworkData: an
     
     // Also check for Subnet nodes with direct risk scores
     const subnetNodes = virtualNetworkData.filter(item => 
-      item.data && item.data.type === 'Subnet' && item.data.label && item.data.label.includes('/24')
+      item.data && item.data.type === 'Subnet' && item.data.label
     );
+
     
     const directSubnetRisks: { [subnet: string]: number } = {};
     subnetNodes.forEach(subnetNode => {
@@ -402,9 +403,9 @@ private checkIfDeviceDataIsPopulated(apiData: any[], subnetCidr: string): boolea
 private extractSubnetRiskScores(virtualNetworkData: any[]): { [subnet: string]: { riskScore: number, riskLevel: string } } {
   const scores: { [subnet: string]: { riskScore: number, riskLevel: string } } = {};
   
-  // Look for Subnet nodes with risk scores in the initial data
+  // Look for ALL Subnet nodes with risk scores, not just /24
   const subnetNodes = virtualNetworkData.filter(item => 
-    item.data && item.data.type === 'Subnet' && item.data.label && item.data.label.includes('/24')
+    item.data && item.data.type === 'Subnet' && item.data.label
   );
   
   console.log(`Found ${subnetNodes.length} subnet nodes in initial data for risk score extraction`);
@@ -418,9 +419,9 @@ private extractSubnetRiskScores(virtualNetworkData: any[]): { [subnet: string]: 
       const riskLevel = this.determineRiskLevel(riskScore);
       
       scores[subnetCidr] = { riskScore, riskLevel };
-      console.log(` Extracted ISIM risk score for ${subnetCidr}: ${riskScore} (${riskLevel})`);
+      console.log(`Extracted ISIM risk score for ${subnetCidr}: ${riskScore} (${riskLevel})`);
     } else {
-      console.log(` No risk score found in details for ${subnetCidr}: ${subnetNode.data.details}`);
+      console.log(`No risk score found in details for ${subnetCidr}: ${subnetNode.data.details}`);
     }
   });
   

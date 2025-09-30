@@ -47,13 +47,20 @@ async function getInitialData() {
     const session = driver.session();
 
     try {
-        console.log("Step 1: Getting individual organizations and their subnet ranges...");
+        console.log("Step 1: Getting individual organizations and their subnet ranges with risk scores...");
         
         const query = `
         MATCH (o:OrganizationUnit)-[r]-(s:Subnet)
-        RETURN o.name as orgName,
-               id(o) as orgId,
-               collect(DISTINCT s.range) as subnetRanges
+        WITH o, 
+             id(o) as orgId,
+             o.name as orgName,
+             collect(DISTINCT {
+                 range: s.range,
+                 riskScore: s.\`Risk Score\`,
+                 note: s.note
+             }) as subnetData
+        RETURN orgName, orgId, subnetData
+        ORDER BY orgName
         `;
 
         const result = await session.run(query);
@@ -64,15 +71,26 @@ async function getInitialData() {
         }
 
         const elements = [];
+        let totalSubnetsWithRisk = 0;
+        let totalRiskScore = 0;
 
         result.records.forEach((record, index) => {
             const orgName = record.get('orgName');
             const orgId = record.get('orgId').low;
-            const subnetRanges = record.get('subnetRanges') || [];
+            const subnetData = record.get('subnetData') || [];
             
-            console.log(`Processing org ${index + 1}: ${orgName} with ${subnetRanges.length} subnets`);
+            // Extract subnet ranges and calculate risk statistics
+            const subnetRanges = subnetData.map(s => s.range);
+            const subnetsWithRisk = subnetData.filter(s => s.riskScore && s.riskScore > 0);
+            totalSubnetsWithRisk += subnetsWithRisk.length;
             
-            // Create individual organization element
+            subnetsWithRisk.forEach(s => {
+                totalRiskScore += s.riskScore;
+            });
+            
+            console.log(`Processing org ${index + 1}: ${orgName} with ${subnetRanges.length} subnets (${subnetsWithRisk.length} have risk scores)`);
+            
+            // Create organization element
             elements.push({
                 data: {
                     id: orgId,
@@ -83,10 +101,36 @@ async function getInitialData() {
                     subnetCount: subnetRanges.length
                 }
             });
+            
+            // Create subnet elements with risk scores
+            subnetData.forEach(subnet => {
+                // Use Risk Score for details if available, otherwise use note
+                let details = null;
+                if (subnet.riskScore && subnet.riskScore > 0) {
+                    details = subnet.riskScore.toString();
+                } else if (subnet.note) {
+                    details = subnet.note;
+                }
+                
+                elements.push({
+                    data: {
+                        id: `subnet-${subnet.range}`,
+                        type: 'Subnet',
+                        label: subnet.range,
+                        details: details,
+                        'Risk Score': subnet.riskScore || 0,  // Store with the same property name as Neo4j
+                        riskScore: subnet.riskScore || 0,      // Also store as riskScore for compatibility
+                        note: subnet.note
+                    }
+                });
+            });
         });
 
+        const avgRiskScore = totalSubnetsWithRisk > 0 ? (totalRiskScore / totalSubnetsWithRisk) : 0;
+        
         console.timeEnd("Individual Organization Collection");
-        console.log(`====== Individual Collection Complete: ${elements.length} organizations ======`);
+        console.log(`====== Individual Collection Complete: ${result.records.length} organizations ======`);
+        console.log(`====== ${totalSubnetsWithRisk} subnets have risk scores, Average: ${avgRiskScore.toFixed(2)} ======`);
 
         return elements;
 
