@@ -4,7 +4,7 @@ services:
       context: ./servers
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "3002:3002"
     environment:
       - NEO4J_SERVER_URL=bolt://neo4j:7687  # Use service name instead of host.docker.internal
       - NEO4J_USERNAME=neo4j

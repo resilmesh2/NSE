@@ -51,7 +51,7 @@ export interface ConfigurationResponse {
   providedIn: 'root'
 })
 export class RiskConfigService {
-  private baseUrl = 'http://localhost:3000/api/risk';
+  private baseUrl = 'http://localhost:3002/api/risk';
   private POSTbaseUrl = 'http://localhost:5000/api';
 
   constructor(private http: HttpClient) {}
