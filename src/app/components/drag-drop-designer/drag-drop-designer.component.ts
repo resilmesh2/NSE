@@ -197,7 +197,7 @@ formulaInputModalData: {
   updateFrequencies = [
     { value: 'manual', label: 'Manual Only' },
     { value: 'hourly', label: 'Every Hour' },
-    { value: 'minute', label: 'Every Minute (Testing)' },
+    // { value: 'minute', label: 'Every Minute (Testing)' },
     { value: 'daily', label: 'Once Daily' },
     { value: 'weekly', label: 'Once Weekly' },
     { value: 'monthly', label: 'Once Monthly' }
@@ -244,7 +244,6 @@ private notificationId = 0;
   showCustomComponentModal = false;
   customComponent = {
     name: '',
-    category: '',
     maxValue: 10
   };
 
@@ -1536,21 +1535,11 @@ closeAlertModal() {
   }
 
 getCategoryIcon(category: string): string {
-  const icons: { [key: string]: string } = {
-    'security': '🔒',
-    'performance': '⚡',
-    'compliance': '📋',
-    'business': '💼',
-    'technical': '⚙️',
-    'custom': '🔧'
-  };
-  return icons[category] || '🔧';
+  return '🔧';
 }
 
 getAutoDescription(): string {
-  if (!this.customComponent.category) return 'Component description...';
-  const category = this.customComponent.category.charAt(0).toUpperCase() + this.customComponent.category.slice(1);
-  return `${category} component for risk assessment`;
+  return 'Custom component for risk assessment';
 }
 
   getTotalWeight(): number {
@@ -2655,31 +2644,24 @@ private loadComponentsFromConfig(): void {
 }
 
   addCustomComponent() {
-    this.customComponent = {
-      name: '',
-      category: '',
-      maxValue: 10
-    };
-    this.showCustomComponentModal = true;
-  }
+  this.customComponent = {
+    name: '',
+    maxValue: 10
+  };
+  this.showCustomComponentModal = true;
+}
 
-  closeCustomComponentModal() {
-    this.showCustomComponentModal = false;
-    this.customComponent = {
-      name: '',
-      category: '',
-      maxValue: 10
-    };
-  }
+closeCustomComponentModal() {
+  this.showCustomComponentModal = false;
+  this.customComponent = {
+    name: '',
+    maxValue: 10
+  };
+}
   
   saveCustomComponent() {
   if (!this.customComponent.name.trim()) {
     this.showWarning('Validation Error', 'Please enter a component name');
-    return;
-  }
-  
-  if (!this.customComponent.category) {
-    this.showWarning('Validation Error', 'Please select a component category');
     return;
   }
   
@@ -2688,16 +2670,7 @@ private loadComponentsFromConfig(): void {
     return;
   }
   
-  const autoDescription = `${this.customComponent.category.charAt(0).toUpperCase() + this.customComponent.category.slice(1)} component for risk assessment`;
-  
-  const categoryIcons: { [key: string]: string } = {
-    'security': '🔐',
-    'performance': '⚡',
-    'compliance': '📋',
-    'business': '💼',
-    'technical': '⚙️',
-    'custom': '🔧'
-  };
+  const autoDescription = 'Custom component for risk assessment';
   
   const componentKey = this.customComponent.name.trim()
     .toLowerCase()
@@ -2708,7 +2681,7 @@ private loadComponentsFromConfig(): void {
     id: Date.now(), 
     name: this.customComponent.name.trim(),
     type: 'custom',
-    icon: categoryIcons[this.customComponent.category] || '🔧',
+    icon: '🔧',
     description: autoDescription,
     weight: 0.2,
     maxValue: this.customComponent.maxValue,
@@ -2721,7 +2694,6 @@ private loadComponentsFromConfig(): void {
     next: async (response) => {
       console.log('Server response:', response);
       
-      // Write to Neo4j
       await this.writeComponentToNeo4j(newComponent);
       
       const serverComponentKey = response.component_key;
@@ -2735,9 +2707,7 @@ private loadComponentsFromConfig(): void {
         maxValue: this.validateNumber(newComponent.maxValue, 100)
       };
       
-      // Add to available components
       this.availableComponents.push(componentToAdd);
-      
       this.customComponents.push(componentToAdd);
       
       this.closeCustomComponentModal();

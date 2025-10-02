@@ -25,13 +25,12 @@ export class ComponentConfigurationComponent implements OnInit {
  dataSource: ComponentDataSource = { type: 'manual' };
  schedule: ComponentSchedule = { frequency: 'manual', enabled: false };
  private timerInterval: any;
- componentTimers: { [key: number]: number } = {};
+componentTimers: { [key: string]: { startTime: number, elapsed: number } } = {};
  
  // Custom component modal state
  showCustomComponentModal = false;
  customComponent = {
    name: '',
-   category: '',
    maxValue: 10
  };
 
@@ -76,7 +75,7 @@ private notificationId = 0;
 
 updateFrequencies = [
   { value: 'manual', label: 'Manual Only' },
-  { value: 'minute', label: 'Every Minute (Testing)' },
+  // { value: 'minute', label: 'Every Minute (Testing)' },
   { value: 'hourly', label: 'Every Hour' },
   { value: 'daily', label: 'Once Daily' },
   { value: 'weekly', label: 'Once Weekly' },
@@ -88,14 +87,15 @@ updateFrequencies = [
  ) { }
 
  ngOnInit(): void {
-   this.loadComponents();
- }
+  this.loadComponents();
+  this.startGlobalTimer();
+}
 
  ngOnDestroy() {
-   if (this.timerInterval) {
-     clearInterval(this.timerInterval);
-   }
- }
+  if (this.timerInterval) {
+    clearInterval(this.timerInterval);
+  }
+}
 
  // Replace the existing configureComponent method
 configureComponent(component: ComponentConfig): void {
@@ -195,6 +195,13 @@ toggleComponentAutomation(component: ComponentConfig): void {
           };
         }
         
+        if (newEnabledState) {
+          this.initializeComponentTimer(component);
+        } else {
+          const timerId = component.neo4jProperty || component.id.toString();
+          delete this.componentTimers[timerId];
+        }
+        
         const action = newEnabledState ? 'resumed' : 'paused';
         this.showSuccess(`Automation ${action.charAt(0).toUpperCase() + action.slice(1)}`, 
           `${component.name} automation has been ${action}`);
@@ -232,11 +239,6 @@ getToggleButtonClass(component: ComponentConfig): string {
       this.loading = false;
       
       this.components.forEach(component => {
-        if (component.isConfigured) {
-          this.startComponentTimer(component);
-        }
-        
-        // Load automation config for each component to get schedule info
         const componentIdentifier = component.neo4jProperty || component.id.toString();
         this.http.get(`${environment.riskApiUrl}/components/custom/${componentIdentifier}/config`).subscribe({
           next: (config: any) => {
@@ -245,6 +247,10 @@ getToggleButtonClass(component: ComponentConfig): string {
                 frequency: config.automation.update_frequency || 'manual',
                 enabled: config.automation.enabled || false
               };
+              
+              if (component.schedule.enabled) {
+                this.initializeComponentTimer(component);
+              }
             }
           },
           error: (error) => {
@@ -304,14 +310,14 @@ getToggleButtonClass(component: ComponentConfig): string {
   }
   
   this.componentConfigService.saveComponentConfiguration(component.id, config).subscribe({
-    next: () => {
-      console.log('Configuration saved');
-      this.startComponentTimer(component);
-    },
-    error: (error) => {
-      console.error('Failed to save configuration:', error);
-    }
-  });
+  next: () => {
+    console.log('Configuration saved');
+    this.initializeComponentTimer(component);
+  },
+  error: (error) => {
+    console.error('Failed to save configuration:', error);
+  }
+});
 }
 
  private executeQueryAndUpdateNeo4j(component: ComponentConfig, automation: any): void {
@@ -601,48 +607,61 @@ saveComponentConfiguration(): void {
    });
  }
 
- private startTimer() {
-   this.timerInterval = setInterval(() => {
-     this.components.forEach(component => {
-       if (!this.componentTimers[component.id]) {
-         this.componentTimers[component.id] = 0;
-       }
-       this.componentTimers[component.id]++;
-     });
-   }, 1000);
- }
+ private startGlobalTimer(): void {
+  if (this.timerInterval) {
+    clearInterval(this.timerInterval);
+  }
+  
+  this.timerInterval = setInterval(() => {
+    this.components.forEach(component => {
+      if (component.schedule?.enabled && component.schedule?.frequency !== 'manual') {
+        const timerId = component.neo4jProperty || component.id.toString();
+        
+        if (!this.componentTimers[timerId]) {
+          this.componentTimers[timerId] = {
+            startTime: Date.now(),
+            elapsed: 0
+          };
+        }
+        
+        this.componentTimers[timerId].elapsed = Math.floor((Date.now() - this.componentTimers[timerId].startTime) / 1000);
+      }
+    });
+  }, 1000);
+}
 
- startComponentTimer(component: ComponentConfig): void {
-   const timerId = component.id;
-   
-   if (!this.componentTimers[timerId]) {
-     this.componentTimers[timerId] = 0;
-   }
-   
-   if (this.timerInterval) {
-     clearInterval(this.timerInterval);
-   }
-   
-   this.timerInterval = setInterval(() => {
-     this.componentTimers[timerId]++;
-   }, 1000);
- }
+initializeComponentTimer(component: ComponentConfig): void {
+  const timerId = component.neo4jProperty || component.id.toString();
+  
+  if (!this.componentTimers[timerId]) {
+    this.componentTimers[timerId] = {
+      startTime: Date.now(),
+      elapsed: 0
+    };
+  }
+}
 
  getTimerDisplay(component: ComponentConfig): string {
-   const timerId = component.id;
-   const seconds = this.componentTimers[timerId] || 0;
-   
-   if (seconds === 0) return '--:--';
-   
-   const hours = Math.floor(seconds / 3600);
-   const minutes = Math.floor((seconds % 3600) / 60);
-   const secs = seconds % 60;
-   
-   if (hours > 0) {
-     return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-   }
-   return `${minutes}:${secs.toString().padStart(2, '0')}`;
- }
+  const timerId = component.neo4jProperty || component.id.toString();
+  const timer = this.componentTimers[timerId];
+  
+  if (!timer || !component.schedule?.enabled || component.schedule?.frequency === 'manual') {
+    return '--:--';
+  }
+  
+  const seconds = timer.elapsed;
+  
+  if (seconds === 0) return '00:00';
+  
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+  return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}
 
  getStatusBadgeClass(component: ComponentConfig): string {
   if (component.schedule?.enabled && component.schedule?.frequency !== 'manual') {
@@ -669,69 +688,65 @@ getStatusText(component: ComponentConfig): string {
 }
 
  addCustomComponent() {
-   this.customComponent = {
-     name: '',
-     category: '',
-     maxValue: 10
-   };
-   this.showCustomComponentModal = true;
- }
+  this.customComponent = {
+    name: '',
+    maxValue: 10
+  };
+  this.showCustomComponentModal = true;
+}
 
  closeCustomComponentModal() {
-   this.showCustomComponentModal = false;
-   this.customComponent = {
-     name: '',
-     category: '',
-     maxValue: 10
-   };
- }
+  this.showCustomComponentModal = false;
+  this.customComponent = {
+    name: '',
+    maxValue: 10
+  };
+}
 
  async saveCustomComponent() {
-   if (!this.customComponent.name.trim()) {
-     this.showWarning('Validation Error', 'Please enter a component name');
-     return;
-   }
-   
-   if (!this.customComponent.category) {
-     this.showWarning('Validation Error', 'Please select a category');
-     return;
-   }
-   
-   const componentId = this.customComponent.name.toLowerCase()
-     .replace(/[^a-z0-9]+/g, '_')
-     .replace(/^_+|_+$/g, '');
-   
-   const componentData = {
-     name: this.customComponent.name,
-     type: this.customComponent.category,
-     maxValue: this.customComponent.maxValue,
-     description: this.getAutoDescription(),
-     neo4jProperty: componentId,
-     identifier: componentId
-   };
-   
-   // First save to config
-   this.componentConfigService.saveCustomComponent(componentData).subscribe({
-     next: async (response) => {
-       // Then write to Neo4j
-       try {
-         await this.writeComponentToNeo4j(componentData);
-         this.showSuccess('Component Created', 
-           `${this.customComponent.name} created with ID: ${componentId} and added to Neo4j`);
-       } catch (error) {
-         this.showWarning('Component Created', 
-           `${this.customComponent.name} created but Neo4j update failed`);
-       }
-       
-       this.closeCustomComponentModal();
-       this.loadComponents();
-     },
-     error: (error) => {
-       console.error('Failed to save component:', error);
-       this.showError('Save Failed', 'Failed to create custom component');
-     }
-   });
- }
+  if (!this.customComponent.name.trim()) {
+    this.showWarning('Validation Error', 'Please enter a component name');
+    return;
+  }
+  
+  if (this.customComponent.maxValue < 1 || this.customComponent.maxValue > 10) {
+    this.showWarning('Validation Error', 'Max value must be between 1 and 10');
+    return;
+  }
+  
+  const componentId = this.customComponent.name.toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  
+  const componentData = {
+    name: this.customComponent.name,
+    type: 'custom',
+    maxValue: this.customComponent.maxValue,
+    description: 'Custom component for risk assessment',
+    neo4jProperty: componentId,
+    identifier: componentId
+  };
+  
+  this.componentConfigService.saveCustomComponent(componentData).subscribe({
+    next: async (response) => {
+      try {
+        await this.writeComponentToNeo4j(componentData);
+        this.showSuccess('Component Created', 
+          `${this.customComponent.name} created with ID: ${componentId} and added to Neo4j`);
+      } catch (error) {
+        this.showWarning('Component Created', 
+          `${this.customComponent.name} created but Neo4j update failed`);
+      }
+      
+      this.closeCustomComponentModal();
+      this.loadComponents();
+    },
+    error: (error) => {
+      console.error('Failed to save component:', error);
+      this.showError('Save Failed', 'Failed to create custom component');
+    }
+  });
+}
 
  private async writeComponentToNeo4j(component: any): Promise<any> {
    const componentData = {
@@ -755,22 +770,12 @@ getStatusText(component: ComponentConfig): string {
  }
 
  getCategoryIcon(category: string): string {
-   const icons: { [key: string]: string } = {
-     'security': '🔒',
-     'performance': '⚡',
-     'compliance': '📋',
-     'business': '💼',
-     'technical': '⚙️',
-     'custom': '🔧'
-   };
-   return icons[category] || '🔧';
- }
+  return '🔧';
+}
 
- getAutoDescription(): string {
-   if (!this.customComponent.category) return 'Component description...';
-   const category = this.customComponent.category.charAt(0).toUpperCase() + this.customComponent.category.slice(1);
-   return `${category} component for risk assessment`;
- }
+getAutoDescription(): string {
+  return 'Custom component for risk assessment';
+}
 
  private showNotification(type: 'success' | 'info' | 'warning' | 'error', title: string, message: string) {
    const notification = {
