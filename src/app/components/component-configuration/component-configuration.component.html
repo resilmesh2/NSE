@@ -2,7 +2,7 @@
   <div class="header-section">
   <div class="header-content">
     <div class="header-text">
-      <h2>Component Configuration</h2>
+      <h2>Component Scheduling</h2>
       <p class="subtitle">Configure how custom components calculate their scores</p>
     </div>
     <button class="btn btn-primary" (click)="addCustomComponent()">
@@ -352,7 +352,7 @@
             <div class="option-label">{{ freq.label }}</div>
             <div class="option-description" [ngSwitch]="freq.value">
               <span *ngSwitchCase="'manual'">Run only when triggered manually</span>
-              <span *ngSwitchCase="'minute'">For testing - not recommended for production</span>
+              <!-- <span *ngSwitchCase="'minute'">For testing - not recommended for production</span> -->
               <span *ngSwitchCase="'hourly'">Run every hour automatically</span>
               <span *ngSwitchCase="'daily'">Run once every 24 hours</span>
               <span *ngSwitchCase="'weekly'">Run once per week</span>

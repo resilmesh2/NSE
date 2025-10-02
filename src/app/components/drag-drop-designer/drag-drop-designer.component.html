@@ -446,201 +446,161 @@
   </div>
 </div>
 
-<!-- Configuration Application Modal -->
-<div class="modal-overlay" *ngIf="showConfigModal" (click)="closeConfigModal()">
-  <div class="config-modal" (click)="$event.stopPropagation()">
-    <div class="config-modal-header">
-      <h3>Apply Risk Configuration</h3>
-      <button (click)="closeConfigModal()" class="close-btn">×</button>
-    </div>
-    <div class="config-modal-content">
-      <p>Choose where to apply your custom risk calculation:</p>
-      <div class="apply-options">
-        <div class="apply-option" (click)="selectApplyOption('network')">
-          <div class="option-icon">🌐</div>
-          <div class="option-info">
-            <div class="option-title">Entire Network</div>
-            <div class="option-desc">Apply to a specific network range (e.g., 192.168.x.x)</div>
-          </div>
-        </div>
-        
-        <div class="apply-option" (click)="selectApplyOption('subnet')">
-          <div class="option-icon">🏠</div>
-          <div class="option-info">
-            <div class="option-title">Specific Subnet</div>
-            <div class="option-desc">Apply to a single subnet</div>
-          </div>
-        </div>
-        
-        <div class="apply-option" (click)="selectApplyOption('ip')">
-          <div class="option-icon">💻</div>
-          <div class="option-info">
-            <div class="option-title">Specific IP Address</div>
-            <div class="option-desc">Apply to individual IP addresses/devices</div>
-          </div>
-        </div>
-      </div>
-            
-      <div class="modal-actions">
-        <button (click)="closeConfigModal()" class="btn btn-secondary">Cancel</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Network Selection Modal -->
-<div class="modal-overlay" *ngIf="showNetworkModal" (click)="closeNetworkModal()">
-  <div class="selector-modal" (click)="$event.stopPropagation()">
-    <div class="selector-modal-header">
-      <h3>Select Network Ranges</h3>
-      <button (click)="closeNetworkModal()" class="close-btn">×</button>
-    </div>
-    <div class="selector-modal-content">
-      <p>Choose network ranges to apply your risk calculation (multiple selections allowed):</p>
-      
-      <div style="margin-bottom: 15px;">
-        <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer;">
-          <input type="checkbox" 
-                 [(ngModel)]="selectAllNetworks" 
-                 [indeterminate]="isSelectAllIndeterminate()"
-                 (change)="toggleAllNetworks($event)" 
-                 style="margin: 0; transform: scale(1.2);">
-          <strong>Select All Networks</strong>
-        </label>
-      </div>
-      
-      <div class="network-options">
-        <label *ngFor="let network of availableNetworks; let i = index" 
-               class="network-option-checkbox" 
-               [class.selected]="selectedNetworks[i]"
-               style="display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid #dee2e6; border-radius: 6px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s ease;"
-               [style.border-color]="selectedNetworks[i] ? '#007bff' : '#dee2e6'"
-               [style.background-color]="selectedNetworks[i] ? '#f8f9fa' : 'white'">
-          <input type="checkbox" 
-                 [(ngModel)]="selectedNetworks[i]"
-                 (change)="updateNetworkSelection()"
-                 style="margin: 0; transform: scale(1.2);">
-          <div style="flex: 1;">
-            <div class="network-name" style="font-weight: 600; color: #333; margin-bottom: 4px;">{{network.prefix}}.x.x</div>
-            <div class="network-stats" style="font-size: 12px; color: #666;">{{network.subnets.length}} subnets, {{network.totalDevices}} devices</div>
-          </div>
-        </label>
-      </div>
-      
-      <div class="modal-actions" style="margin-top: 20px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #eee; padding-top: 15px;">
-        <span class="selection-count" style="font-size: 14px; color: #666;">{{getSelectionCountText()}}</span>
-        <div>
-          <button (click)="closeNetworkModal()" class="btn btn-secondary" style="margin-right: 10px;">Cancel</button>
-          <button (click)="applyToSelectedNetworks()" 
-                  [disabled]="getSelectedNetworksCount() === 0" 
-                  class="btn btn-primary">Apply Configuration</button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Subnet Selection Modal -->
-<div class="modal-overlay" *ngIf="showSubnetModal" (click)="closeSubnetModal()">
-  <div class="selector-modal" (click)="$event.stopPropagation()">
-    <div class="selector-modal-header">
-      <h3>Select Specific Subnet</h3>
-      <button (click)="closeSubnetModal()" class="close-btn">×</button>
-    </div>
-    <div class="selector-modal-content">
-      <p>Choose a subnet to apply your risk calculation:</p>
-      
-      <div style="margin-bottom: 15px;">
-        <input type="text" 
-               [(ngModel)]="subnetSearchTerm" 
-               (input)="filterSubnets()"
-               placeholder="Search subnets..." 
-               style="width: 100%; padding: 8px; border: 1px solid #dee2e6; border-radius: 4px;">
-      </div>
-      
-      <div class="subnet-options" style="max-height: 300px; overflow-y: auto;">
-        <div *ngFor="let subnet of filteredSubnets" 
-             class="subnet-option" 
-             (click)="applyToSubnet(subnet)">
-          <div class="subnet-name">{{subnet.subnet}}</div>
-          <div class="subnet-stats">{{subnet.deviceCount}} devices, Current Risk: {{subnet.riskScore.toFixed(1)}}</div>
-        </div>
-      </div>
-      
-      <div *ngIf="filteredSubnets.length === 0 && subnetSearchTerm" style="text-align: center; padding: 20px; color: #666;">
-        No subnets found matching "{{subnetSearchTerm}}"
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- IP Selection Modal -->
+<!-- Hierarchical Network Selection Modal -->
 <div class="modal-overlay" *ngIf="showIpModal" (click)="closeIpModal()">
-  <div class="selector-modal" (click)="$event.stopPropagation()">
-    <div class="selector-modal-header">
-      <h3>Select Specific IP Addresses</h3>
+  <div class="network-selector-modal" (click)="$event.stopPropagation()">
+    <div class="network-selector-header">
+      <h3>Select Networks, Subnets, or IP Addresses</h3>
       <button (click)="closeIpModal()" class="close-btn">×</button>
     </div>
-    <div class="selector-modal-content">
-      <div *ngIf="availableIpAddresses.length === 0" style="text-align: center; padding: 40px; color: #666;">
-        <div style="font-size: 16px; margin-bottom: 8px;">Click on a node or subnet to process IPs</div>
-        <div style="font-size: 14px;">Select subnets from the network graph to load their device IP addresses</div>
-        <div style="font-size: 12px; color: #999; margin-top: 10px;">
-          Currently showing {{getExpandedSubnetsCount()}} expanded subnets
-        </div>
+    
+    <div class="network-selector-content">
+      <div class="selector-description">
+        <p>Click network ranges to select entire networks, subnet ranges to select all IPs in that subnet, or individual IP addresses for precise selection.</p>
       </div>
       
-      <div *ngIf="availableIpAddresses.length > 0">
-        <p>Choose specific IP addresses to apply your risk calculation ({{availableIpAddresses.length}} total IPs loaded):</p>
-        
-        <div style="margin-bottom: 15px;">
+      <!-- Search Bar -->
+      <div class="search-container">
+        <div class="search-bar">
           <input type="text" 
-                [(ngModel)]="ipSearchTerm" 
-                (input)="filterIpAddresses()"
-                placeholder="Search IP addresses..." 
-                style="width: 100%; padding: 8px; border: 1px solid #dee2e6; border-radius: 4px;">
+                 id="networkSearchInput" 
+                 class="search-input" 
+                 placeholder="Search IPs, hostnames, subnets, or networks..." 
+                 [(ngModel)]="networkSearchTerm"
+                 (keyup)="performNetworkSearch()" 
+                 autocomplete="off">
+          <div class="search-icon">🔍</div>
+          <button class="clear-search" 
+                  *ngIf="networkSearchTerm" 
+                  (click)="clearNetworkSearch()">✕</button>
         </div>
         
-        <div style="margin-bottom: 15px;">
-          <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer;">
-            <input type="checkbox" 
-                  [(ngModel)]="selectAllIps" 
-                  [indeterminate]="isSelectAllIpsIndeterminate()"
-                  (change)="toggleAllIps($event)" 
-                  style="margin: 0; transform: scale(1.2);">
-            <strong>Select All IPs</strong>
-          </label>
+        <div class="search-filters">
+          <button class="filter-btn" 
+                  [class.active]="networkSearchFilter === 'all'" 
+                  (click)="setNetworkSearchFilter('all')">All</button>
+          <button class="filter-btn" 
+                  [class.active]="networkSearchFilter === 'networks'" 
+                  (click)="setNetworkSearchFilter('networks')">Networks</button>
+          <button class="filter-btn" 
+                  [class.active]="networkSearchFilter === 'subnets'" 
+                  (click)="setNetworkSearchFilter('subnets')">Subnets</button>
+          <button class="filter-btn" 
+                  [class.active]="networkSearchFilter === 'ips'" 
+                  (click)="setNetworkSearchFilter('ips')">IPs Only</button>
+          <button class="filter-btn" 
+                  [class.active]="networkSearchFilter === 'high-risk'" 
+                  (click)="setNetworkSearchFilter('high-risk')">High Risk</button>
         </div>
         
-        <div class="ip-options" style="max-height: 300px; overflow-y: auto;">
-          <label *ngFor="let ip of filteredIpAddresses; let i = index" 
-                class="ip-option-checkbox" 
-                [class.selected]="selectedIps[i]"
-                style="display: flex; align-items: center; gap: 12px; padding: 10px; border: 1px solid #dee2e6; border-radius: 6px; margin-bottom: 6px; cursor: pointer; transition: all 0.2s ease;"
-                [style.border-color]="selectedIps[i] ? '#007bff' : '#dee2e6'"
-                [style.background-color]="selectedIps[i] ? '#f8f9fa' : 'white'">
-            <input type="checkbox" 
-                  [(ngModel)]="selectedIps[i]"
-                  (change)="updateIpSelection()"
-                  style="margin: 0; transform: scale(1.1);">
-            <div style="flex: 1;">
-              <div class="ip-address" style="font-weight: 600; color: #333; font-family: 'Courier New', monospace;">{{ip.ip}}</div>
-              <div class="ip-details" style="font-size: 11px; color: #666;">{{ip.subnet}} | Risk: {{ip.riskScore?.toFixed(1) || '0.0'}}</div>
-            </div>
-          </label>
-        </div>
-        
-        <div *ngIf="filteredIpAddresses.length === 0 && ipSearchTerm" style="text-align: center; padding: 20px; color: #666;">
-          No IP addresses found matching "{{ipSearchTerm}}"
+        <div class="search-results" 
+             *ngIf="networkSearchTerm && networkSearchResults.length > 0">
+          <div class="results-header">
+            <span class="results-count">{{networkSearchResults.length}} results found</span>
+            <button class="expand-all-btn" (click)="expandAllNetworkResults()">Expand All Results</button>
+          </div>
         </div>
       </div>
       
-      <div class="modal-actions" style="margin-top: 20px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #eee; padding-top: 15px;">
-        <span class="selection-count" style="font-size: 14px; color: #666;">{{getSelectedIpsCountText()}}</span>
+      <!-- Hierarchical Network Tree -->
+      <div class="network-tree">
+        <div *ngFor="let network of hierarchicalNetworks; let networkIndex = index" 
+             class="network-node" 
+             [class.expanded]="network.expanded"
+             [class.search-hidden]="network.hidden"
+             [class.search-match]="network.isMatch"
+             [attr.data-network]="network.prefix">
+          
+          <div class="network-header" (click)="toggleNetworkNode(networkIndex)">
+            <span class="expand-icon" (click)="toggleNetworkExpansion(networkIndex, $event)">
+              {{network.expanded ? '▼' : '▶'}}
+            </span>
+            <input type="checkbox" 
+                   class="selection-checkbox" 
+                   [(ngModel)]="network.selected"
+                   (change)="selectEntireNetwork(networkIndex)"
+                   (click)="$event.stopPropagation()">
+            <span class="node-icon">🌐</span>
+            <span class="node-label">{{network.prefix}}.x.x</span>
+            <span class="node-stats">{{network.subnets.length}} subnets</span>
+            <span class="node-stats">{{network.totalDevices}} devices</span>
+            <span class="selection-indicator">{{network.selected ? '✔' : ''}}</span>
+          </div>
+          
+          <div class="subnet-list" *ngIf="network.expanded">
+            <div *ngFor="let subnet of network.subnets; let subnetIndex = index" 
+                class="subnet-container"
+                [class.search-hidden]="subnet.hidden">
+              
+              <!-- Subnet Header Row -->
+              <div class="subnet-item" 
+                  [class.expanded]="subnet.expanded"
+                  [class.selected]="subnet.selected"
+                  [class.search-match]="subnet.isMatch"
+                  [attr.data-subnet]="subnet.subnet">
+                
+                <span class="subnet-expand" 
+                      (click)="toggleSubnetExpansion(networkIndex, subnetIndex, $event)">
+                  {{subnet.expanded ? '▼' : '▶'}}
+                </span>
+                <input type="checkbox" 
+                      class="subnet-checkbox" 
+                      [(ngModel)]="subnet.selected"
+                      (change)="selectEntireSubnet(networkIndex, subnetIndex)"
+                      (click)="$event.stopPropagation()">
+                <span class="subnet-icon">🔗</span>
+                <span class="subnet-name">{{subnet.subnet}}</span>
+                <span class="subnet-stats">{{(subnet.devices?.length || subnet.deviceCount || 0)}} IPs</span>
+                <div class="risk-indicator" 
+                    [class.risk-high]="(subnet.riskScore || 0) >= 7"
+                    [class.risk-medium]="(subnet.riskScore || 0) >= 4 && (subnet.riskScore || 0) < 7"
+                    [class.risk-low]="(subnet.riskScore || 0) < 4"></div>
+              </div>
+              
+              <!-- IP Devices List - Individual rows -->
+              <div class="ip-devices-list" *ngIf="subnet.expanded && subnet.visibleDevices && subnet.visibleDevices.length > 0">
+                <div *ngFor="let ip of subnet.visibleDevices; let ipIndex = index" 
+                    class="ip-item" 
+                    [class.selected]="ip.selected"
+                    [class.search-hidden]="ip.hidden"
+                    [class.search-match]="ip.isMatch"
+                    [attr.data-ip]="ip.ip">
+                  
+                  <input type="checkbox" 
+                        class="ip-checkbox" 
+                        [(ngModel)]="ip.selected"
+                        (change)="selectIndividualIP(networkIndex, subnetIndex, ipIndex)"
+                        (click)="$event.stopPropagation()">
+                  <span class="ip-icon">💻</span>
+                  <span class="ip-address">{{ip.ip}}</span>
+                  <span class="ip-info">{{ip.hostname || 'Unknown'}}</span>
+                  <div class="device-status" [class.inactive]="!ip.isActive"></div>
+                </div>
+                
+                <!-- Load More Button -->
+                <div class="load-more-ips" 
+                    *ngIf="subnet.devices && subnet.devices.length > 0 && subnet.visibleDevices && subnet.visibleDevices.length < subnet.devices.length">
+                  <button (click)="loadMoreIPs(networkIndex, subnetIndex)" class="load-more-btn">
+                    Load More ({{subnet.devices.length - subnet.visibleDevices.length}} remaining)
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Action Bar -->
+      <div class="action-bar">
+        <div class="selection-summary">
+          <div class="selection-count">{{getNetworkSelectionSummary()}}</div>
+          <div class="selection-details">{{getNetworkSelectionDetails()}}</div>
+        </div>
         <div>
-          <button (click)="closeIpModal()" class="btn btn-secondary" style="margin-right: 10px;">Cancel</button>
-          <button (click)="applyToSelectedIps()" 
-                  [disabled]="getSelectedIpsCount() === 0 || availableIpAddresses.length === 0" 
+          <button (click)="clearAllNetworkSelections()" class="btn btn-secondary">Clear All</button>
+          <button (click)="closeIpModal()" class="btn btn-secondary">Cancel</button>
+          <button (click)="applyToSelectedHierarchy()" 
+                  [disabled]="getTotalSelectedCount() === 0" 
                   class="btn btn-primary">Apply Configuration</button>
         </div>
       </div>
@@ -813,7 +773,7 @@
             <div class="option-label">{{ freq.label }}</div>
             <div class="option-description" [ngSwitch]="freq.value">
               <span *ngSwitchCase="'manual'">Run only when triggered by user</span>
-              <span *ngSwitchCase="'minute'">For testing (not recommended for production)</span>
+              <!-- <span *ngSwitchCase="'minute'">For testing (not recommended for production)</span> -->
               <span *ngSwitchCase="'hourly'">Run every hour</span>
               <span *ngSwitchCase="'daily'">Run once every 24 hours</span>
               <span *ngSwitchCase="'weekly'">Run once per week</span>

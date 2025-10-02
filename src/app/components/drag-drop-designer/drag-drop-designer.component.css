@@ -2193,45 +2193,671 @@ textarea.form-control {
   color: #6c757d;
 }
 
-.automation-card-compact {
+/* Hierarchical Network Selector Styles */
+.network-selector-modal {
   background: white;
-  border: 1px solid #e9ecef;
-  border-radius: 4px;
-  padding: 8px;
-  margin-bottom: 6px;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+  max-width: 800px;
+  width: 90vw;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.network-selector-header {
+  padding: 20px;
+  border-bottom: 1px solid #eee;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  transition: all 0.2s ease;
-}
-
-.automation-card-compact:hover {
   background: #f8f9fa;
-  border-color: #007bff;
-  box-shadow: 0 2px 4px rgba(0,123,255,0.1);
+  border-radius: 12px 12px 0 0;
 }
 
-.automation-workflow-mode {
-  background: #e3f2fd;
-  border: 2px solid #2196f3;
+.network-selector-content {
+  padding: 20px;
 }
 
-.automation-workflow-header {
+.selector-description {
   background: #e3f2fd;
-  padding: 10px 15px;
+  padding: 15px;
   border-radius: 8px;
-  margin-bottom: 15px;
-  border: 1px solid #2196f3;
+  margin-bottom: 20px;
+  border-left: 4px solid #2196f3;
 }
 
-.workflow-actions {
+.selector-description p {
+  margin: 0;
+  color: #1565c0;
+  font-size: 14px;
+}
+
+/* Search Container */
+.search-container {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid #dee2e6;
+  margin-bottom: 20px;
+}
+
+.search-bar {
+  position: relative;
+  margin-bottom: 15px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 12px 45px 12px 16px;
+  border: 2px solid #dee2e6;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: all 0.2s;
+  background: white;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #2196f3;
+  box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
+}
+
+.search-icon {
+  position: absolute;
+  right: 35px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #666;
+  pointer-events: none;
+}
+
+.clear-search {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #f44336;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.search-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 15px;
+}
+
+.filter-btn {
+  padding: 6px 12px;
+  border: 1px solid #dee2e6;
+  background: white;
+  border-radius: 16px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #666;
+}
+
+.filter-btn:hover {
+  background: #e9ecef;
+}
+
+.filter-btn.active {
+  background: #2196f3;
+  color: white;
+  border-color: #2196f3;
+}
+
+.search-results {
+  background: white;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  padding: 15px;
+}
+
+.results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.results-count {
+  font-weight: 600;
+  color: #2c3e50;
+  font-size: 13px;
+}
+
+.expand-all-btn {
+  padding: 4px 10px;
+  background: #e3f2fd;
+  border: 1px solid #2196f3;
+  border-radius: 4px;
+  color: #2196f3;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.expand-all-btn:hover {
+  background: #2196f3;
+  color: white;
+}
+
+/* Network Tree */
+.network-tree {
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.network-node {
+  border-bottom: 1px solid #e9ecef;
+  background: #f8f9fa;
+  transition: all 0.2s;
+}
+
+.network-node:last-child {
+  border-bottom: none;
+}
+
+.network-node:hover {
+  background: #e9ecef;
+}
+
+.network-node.selected {
+  background: #e3f2fd;
+  border-left: 4px solid #2196f3;
+}
+
+.network-node.search-match {
+  background: #e8f5e8;
+}
+
+.network-node.search-hidden {
+  display: none;
+}
+
+.network-header {
+  display: flex;
+  align-items: center;
+  padding: 12px 15px;
+  cursor: pointer;
+}
+
+.expand-icon {
+  width: 20px;
+  text-align: center;
+  color: #666;
+  font-size: 12px;
+  margin-right: 8px;
+  transition: transform 0.2s;
+}
+
+.selection-checkbox, .subnet-checkbox, .ip-checkbox {
+  margin-right: 10px;
+  transform: scale(1.1);
+  cursor: pointer;
+}
+
+.node-icon, .subnet-icon, .ip-icon {
+  font-size: 16px;
+  margin-right: 10px;
+}
+
+.node-label, .subnet-name, .ip-address {
+  flex: 1;
+  font-weight: 600;
+  font-size: 14px;
+  color: #2c3e50;
+  font-family: 'Courier New', monospace;
+}
+
+.node-stats, .subnet-stats {
+  font-size: 11px;
+  color: #666;
+  background: #dee2e6;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-right: 10px;
+}
+
+.selection-indicator {
+  font-size: 12px;
+  color: #2196f3;
+  font-weight: bold;
+}
+
+/* Subnet Level */
+.subnet-list {
+  background: white;
+  border-top: 1px solid #f1f3f4;
+}
+
+.subnet-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 15px 10px 45px;
+  border-bottom: 1px solid #f8f9fa;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  background: white;
+}
+
+.subnet-item:last-child {
+  border-bottom: none;
+}
+
+.subnet-item:hover {
+  background: #f8f9fa;
+}
+
+.subnet-item.selected {
+  background: #e8f5e8;
+  border-left: 3px solid #4caf50;
+}
+
+.subnet-item.search-match {
+  background: #e3f2fd;
+}
+
+.subnet-item.search-hidden {
+  display: none;
+}
+
+.subnet-expand {
+  width: 16px;
+  text-align: center;
+  color: #666;
+  font-size: 10px;
+  margin-right: 8px;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.subnet-icon {
+  color: #4caf50;
+  font-size: 14px;
+}
+
+.risk-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 8px;
+}
+
+.risk-low { background: #4caf50; }
+.risk-medium { background: #ff9800; }
+.risk-high { background: #f44336; }
+
+/* IP Level */
+.ip-list {
+  background: #fafafa;
+  border-top: 1px solid #f1f3f4;
+}
+
+.ip-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 15px 8px 75px;
+  border-bottom: 1px solid #f1f3f4;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 12px;
+}
+
+.ip-item:last-child {
+  border-bottom: none;
+}
+
+.ip-item:hover {
+  background: #f1f8ff;
+}
+
+.ip-item.selected {
+  background: #fff3e0;
+  border-left: 2px solid #ff9800;
+}
+
+.ip-item.search-match {
+  background: #fff3e0;
+}
+
+.ip-item.search-hidden {
+  display: none;
+}
+
+.ip-checkbox {
+  transform: scale(0.9);
+}
+
+.ip-icon {
+  color: #ff9800;
+  font-size: 12px;
+}
+
+.ip-address {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+}
+
+.ip-info {
+  font-size: 10px;
+  color: #666;
+  margin-right: 6px;
+}
+
+.device-status {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4caf50;
+}
+
+.device-status.inactive {
+  background: #bbb;
+}
+
+.load-more-ips {
+  padding: 8px 15px;
+  background: #f8f9fa;
+  border-top: 1px solid #f1f3f4;
+  font-size: 11px;
+  color: #666;
+  text-align: center;
+  cursor: pointer;
+}
+
+.load-more-btn {
+  background: #e3f2fd;
+  border: 1px solid #2196f3;
+  color: #2196f3;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  margin: 5px;
+}
+
+/* Action Bar */
+.action-bar {
+  position: sticky;
+  bottom: 0;
+  background: white;
+  border-top: 2px solid #dee2e6;
+  box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+  z-index: 10;
+  padding: 15px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.selection-summary {
+  flex: 1;
+}
+
+.selection-count {
+  color: #666;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.selection-details {
+  font-size: 12px;
+  color: #999;
+  margin-top: 2px;
+}
+
+/* Action bar buttons container */
+.action-bar > div:last-child {
   display: flex;
   gap: 10px;
-  margin-top: 10px;
+  align-items: center;
 }
 
-.btn-workflow {
-  padding: 6px 12px;
+/* Red cancel button - target the second button specifically */
+.action-bar .btn-secondary:nth-child(2) {
+  background: #dc3545;
+  color: white;
+  border: 1px solid #dc3545;
+}
+
+.action-bar .btn-secondary:nth-child(2):hover {
+  background: #c82333;
+  border-color: #bd2130;
+  transform: translateY(-1px);
+  opacity: 0.9;
+}
+
+.selection-summary {
+  flex: 1;
+}
+
+.selection-count {
+  color: #666;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.selection-details {
   font-size: 12px;
+  color: #999;
+  margin-top: 2px;
+}
+
+/* Connection Lines */
+.subnet-item::before {
+  content: '';
+  position: absolute;
+  left: 35px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: #dee2e6;
+}
+
+.ip-item::before {
+  content: '';
+  position: absolute;
+  left: 60px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: #dee2e6;
+}
+
+.subnet-item::after {
+  content: '';
+  position: absolute;
+  left: 35px;
+  top: 50%;
+  width: 10px;
+  height: 1px;
+  background: #dee2e6;
+}
+
+.ip-item::after {
+  content: '';
+  position: absolute;
+  left: 60px;
+  top: 50%;
+  width: 15px;
+  height: 1px;
+  background: #dee2e6;
+}
+
+/* Search highlighting */
+.search-highlight {
+  background: yellow;
+  font-weight: bold;
+  padding: 1px 2px;
+  border-radius: 2px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .network-selector-modal {
+    width: 95vw;
+    max-width: none;
+    margin: 10px;
+  }
+  
+  .network-selector-content {
+    padding: 15px;
+  }
+  
+  .search-filters {
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .action-bar {
+    flex-direction: column;
+    gap: 15px;
+  }
+  
+  .network-header,
+  .subnet-item,
+  .ip-item {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  
+  .subnet-item {
+    padding-left: 35px;
+  }
+  
+  .ip-item {
+    padding-left: 60px;
+  }
+}
+
+/* Subnet Container */
+.subnet-container {
+  border-bottom: 1px solid #f1f3f4;
+}
+
+.subnet-container:last-child {
+  border-bottom: none;
+}
+
+.subnet-container.search-hidden {
+  display: none;
+}
+
+/* IP Devices List - Hierarchical Layout */
+.ip-devices-list {
+  background: #fafafa;
+  border-left: 2px solid #e9ecef;
+  margin-left: 30px;
+}
+
+.ip-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 15px 8px 45px; /* Extra left padding for hierarchy */
+  border-bottom: 1px solid #f1f3f4;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 12px;
+  background: #fafafa;
+}
+
+.ip-item:last-child {
+  border-bottom: none;
+}
+
+.ip-item:hover {
+  background: #f1f8ff;
+}
+
+.ip-item.selected {
+  background: #fff3e0;
+  border-left: 3px solid #ff9800;
+}
+
+.ip-item.search-match {
+  background: #fff3e0;
+}
+
+.ip-item.search-hidden {
+  display: none;
+}
+
+/* Load More Button Styling */
+.load-more-ips {
+  padding: 12px 15px;
+  background: #f8f9fa;
+  border-top: 1px solid #e9ecef;
+  text-align: center;
+  margin-left: 30px;
+}
+
+.load-more-btn {
+  padding: 6px 16px;
+  background: #e3f2fd;
+  border: 1px solid #2196f3;
   border-radius: 4px;
+  color: #2196f3;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.load-more-btn:hover {
+  background: #2196f3;
+  color: white;
+}
+
+/* Update existing IP checkbox and icon styles for hierarchy */
+.ip-checkbox {
+  margin-right: 8px;
+  transform: scale(0.9);
+}
+
+.ip-icon {
+  color: #ff9800;
+  font-size: 12px;
+  margin-right: 8px;
+}
+
+.ip-address {
+  flex: 1;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.ip-info {
+  font-size: 10px;
+  color: #666;
+  margin-right: 8px;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-status {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4caf50;
+  margin-left: 8px;
+}
+
+.device-status.inactive {
+  background: #bbb;
 }
