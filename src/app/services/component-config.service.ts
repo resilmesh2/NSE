@@ -15,6 +15,16 @@ export interface ComponentConfig {
   calculationMethod?: string;
   dataSource?: ComponentDataSource;
   schedule?: ComponentSchedule;
+
+  updateFrequency?: 'manual' | 'minute' | 'hourly' | 'daily' | 'weekly' | 'monthly';
+  enabled?: boolean;
+  hasSchedule?: boolean;
+  temporalRunning?: boolean;
+  
+  // Legacy properties (for backward compatibility)
+  isLoading?: boolean;
+  apiUrl?: string;
+
 }
 
 export interface ComponentDataSource {

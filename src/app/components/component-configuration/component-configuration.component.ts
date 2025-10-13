@@ -25,7 +25,12 @@ export class ComponentConfigurationComponent implements OnInit {
  dataSource: ComponentDataSource = { type: 'manual' };
  schedule: ComponentSchedule = { frequency: 'manual', enabled: false };
  private timerInterval: any;
-componentTimers: { [key: string]: { startTime: number, elapsed: number } } = {};
+componentTimers: { [key: string]: { 
+  startTime: number, 
+  elapsed: number,
+  nextRunTime?: number,
+  frequency?: string
+} } = {};
  
  // Custom component modal state
  showCustomComponentModal = false;
@@ -54,6 +59,8 @@ componentTimers: { [key: string]: { startTime: number, elapsed: number } } = {};
  testing = false;
  testResults: any = null;
  saving = false;
+ isLoading = false;
+ apiUrl = environment.riskApiUrl;
 
  notifications: Array<{
  id: number;
@@ -100,6 +107,14 @@ updateFrequencies = [
  // Replace the existing configureComponent method
 configureComponent(component: ComponentConfig): void {
   this.selectedComponent = component;
+  
+  // If component has an active schedule, show current frequency
+  if (component.hasSchedule && component.schedule) {
+    this.schedule.frequency = component.schedule.frequency;
+  } else {
+    this.schedule.frequency = 'manual';
+  }
+  
   this.askUpdateFrequency().then(frequency => {
     if (frequency) {
       this.saveComponentFrequency(frequency);
@@ -151,6 +166,9 @@ private saveComponentFrequency(frequency: string): void {
     target_property: this.selectedComponent.neo4jProperty || componentIdentifier
   };
   
+  // Check if we're updating an existing schedule or creating a new one
+  const hasExistingSchedule = this.selectedComponent.hasSchedule;
+  
   this.http.put(`${environment.riskApiUrl}/components/custom/${componentIdentifier}/config`, configUpdate)
     .subscribe({
       next: (response) => {
@@ -160,9 +178,63 @@ private saveComponentFrequency(frequency: string): void {
             enabled: frequency !== 'manual'
           };
         }
-        this.showSuccess('Schedule Updated', 
-          `${this.selectedComponent?.name} will run ${frequency === 'manual' ? 'manually' : frequency}`);
-        this.selectedComponent = null;
+        
+        if (frequency !== 'manual') {
+          const scheduleConfig = {
+            component_id: componentIdentifier,
+            component_name: this.selectedComponent?.name,
+            neo4j_property: this.selectedComponent?.neo4jProperty,
+            update_frequency: frequency,
+            calculation_method: this.selectedComponent?.calculationMethod || 'query_result',
+            target_property: this.selectedComponent?.neo4jProperty || componentIdentifier
+          };
+          
+          // If schedule exists, update it; otherwise create new
+          const endpoint = hasExistingSchedule 
+            ? `${environment.riskApiUrl}/components/schedule/update/${componentIdentifier}`
+            : `${environment.riskApiUrl}/components/schedule/start`;
+          
+          const method = hasExistingSchedule ? 'put' : 'post';
+          
+          this.http[method](endpoint, scheduleConfig)
+            .subscribe({
+              next: () => {
+                const action = hasExistingSchedule ? 'Updated' : 'Created';
+                this.showSuccess(`Temporal Schedule ${action}`, 
+                  `${this.selectedComponent?.name} will run ${frequency} on Temporal`);
+                this.selectedComponent = null;
+                this.loadComponents(); // Reload to get fresh timer data
+              },
+              error: (error) => {
+                this.showWarning('Schedule Warning', 
+                  `Frequency saved but Temporal schedule ${hasExistingSchedule ? 'update' : 'creation'} failed: ${error.error?.message || 'Unknown error'}`);
+                this.selectedComponent = null;
+              }
+            });
+        } else {
+          // If set to manual, delete the schedule
+          if (hasExistingSchedule) {
+            this.http.delete(`${environment.riskApiUrl}/components/schedule/delete/${componentIdentifier}`)
+              .subscribe({
+                next: () => {
+                  this.showSuccess('Schedule Removed', 
+                    `${this.selectedComponent?.name} set to manual execution only`);
+                  this.selectedComponent = null;
+                  this.loadComponents();
+                },
+                error: (error) => {
+                  this.showWarning('Delete Warning', 
+                    `Set to manual but failed to delete Temporal schedule: ${error.error?.message || 'Unknown error'}`);
+                  this.selectedComponent = null;
+                  this.loadComponents();
+                }
+              });
+          } else {
+            this.showSuccess('Schedule Updated', 
+              `${this.selectedComponent?.name} set to manual execution only`);
+            this.selectedComponent = null;
+          }
+        }
       },
       error: (error) => {
         this.showError('Update Failed', error.error?.message || 'Failed to update schedule');
@@ -175,41 +247,54 @@ toggleComponentAutomation(component: ComponentConfig): void {
   const componentIdentifier = component.neo4jProperty || component.id.toString();
   const newEnabledState = !component.schedule?.enabled;
   
-  const configUpdate = {
-    component_name: component.name,
-    neo4j_property: component.neo4jProperty,
-    update_frequency: component.schedule?.frequency || 'manual',
-    enabled: newEnabledState,
-    target_property: component.neo4jProperty || componentIdentifier
-  };
-  
-  this.http.put(`${environment.riskApiUrl}/components/custom/${componentIdentifier}/config`, configUpdate)
-    .subscribe({
-      next: (response) => {
-        if (component.schedule) {
-          component.schedule.enabled = newEnabledState;
-        } else {
-          component.schedule = {
-            frequency: 'manual',
-            enabled: newEnabledState
-          };
-        }
-        
-        if (newEnabledState) {
+  if (newEnabledState) {
+    const scheduleConfig = {
+      component_id: componentIdentifier,
+      component_name: component.name,
+      neo4j_property: component.neo4jProperty,
+      update_frequency: component.schedule?.frequency || 'hourly',
+      calculation_method: component.calculationMethod,
+      target_property: component.neo4jProperty || componentIdentifier
+    };
+    
+    this.http.post(`${environment.riskApiUrl}/components/schedule/resume`, scheduleConfig)
+      .subscribe({
+        next: (response: any) => {
+          if (component.schedule) {
+            component.schedule.enabled = true;
+          } else {
+            component.schedule = {
+              frequency: scheduleConfig.update_frequency as any,
+              enabled: true
+            };
+          }
           this.initializeComponentTimer(component);
-        } else {
+          this.showSuccess('Temporal Schedule Resumed', 
+            `${component.name} automation resumed on Temporal`);
+        },
+        error: (error) => {
+          this.showError('Resume Failed', error.error?.message || 'Failed to resume Temporal schedule');
+        }
+      });
+  } else {
+    this.http.post(`${environment.riskApiUrl}/risk/components/schedule/pause`, {
+      component_id: componentIdentifier
+    })
+      .subscribe({
+        next: (response) => {
+          if (component.schedule) {
+            component.schedule.enabled = false;
+          }
           const timerId = component.neo4jProperty || component.id.toString();
           delete this.componentTimers[timerId];
+          this.showSuccess('Temporal Schedule Paused', 
+            `${component.name} automation paused on Temporal`);
+        },
+        error: (error) => {
+          this.showError('Pause Failed', error.error?.message || 'Failed to pause Temporal schedule');
         }
-        
-        const action = newEnabledState ? 'resumed' : 'paused';
-        this.showSuccess(`Automation ${action.charAt(0).toUpperCase() + action.slice(1)}`, 
-          `${component.name} automation has been ${action}`);
-      },
-      error: (error) => {
-        this.showError('Toggle Failed', error.error?.message || 'Failed to toggle automation');
-      }
-    });
+      });
+  }
 }
 
 getAutomationStatus(component: ComponentConfig): string {
@@ -224,46 +309,92 @@ getToggleButtonClass(component: ComponentConfig): string {
   return component.schedule?.enabled ? 'btn-warning' : 'btn-success';
 }
 
- loadComponents(): void {
-  this.loading = true;
-  this.componentConfigService.getAvailableComponents().subscribe({
-    next: (response) => {
-      this.components = response.available_components.map((comp: any) => {
-        return {
-          ...comp,
-          identifier: comp.neo4jProperty || comp.name?.toLowerCase().replace(/\s+/g, '_'),
-          displayId: comp.neo4jProperty || comp.name?.toLowerCase().replace(/\s+/g, '_'),
-          schedule: comp.schedule || { frequency: 'manual', enabled: false }
-        };
-      });
-      this.loading = false;
-      
-      this.components.forEach(component => {
-        const componentIdentifier = component.neo4jProperty || component.id.toString();
-        this.http.get(`${environment.riskApiUrl}/components/custom/${componentIdentifier}/config`).subscribe({
-          next: (config: any) => {
-            if (config.automation) {
-              component.schedule = {
-                frequency: config.automation.update_frequency || 'manual',
-                enabled: config.automation.enabled || false
-              };
-              
-              if (component.schedule.enabled) {
-                this.initializeComponentTimer(component);
+loadComponents(): void {
+  this.isLoading = true;
+  this.http.get<any>(`${this.apiUrl}/components/available`).subscribe({
+    next: async (response) => {
+      this.components = response.available_components.map((comp: any) => ({
+        id: comp.id,
+        name: comp.name,
+        type: comp.type,
+        description: comp.description,
+        maxValue: comp.maxValue,
+        currentValue: comp.currentValue,
+        neo4jProperty: comp.neo4jProperty,
+        icon: comp.icon,
+        weight: comp.weight,
+        isConfigured: comp.isConfigured || false,
+        calculationMethod: comp.calculationMethod,
+        updateFrequency: 'manual',
+        enabled: false,
+        hasSchedule: false,
+        temporalRunning: false,
+        schedule: {
+          frequency: 'manual',
+          enabled: false
+        }
+      }));
+
+      for (const component of this.components) {
+        const propToCheck = component.neo4jProperty;
+        
+        if (!propToCheck) {
+          console.warn(`Component ${component.name} has no neo4jProperty, skipping status check`);
+          continue;
+        }
+        
+        try {
+          const statusResponse = await this.http.get<any>(
+            `${environment.riskApiUrl}/components/schedule/status/${propToCheck}`
+          ).toPromise();
+
+          if (statusResponse?.success && statusResponse?.exists) {
+            component.hasSchedule = true;
+            component.temporalRunning = statusResponse.running;
+            component.enabled = statusResponse.running;
+            component.isConfigured = true;
+            
+            component.schedule = {
+              frequency: statusResponse.frequency || 'hourly',
+              enabled: statusResponse.running
+            };
+            
+            if (statusResponse.running && statusResponse.next_run) {
+              try {
+                const nextRun = new Date(statusResponse.next_run).getTime();
+                this.initializeComponentCountdown(component, nextRun, statusResponse.frequency);
+              } catch (e) {
+                console.error(`Error initializing countdown for ${propToCheck}:`, e);
               }
             }
-          },
-          error: (error) => {
-            console.log(`No automation config for ${componentIdentifier}`);
+            
+            console.log(`✅ ${propToCheck} - Schedule detected: running=${statusResponse.running}, frequency=${statusResponse.frequency}`);
+          } else {
+            component.hasSchedule = false;
+            component.temporalRunning = false;
+            component.enabled = false;
+            console.log(`ℹ️  ${propToCheck} - No active schedule`);
           }
-        });
-      });
+        } catch (error: any) {
+          component.hasSchedule = false;
+          component.temporalRunning = false;
+          component.enabled = false;
+          
+          if (error.status === 404 || (error.error && !error.error.exists)) {
+            console.log(`ℹ️  ${propToCheck} - No schedule found (expected for new components)`);
+          } else {
+            console.error(`❌ Error checking schedule status for ${propToCheck}:`, error);
+          }
+        }
+      }
+
+      this.isLoading = false;
+      console.log('Components loaded with Temporal status:', this.components);
     },
     error: (error) => {
-      console.error('Failed to load components:', error);
-      this.showError('Loading Error', 'Failed to load components from configuration file');
-      this.components = [];
-      this.loading = false;
+      console.error('Error loading components:', error);
+      this.isLoading = false;
+      this.showError('Load Failed', 'Failed to load components');
     }
   });
 }
@@ -446,29 +577,37 @@ private applyComponentConfiguration(component: ComponentConfig, configData: any)
 }
 
 // Update save configuration method
-saveComponentConfiguration(): void {
-  if (!this.selectedComponent) return;
-  
-  const componentIdentifier = this.selectedComponent.neo4jProperty || 
-                             this.selectedComponent.id.toString();
-  
-  const configUpdate = {
-    component_name: this.selectedComponent.name,
-    neo4j_property: this.selectedComponent.neo4jProperty,
-    update_frequency: this.schedule.frequency,
-    enabled: this.schedule.enabled,
-    target_property: this.selectedComponent.neo4jProperty || componentIdentifier
+async saveComponentConfig(component: any): Promise<void> {
+  const payload = {
+    component_name: component.name,
+    component_id: component.neo4jProperty,
+    neo4j_property: component.neo4jProperty,
+    update_frequency: component.updateFrequency,
+    enabled: component.enabled,
+    target_property: component.neo4jProperty
   };
-  
-  this.http.put(`${environment.riskApiUrl}/components/custom/${componentIdentifier}/config`, configUpdate)
+
+  this.http.put(`${this.apiUrl}/components/custom/${component.neo4jProperty}/config`, payload)
     .subscribe({
-      next: (response) => {
-        this.showSuccess('Configuration Saved', 
-          `Update frequency set to ${this.schedule.frequency}`);
-        this.closeConfigModal();
+      next: async (response: any) => {
+        // If schedule frequency changed, update Temporal schedule
+        if (component.updateFrequency !== 'manual' && component.hasSchedule) {
+          try {
+            await this.http.put(
+              `${this.apiUrl}/components/schedule/update/${component.neo4jProperty}`,
+              { update_frequency: component.updateFrequency }
+            ).toPromise();
+            
+            console.log('Temporal schedule updated');
+          } catch (error) {
+            console.error('Failed to update Temporal schedule:', error);
+          }
+        }
+        
+        this.loadComponents();
       },
       error: (error) => {
-        this.showError('Save Failed', error.error?.message || 'Failed to save configuration');
+        console.error('Error saving component config:', error);
       }
     });
 }
@@ -617,14 +756,26 @@ saveComponentConfiguration(): void {
       if (component.schedule?.enabled && component.schedule?.frequency !== 'manual') {
         const timerId = component.neo4jProperty || component.id.toString();
         
-        if (!this.componentTimers[timerId]) {
-          this.componentTimers[timerId] = {
-            startTime: Date.now(),
-            elapsed: 0
-          };
+        if (this.componentTimers[timerId] && this.componentTimers[timerId].nextRunTime) {
+          // Calculate time remaining until next run
+          const now = Date.now();
+          const remaining = Math.max(0, Math.floor((this.componentTimers[timerId].nextRunTime! - now) / 1000));
+          this.componentTimers[timerId].elapsed = remaining;
+          
+          // If countdown reaches zero, refresh to get new next run time
+          if (remaining === 0) {
+            setTimeout(() => this.loadComponents(), 2000);
+          }
+        } else {
+          // Fallback to elapsed time if no next run time
+          if (!this.componentTimers[timerId]) {
+            this.componentTimers[timerId] = {
+              startTime: Date.now(),
+              elapsed: 0
+            };
+          }
+          this.componentTimers[timerId].elapsed = Math.floor((Date.now() - this.componentTimers[timerId].startTime) / 1000);
         }
-        
-        this.componentTimers[timerId].elapsed = Math.floor((Date.now() - this.componentTimers[timerId].startTime) / 1000);
       }
     });
   }, 1000);
@@ -641,6 +792,17 @@ initializeComponentTimer(component: ComponentConfig): void {
   }
 }
 
+initializeComponentCountdown(component: ComponentConfig, nextRunTime: number, frequency: string): void {
+  const timerId = component.neo4jProperty || component.id.toString();
+  
+  this.componentTimers[timerId] = {
+    startTime: Date.now(),
+    elapsed: 0,
+    nextRunTime: nextRunTime,
+    frequency: frequency
+  };
+}
+
  getTimerDisplay(component: ComponentConfig): string {
   const timerId = component.neo4jProperty || component.id.toString();
   const timer = this.componentTimers[timerId];
@@ -653,17 +815,29 @@ initializeComponentTimer(component: ComponentConfig): void {
   
   if (seconds === 0) return '00:00';
   
-  const hours = Math.floor(seconds / 3600);
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   const secs = seconds % 60;
   
+  // Show countdown format based on time remaining
+  if (days > 0) {
+    return `${days}d ${hours}h ${minutes}m`;
+  }
   if (hours > 0) {
     return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   }
   return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 }
 
- getStatusBadgeClass(component: ComponentConfig): string {
+getStatusBadgeClass(component: ComponentConfig): string {
+  // Check Temporal status first
+  if (component.hasSchedule && component.temporalRunning) {
+    return 'badge-active';
+  }
+  if (component.hasSchedule && !component.temporalRunning) {
+    return 'badge-paused';
+  }
   if (component.schedule?.enabled && component.schedule?.frequency !== 'manual') {
     return 'badge-active';
   }
@@ -676,6 +850,13 @@ initializeComponentTimer(component: ComponentConfig): void {
 }
 
 getStatusText(component: ComponentConfig): string {
+  // Check Temporal status first
+  if (component.hasSchedule && component.temporalRunning) {
+    return 'Active';
+  }
+  if (component.hasSchedule && !component.temporalRunning) {
+    return 'Paused';
+  }
   if (component.schedule?.enabled && component.schedule?.frequency !== 'manual') {
     return 'Active';
   }
@@ -802,9 +983,17 @@ getAutoDescription(): string {
    this.showNotification('error', title, message);
  }
 
- private showWarning(title: string, message: string) {
-   this.showNotification('warning', title, message);
- }
+ private showWarning(title: string, message: string): void {
+  const notification = {
+    id: this.notificationId++,
+    type: 'warning' as const,
+    title,
+    message,
+    timestamp: Date.now()
+  };
+  this.notifications.push(notification);
+  setTimeout(() => this.dismissNotification(notification.id), 6000);
+}
 
  private showInfo(title: string, message: string) {
    this.showNotification('info', title, message);

@@ -173,13 +173,20 @@
                   <span class="automation-target-compact">{{ getAutomationTarget(automation) }}</span>
                 </div>
                 <div class="automation-timing-compact" *ngIf="getAutomationStatusText(automation) !== 'Paused'">
-                  <span class="automation-next-run-compact">Next: {{ getNextRunTime(automation) }}</span>
-                  <span class="automation-last-run-compact">Last: {{ formatLastRun(automation.last_run || automation.lastRun) }}</span>
-                  <span class="automation-nodes-compact" *ngIf="getNodesUpdated(automation)">{{ getNodesUpdated(automation) }}</span>
-                </div>
+                <span class="automation-timer-compact">⏱️ {{ getAutomationTimerDisplay(automation) }}</span>
+                <span class="automation-last-run-compact">Last: {{ formatLastRun(automation.last_run || automation.lastRun) }}</span>
+                <span class="automation-nodes-compact" *ngIf="getNodesUpdated(automation)">{{ getNodesUpdated(automation) }}</span>
+              </div>
               </div>
               
               <div class="automation-actions-compact">
+                <button 
+                  (click)="configureAutomationSchedule(automation)"
+                  class="btn btn-xs btn-secondary"
+                  title="Configure Schedule">
+                  ⚙️
+                </button>
+                
                 <button 
                   *ngIf="automation.enabled" 
                   (click)="pauseAutomation(automation)"
@@ -732,6 +739,20 @@
       <button (click)="cancelFrequencyModal()" class="close-btn">×</button>
     </div>
     <div class="selector-modal-content">
+      <div class="modal-section" style="margin-bottom: 20px;">
+        <label style="display: block; font-weight: 600; margin-bottom: 8px; color: #333;">
+          Automation Name
+        </label>
+        <input 
+          type="text" 
+          [(ngModel)]="currentFormulaName"
+          placeholder="e.g., Production Network Risk, Critical Assets Only"
+          style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;"
+        />
+        <p style="font-size: 11px; color: #666; margin-top: 4px;">
+          Give this automation a descriptive name to identify it later
+        </p>
+      </div>
       <div class="frequency-options">
         <div *ngFor="let freq of updateFrequencies" 
              class="frequency-option"
@@ -800,6 +821,37 @@
       <button class="btn btn-primary" (click)="formulaInputModalData.onSave?.()">
         Save Formula
       </button>
+    </div>
+  </div>
+</div>
+
+<!-- Automation Schedule Configuration Modal -->
+<div *ngIf="showAutomationConfigModal" class="modal-overlay" (click)="closeAutomationConfigModal()">
+  <div class="modal-content" (click)="$event.stopPropagation()" style="max-width: 500px;">
+    <div class="modal-header">
+      <h3>Configure Automation Schedule</h3>
+      <button class="modal-close" (click)="closeAutomationConfigModal()">×</button>
+    </div>
+    
+    <div class="modal-body">
+      <p style="margin-bottom: 20px; color: #666;">
+        Update how often "{{ getComponentName(selectedAutomationForConfig!) }}" runs
+      </p>
+      
+      <div class="frequency-options">
+        <div 
+          *ngFor="let freq of updateFrequencies" 
+          class="frequency-option"
+          [class.selected]="automationConfigFrequency === freq.value"
+          (click)="automationConfigFrequency = freq.value">
+          <div class="frequency-label">{{ freq.label }}</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="modal-footer">
+      <button class="btn btn-secondary" (click)="closeAutomationConfigModal()">Cancel</button>
+      <button class="btn btn-primary" (click)="saveAutomationScheduleConfig()">Save Changes</button>
     </div>
   </div>
 </div>

@@ -56,6 +56,8 @@ interface ActiveAutomation {
   target_values?: string[];
   targetType?: string;
   targetValues?: string[];
+  hasSchedule?: boolean;
+  temporalRunning?: boolean;
 }
 
 interface NetworkDevice {
@@ -203,6 +205,13 @@ formulaInputModalData: {
     { value: 'monthly', label: 'Once Monthly' }
   ];
   private frequencyResolve: ((value: string | null) => void) | null = null;
+  private automationTimerInterval: any;
+  automationTimers: { [key: string]: { 
+    startTime: number, 
+    elapsed: number,
+    nextRunTime?: number,
+    frequency?: string
+  } } = {};
 
   
 notifications: Array<{
@@ -247,7 +256,9 @@ private notificationId = 0;
     maxValue: 10
   };
 
-  
+  selectedAutomationForConfig: ActiveAutomation | null = null;
+  showAutomationConfigModal: boolean = false;
+  automationConfigFrequency: string = 'hourly';
 
 @ViewChild('componentList', { static: false }) componentList!: CdkDropList;
 @ViewChild('formulaArea', { static: false }) formulaArea!: CdkDropList;
@@ -267,6 +278,7 @@ private notificationId = 0;
   await this.riskComponentsService.initializeComponentsInNeo4j();
 
   this.loadCustomComponents();
+  this.startAutomationTimer();
   
   setTimeout(() => {
     this.loadComponentsFromConfig();
@@ -282,6 +294,116 @@ private notificationId = 0;
   
 }
 
+ngOnDestroy(): void {
+  if (this.automationTimerInterval) {
+    clearInterval(this.automationTimerInterval);
+  }
+}
+
+private startAutomationTimer(): void {
+  if (this.automationTimerInterval) {
+    clearInterval(this.automationTimerInterval);
+  }
+  
+  this.automationTimerInterval = setInterval(() => {
+    this.activeAutomations.forEach(automation => {
+      if (automation.enabled && automation.update_frequency !== 'manual') {
+        const timerId = automation.id;
+        
+        if (this.automationTimers[timerId] && this.automationTimers[timerId].nextRunTime) {
+          const now = Date.now();
+          const remaining = Math.max(0, Math.floor((this.automationTimers[timerId].nextRunTime! - now) / 1000));
+          this.automationTimers[timerId].elapsed = remaining;
+          
+          if (remaining === 0) {
+            setTimeout(() => this.loadActiveAutomations(), 2000);
+          }
+        }
+      }
+    });
+  }, 1000);
+}
+
+initializeAutomationCountdown(automation: ActiveAutomation, nextRunTime: number, frequency: string): void {
+  const timerId = automation.id;
+  
+  this.automationTimers[timerId] = {
+    startTime: Date.now(),
+    elapsed: 0,
+    nextRunTime: nextRunTime,
+    frequency: frequency
+  };
+}
+
+getAutomationTimerDisplay(automation: ActiveAutomation): string {
+  const timerId = automation.id;
+  const timer = this.automationTimers[timerId];
+  
+  if (!timer || !automation.enabled || automation.update_frequency === 'manual') {
+    return '--:--';
+  }
+  
+  const seconds = timer.elapsed;
+  
+  if (seconds === 0) return '00:00';
+  
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  
+  if (days > 0) {
+    return `${days}d ${hours}h ${minutes}m`;
+  }
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+  return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}
+
+configureAutomationSchedule(automation: ActiveAutomation): void {
+  this.selectedAutomationForConfig = automation;
+  this.automationConfigFrequency = automation.update_frequency || 'hourly';
+  this.showAutomationConfigModal = true;
+}
+
+closeAutomationConfigModal(): void {
+  this.showAutomationConfigModal = false;
+  this.selectedAutomationForConfig = null;
+}
+
+async saveAutomationScheduleConfig(): Promise<void> {
+  if (!this.selectedAutomationForConfig) return;
+  
+  const automation = this.selectedAutomationForConfig;
+  const newFrequency = this.automationConfigFrequency;
+  
+  try {
+    // Update config
+    await this.http.put(
+      `${environment.riskApiUrl}/components/automation/${automation.id}`,
+      { update_frequency: newFrequency }
+    ).toPromise();
+    
+    // Update Temporal schedule
+    if (automation.hasSchedule) {
+      await this.http.put(
+        `${environment.riskApiUrl}/automations/schedule/update/${automation.id}`,
+        { update_frequency: newFrequency }
+      ).toPromise();
+      
+      this.showSuccess('Schedule Updated', `Automation schedule changed to ${newFrequency}`);
+    }
+    
+    this.closeAutomationConfigModal();
+    setTimeout(() => this.loadActiveAutomations(), 1000);
+    
+  } catch (error) {
+    console.error('Error updating schedule:', error);
+    this.showError('Update Failed', 'Failed to update automation schedule');
+  }
+}
+
 openIpModalForSubnet(subnet?: string) {
   this.selectedSubnetForIps = subnet || '';
   this.loadIpAddressesFromSubnet(this.selectedSubnetForIps);
@@ -290,28 +412,63 @@ openIpModalForSubnet(subnet?: string) {
 
 loadActiveAutomations(): void {
   this.isLoadingAutomations = true;
-  
-  this.http.get<any>(`${environment.riskApiUrl}/risk/automations/active`)
-    .subscribe({
-      next: (response) => {
-        if (response.success && response.automations) {
-          this.activeAutomations = Object.keys(response.automations).map(key => ({
-            id: key,
-            enabled: response.automations[key].enabled !== false,
-            ...response.automations[key]
-          }));
-        } else {
-          this.activeAutomations = [];
+  this.http.get<any>(`${environment.riskApiUrl}/risk/automations/active`).subscribe({
+    next: async (response) => {
+      if (response.success && response.automations) {
+        const automationArray = Object.entries(response.automations).map(([id, auto]: [string, any]) => ({
+          id,
+          ...auto,
+          hasSchedule: false,
+          temporalRunning: false
+        }));
+
+        // Check Temporal status for each automation
+        for (const automation of automationArray) {
+          try {
+            const statusResponse = await this.http.get<any>(
+              `${environment.riskApiUrl}/automations/schedule/status/${automation.id}`
+            ).toPromise();
+
+            if (statusResponse?.success && statusResponse?.exists) {
+              automation.hasSchedule = true;
+              automation.temporalRunning = statusResponse.running;
+              automation.enabled = statusResponse.running;
+              
+              // Initialize countdown timer
+              if (statusResponse.running && statusResponse.next_run) {
+                try {
+                  const nextRun = new Date(statusResponse.next_run).getTime();
+                  this.initializeAutomationCountdown(automation, nextRun, statusResponse.frequency);
+                } catch (e) {
+                  console.error(`Error initializing countdown for ${automation.id}:`, e);
+                }
+              }
+              
+              console.log(`✅ ${automation.id} - Schedule detected: running=${statusResponse.running}`);
+            } else {
+              automation.hasSchedule = false;
+              automation.temporalRunning = false;
+              console.log(`ℹ️  ${automation.id} - No active schedule`);
+            }
+          } catch (error: any) {
+            automation.hasSchedule = false;
+            automation.temporalRunning = false;
+            
+            if (error.status !== 404) {
+              console.error(`❌ Error checking schedule for ${automation.id}:`, error);
+            }
+          }
         }
-        this.isLoadingAutomations = false;
-      },
-      error: (error) => {
-        console.error('Error loading active automations:', error);
-        this.showError('Load Failed', 'Failed to load active automations');
-        this.activeAutomations = [];
-        this.isLoadingAutomations = false;
+
+        this.activeAutomations = automationArray;
       }
-    });
+      this.isLoadingAutomations = false;
+    },
+    error: (error) => {
+      console.error('Error loading automations:', error);
+      this.isLoadingAutomations = false;
+    }
+  });
 }
 
 getFilteredAutomations(): ActiveAutomation[] {
@@ -370,12 +527,27 @@ async pauseAutomation(automation: ActiveAutomation): Promise<void> {
   
   if (!confirmed) return;
   
+  // Pause in config
   this.http.put(`${environment.riskApiUrl}/components/automation/${automation.id}/pause`, {})
     .subscribe({
       next: () => {
-        // Update the local automation object
         automation.enabled = false;
-        this.showSuccess('Automation Paused', `${this.getComponentName(automation)} automation has been paused`);
+        
+        // Also pause Temporal schedule if it exists
+        if (automation.hasSchedule) {
+          this.http.post(`${environment.riskApiUrl}/automations/schedule/pause/${automation.id}`, {})
+            .subscribe({
+              next: () => {
+                this.showSuccess('Automation Paused', `${this.getComponentName(automation)} paused in Temporal`);
+                this.loadActiveAutomations();
+              },
+              error: (error) => {
+                this.showWarning('Partial Success', 'Config paused but Temporal schedule pause failed');
+              }
+            });
+        } else {
+          this.showSuccess('Automation Paused', `${this.getComponentName(automation)} automation has been paused`);
+        }
       },
       error: (error) => {
         this.showError('Pause Failed', error.error?.message || 'Failed to pause automation');
@@ -393,12 +565,27 @@ async resumeAutomation(automation: ActiveAutomation): Promise<void> {
   
   if (!confirmed) return;
   
+  // Resume in config
   this.http.put(`${environment.riskApiUrl}/components/automation/${automation.id}/resume`, {})
     .subscribe({
       next: () => {
-        // Update the local automation object
         automation.enabled = true;
-        this.showSuccess('Automation Resumed', `${this.getComponentName(automation)} automation has been resumed`);
+        
+        // Also resume Temporal schedule if it exists
+        if (automation.hasSchedule) {
+          this.http.post(`${environment.riskApiUrl}/automations/schedule/resume/${automation.id}`, {})
+            .subscribe({
+              next: () => {
+                this.showSuccess('Automation Resumed', `${this.getComponentName(automation)} resumed in Temporal`);
+                this.loadActiveAutomations();
+              },
+              error: (error) => {
+                this.showWarning('Partial Success', 'Config resumed but Temporal schedule resume failed');
+              }
+            });
+        } else {
+          this.showSuccess('Automation Resumed', `${this.getComponentName(automation)} automation has been resumed`);
+        }
       },
       error: (error) => {
         this.showError('Resume Failed', error.error?.message || 'Failed to resume automation');
