@@ -616,16 +616,43 @@ async deleteAutomation(automation: ActiveAutomation): Promise<void> {
   
   if (!confirmed) return;
   
-  this.http.delete(`${environment.riskApiUrl}/components/automation/${automation.id}`)
-    .subscribe({
-      next: () => {
-        this.activeAutomations = this.activeAutomations.filter(a => a.id !== automation.id);
-        this.showSuccess('Automation Deleted', `${automation.componentName} automation has been deleted`);
-      },
-      error: (error) => {
-        this.showError('Delete Failed', error.error?.message || 'Failed to delete automation');
-      }
-    });
+  const deleteConfig = () => {
+    this.http.delete(`${environment.riskApiUrl}/components/automation/${automation.id}`)
+      .subscribe({
+        next: () => {
+          this.activeAutomations = this.activeAutomations.filter(a => a.id !== automation.id);
+          this.showSuccess('Automation Deleted', `${automation.componentName} automation deleted successfully`);
+        },
+        error: (error) => {
+          console.error('Failed to delete automation config:', error);
+          this.showError('Delete Failed', 'Failed to delete automation configuration');
+        }
+      });
+  };
+  
+  if (automation.hasSchedule) {
+    console.log(`Deleting Temporal schedule for automation: ${automation.id}`);
+    
+    this.http.delete(`${environment.riskApiUrl}/automations/schedule/delete/${automation.id}`)
+      .subscribe({
+        next: (response: any) => {
+          console.log('Temporal schedule deletion response:', response);
+          if (response.deleted) {
+            console.log('Temporal schedule deleted successfully');
+          } else {
+            console.warn('Temporal schedule not found or already deleted');
+          }
+          deleteConfig();
+        },
+        error: (error) => {
+          console.error('Temporal schedule deletion error:', error);
+          console.warn('Proceeding with config deletion despite Temporal error');
+          deleteConfig();
+        }
+      });
+  } else {
+    deleteConfig();
+  }
 }
 
 getAutomationStatusClass(automation: ActiveAutomation): string {

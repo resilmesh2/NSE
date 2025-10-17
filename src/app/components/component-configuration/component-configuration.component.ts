@@ -257,7 +257,7 @@ toggleComponentAutomation(component: ComponentConfig): void {
       target_property: component.neo4jProperty || componentIdentifier
     };
     
-    this.http.post(`${environment.riskApiUrl}/components/schedule/resume`, scheduleConfig)
+    this.http.post(`${environment.riskApiUrl}/risk/components/schedule/resume`, scheduleConfig)
       .subscribe({
         next: (response: any) => {
           if (component.schedule) {
