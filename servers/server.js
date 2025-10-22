@@ -13,12 +13,12 @@ const CIDR = require('cidr-js');
 let virtualNetwork = new graphlib.Graph();
 
 // Neo4j credentials
-const uri = process.env.NEO4J_SERVER_URL || 'bolt://localhost:7687';
+const uri = process.env.NEO4J_SERVER_URL || 'bolt://192.168.200.137:7687';
 const user = process.env.NEO4J_USERNAME || 'neo4j';
 const password = process.env.NEO4J_PASSWORD || 'supertestovaciheslo';
 const driver = neo4j.driver(uri, neo4j.auth.basic(user, password));
 
-const ISIM_API_BASE = (process.env.ISIM_API_URL || 'http://localhost:5000') + '/api';
+const ISIM_API_BASE = (process.env.ISIM_API_URL || 'http://192.168.200.137:5000') + '/api';
 
 
 // Initialize Express.js
@@ -1645,7 +1645,7 @@ app.get('/api/cache-status', (req, res) => {
 
 // Start server
 app.listen(port, async () => {
-    console.log(`Merged server listening at http://localhost:${port}`);
+    console.log(`Merged server listening at http://192.168.200.137:${port}`);
     await loadVirtualNetwork();
 });
 
