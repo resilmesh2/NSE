@@ -189,6 +189,10 @@ formulaInputModalData: {
   description: ''
 };
 
+  discoveredProperties: any[] = [];
+  showDiscoveryModal = false;
+  selectedPropertiesToImport: Set<string> = new Set();
+
   currentFormulaName: string = '';
   selectedSubnets: any[] = [];
   // showCalculationModeModal = false;
@@ -3661,6 +3665,82 @@ async confirmNetworkApplication() {
     console.error('Error applying configuration:', error);
     this.showError('Application Failed', 'Failed to apply risk configuration');
   }
+}
+
+async scanForNeo4jComponents(): Promise<void> {
+  this.isLoadingComponents = true;
+  
+  try {
+    const response = await this.http.get<any>(`${environment.riskApiUrl}/components/scan-neo4j`).toPromise();
+    
+    if (response.success && response.newProperties.length > 0) {
+      this.discoveredProperties = response.newProperties;
+      this.showDiscoveryModal = true;
+      
+      this.showInfo(
+        'New Components Found',
+        `Found ${response.newProperties.length} properties in Neo4j not in configuration`
+      );
+    } else {
+      this.showInfo('No New Components', 'All Neo4j properties are already configured');
+    }
+  } catch (error) {
+    console.error('Error scanning Neo4j:', error);
+    this.showError('Scan Failed', 'Failed to scan Neo4j for new components');
+  } finally {
+    this.isLoadingComponents = false;
+  }
+}
+
+// Import selected properties
+async importSelectedProperties(): Promise<void> {
+  const propertiesToImport = this.discoveredProperties.filter(
+    prop => this.selectedPropertiesToImport.has(prop.neo4jProperty)
+  );
+  
+  if (propertiesToImport.length === 0) {
+    this.showWarning('No Selection', 'Please select properties to import');
+    return;
+  }
+  
+  try {
+    const response = await this.http.post<any>(
+      `${environment.riskApiUrl}/components/import-from-neo4j`,
+      { properties: propertiesToImport }
+    ).toPromise();
+    
+    if (response.success) {
+      this.showSuccess(
+        'Import Complete',
+        `Successfully imported ${response.importedCount} components from Neo4j`
+      );
+      
+      // Refresh component list
+      await this.refreshComponents();
+      
+      // Close modal
+      this.closeDiscoveryModal();
+    }
+  } catch (error) {
+    console.error('Error importing components:', error);
+    this.showError('Import Failed', 'Failed to import components from Neo4j');
+  }
+}
+
+// Toggle property selection
+togglePropertySelection(property: string): void {
+  if (this.selectedPropertiesToImport.has(property)) {
+    this.selectedPropertiesToImport.delete(property);
+  } else {
+    this.selectedPropertiesToImport.add(property);
+  }
+}
+
+// Close discovery modal
+closeDiscoveryModal(): void {
+  this.showDiscoveryModal = false;
+  this.discoveredProperties = [];
+  this.selectedPropertiesToImport.clear();
 }
 
 }

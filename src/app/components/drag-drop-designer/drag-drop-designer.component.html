@@ -4,6 +4,9 @@
     <p>Customize how risk scores are calculated using ISIM data components</p>
     
     <div class="designer-actions">
+      <button class="btn btn-info" (click)="scanForNeo4jComponents()" [disabled]="isLoadingComponents" title="Scan Neo4j for new component properties">
+        <i class="bi bi-search"></i> Scan ISIM
+      </button>
       <button class="btn btn-outline" (click)="saveCurrentFormulaAsCustom()" [disabled]="riskFormula.length === 0">
         Save as Custom Formula
       </button>
@@ -852,6 +855,52 @@
     <div class="modal-footer">
       <button class="btn btn-secondary" (click)="closeAutomationConfigModal()">Cancel</button>
       <button class="btn btn-primary" (click)="saveAutomationScheduleConfig()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Neo4j Component Discovery Modal -->
+<div *ngIf="showDiscoveryModal" class="modal-overlay" (click)="closeDiscoveryModal()">
+  <div class="modal-content discovery-modal" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Discovered Neo4j Properties</h2>
+      <button class="close-btn" (click)="closeDiscoveryModal()">×</button>
+    </div>
+    
+    <div class="modal-body">
+      <p class="info-text">
+        Found {{ discoveredProperties.length }} properties in Neo4j that are not in your configuration.
+        Select the ones you want to import as components:
+      </p>
+      
+      <div class="properties-list">
+        <div *ngFor="let prop of discoveredProperties" class="property-item">
+          <input 
+            type="checkbox" 
+            [id]="'prop-' + prop.neo4jProperty"
+            [checked]="selectedPropertiesToImport.has(prop.neo4jProperty)"
+            (change)="togglePropertySelection(prop.neo4jProperty)">
+          <label [for]="'prop-' + prop.neo4jProperty">
+            <div class="property-name">{{ prop.name }}</div>
+            <div class="property-details">
+              <span>Neo4j Property: {{ prop.neo4jProperty }}</span>
+              <span>Nodes: {{ prop.nodeCount }}</span>
+              <span>Avg: {{ prop.avgValue | number:'1.2-2' }}</span>
+              <span>Range: {{ prop.minValue | number:'1.0-0' }} - {{ prop.maxValue | number:'1.0-0' }}</span>
+            </div>
+          </label>
+        </div>
+      </div>
+    </div>
+    
+    <div class="modal-footer">
+      <button class="btn btn-secondary" (click)="closeDiscoveryModal()">Cancel</button>
+      <button 
+        class="btn btn-primary" 
+        (click)="importSelectedProperties()"
+        [disabled]="selectedPropertiesToImport.size === 0">
+        Import {{ selectedPropertiesToImport.size }} Properties
+      </button>
     </div>
   </div>
 </div>

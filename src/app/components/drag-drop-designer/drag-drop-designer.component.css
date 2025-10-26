@@ -3008,3 +3008,76 @@ textarea.form-control {
   font-weight: 600;
   font-family: 'Courier New', monospace;
 }
+
+.discovery-modal {
+  max-width: 600px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.properties-list {
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 10px;
+  margin: 15px 0;
+}
+
+.property-item {
+  display: flex;
+  align-items: flex-start;
+  padding: 10px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.property-item:last-child {
+  border-bottom: none;
+}
+
+.property-item input[type="checkbox"] {
+  margin-right: 10px;
+  margin-top: 5px;
+}
+
+.property-item label {
+  flex: 1;
+  cursor: pointer;
+}
+
+.property-name {
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+
+.property-details {
+  font-size: 0.85em;
+  color: #666;
+  display: flex;
+  gap: 15px;
+}
+
+.property-details span {
+  white-space: nowrap;
+}
+
+.info-text {
+  color: #666;
+  margin-bottom: 15px;
+}
+
+.btn-info {
+  background-color: #17a2b8;
+  color: white;
+  border: none;
+}
+
+.btn-info:hover {
+  background-color: #138496;
+}
+
+.btn-info:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
