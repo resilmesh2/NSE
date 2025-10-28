@@ -314,17 +314,79 @@ private checkIfDeviceDataIsPopulated(apiData: any[], subnetCidr: string): boolea
     return [];
   }
 
-  // Look for Organization nodes instead of CIDR_Values
   const organizationNodes = virtualNetworkData.filter(item => 
     item.data && item.data.type === 'Organization'
   );
 
   if (organizationNodes.length === 0) {
-    console.warn('No Organization nodes found');
-    return [];
+    console.warn('No Organization nodes found, checking for direct Subnet nodes...');
+    
+    const subnetNodes = virtualNetworkData.filter(item =>
+      item.data && item.data.type === 'Subnet' && item.data.label
+    );
+    
+    if (subnetNodes.length === 0) {
+      console.warn('No Subnet nodes found either');
+      return [];
+    }
+    
+    console.log(`Processing ${subnetNodes.length} direct Subnet nodes`);
+    
+    const existingSubnetScores = this.extractSubnetRiskScores(virtualNetworkData);
+    
+    const subnets = subnetNodes
+      .map(node => node.data.label)
+      .filter((subnet: string) => {
+        if (!subnet || typeof subnet !== 'string' || !subnet.includes('/')) return false;
+        const [networkPart, cidrPart] = subnet.split('/');
+        const cidr = parseInt(cidrPart);
+        
+        if (cidr < 8 || cidr > 32) return false;
+        
+        const octets = networkPart.split('.');
+        if (octets.length !== 4) return false;
+        
+        return octets.every(octet => {
+            const num = parseInt(octet);
+            return !isNaN(num) && num >= 0 && num <= 255;
+        });
+      });
+    
+    console.log(`Filtered to ${subnets.length} valid subnets`);
+    
+    return subnets.map((subnet: string, index: number) => {
+      const isVulnerable = false;
+      const [networkPart, cidrPart] = subnet.split('/');
+      const cidr = parseInt(cidrPart);
+      const maxPossibleDevices = Math.pow(2, 32 - cidr) - 2;
+
+      const neoRiskData = existingSubnetScores[subnet];
+      const riskScore = neoRiskData?.riskScore || 0.0;
+      const riskLevel = neoRiskData?.riskLevel || this.determineRiskLevel(riskScore);
+      const hasSubnetRiskScore = !!neoRiskData;
+
+      console.log(`Processing subnet ${subnet}: ISIM risk score = ${riskScore} (${riskLevel})`);
+
+      return {
+        id: `subnet-${index}`,
+        subnet,
+        deviceCount: 0,
+        riskScore,
+        riskLevel,
+        devices: [],
+        isVulnerable,
+        networkSize: cidr,
+        maxDevices: maxPossibleDevices,
+        networkPart,
+        hasDetailedData: false,
+        hasSubnetRiskScore,
+        subnetRiskSource: hasSubnetRiskScore ? 'ISIM' : 'default',
+        organizationName: 'Unknown Organization',
+        organizationId: undefined
+      } as SubnetData;
+    });
   }
 
-  // Collect all subnets from all organizations
   let allSubnets: string[] = [];
   const orgContext: { [subnet: string]: { name: string, id: string } } = {};
 
@@ -342,7 +404,6 @@ private checkIfDeviceDataIsPopulated(apiData: any[], subnetCidr: string): boolea
     allSubnets.push(...subnets);
   });
 
-  // Filter valid subnets
   const subnets = allSubnets.filter((subnet: string) => {
     if (!subnet || typeof subnet !== 'string' || !subnet.includes('/')) return false;
     const [networkPart, cidrPart] = subnet.split('/');
@@ -361,11 +422,10 @@ private checkIfDeviceDataIsPopulated(apiData: any[], subnetCidr: string): boolea
 
   console.log(`Filtered subnets: ${subnets.length} from ${allSubnets.length} total across ${organizationNodes.length} organizations`);
 
-  // Extract existing subnet risk scores from ISIM data
   const existingSubnetScores = this.extractSubnetRiskScores(virtualNetworkData);
 
   return subnets.map((subnet: string, index: number) => {
-    const isVulnerable = false; // Will be updated when vulnerability data is loaded
+    const isVulnerable = false;
     const [networkPart, cidrPart] = subnet.split('/');
     const cidr = parseInt(cidrPart);
     const maxPossibleDevices = Math.pow(2, 32 - cidr) - 2;
@@ -375,7 +435,6 @@ private checkIfDeviceDataIsPopulated(apiData: any[], subnetCidr: string): boolea
     const riskLevel = neoRiskData?.riskLevel || this.determineRiskLevel(riskScore);
     const hasSubnetRiskScore = !!neoRiskData;
 
-    // Get organization context for this subnet
     const orgInfo = orgContext[subnet];
 
     console.log(`Processing subnet ${subnet}: ISIM risk score = ${riskScore} (${riskLevel}), org = ${orgInfo?.name || 'Unknown'}`);
@@ -395,7 +454,7 @@ private checkIfDeviceDataIsPopulated(apiData: any[], subnetCidr: string): boolea
       hasSubnetRiskScore,
       subnetRiskSource: hasSubnetRiskScore ? 'ISIM' : 'default',
       organizationName: orgInfo?.name || 'Unknown Organization',
-      organizationId: orgInfo?.id || null
+      organizationId: orgInfo?.id
     } as SubnetData;
   });
 }

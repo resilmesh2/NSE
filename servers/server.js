@@ -41,15 +41,15 @@ const virtualNetworkFilePath = path.join(__dirname, 'data', 'virtualNetwork.json
 const CACHE_MAX_AGE_HOURS = 24;
 
 async function getInitialData() {
-    console.log("====== Beginning Individual Organization Collection ======");
-    console.time("Individual Organization Collection");
+    console.log("====== Beginning Data Collection ======");
+    console.time("Data Collection");
     
     const session = driver.session();
 
     try {
-        console.log("Step 1: Getting individual organizations and their subnet ranges with risk scores...");
+        console.log("Step 1: Attempting to fetch via OrganizationUnit nodes...");
         
-        const query = `
+        const orgQuery = `
         MATCH (o:OrganizationUnit)-[r]-(s:Subnet)
         WITH o, 
              id(o) as orgId,
@@ -57,29 +57,95 @@ async function getInitialData() {
              collect(DISTINCT {
                  range: s.range,
                  riskScore: s.\`Risk Score\`,
-                 note: s.note
+                 note: s.note,
+                 id: id(s)
              }) as subnetData
         RETURN orgName, orgId, subnetData
         ORDER BY orgName
         `;
 
-        const result = await session.run(query);
+        const orgResult = await session.run(orgQuery);
         
-        if (result.records.length === 0) {
-            console.log("No organization units found");
-            return [];
+        if (orgResult.records.length === 0) {
+            console.log("No OrganizationUnit nodes found. Falling back to direct Subnet query...");
+            
+            const subnetQuery = `
+            MATCH (s:Subnet)
+            RETURN s.range as subnetRange,
+                   s.\`Risk Score\` as riskScore,
+                   s.note as note,
+                   id(s) as subnetId
+            ORDER BY s.range
+            `;
+            
+            const subnetResult = await session.run(subnetQuery);
+            
+            if (subnetResult.records.length === 0) {
+                console.log("No subnets found in database");
+                console.timeEnd("Data Collection");
+                return [];
+            }
+            
+            console.log(`Found ${subnetResult.records.length} Subnet nodes directly`);
+            
+            const elements = [];
+            let totalSubnetsWithRisk = 0;
+            let totalRiskScore = 0;
+
+            subnetResult.records.forEach((record, index) => {
+                const subnetRange = record.get('subnetRange');
+                const riskScore = record.get('riskScore');
+                const note = record.get('note');
+                const subnetId = record.get('subnetId').low;
+                
+                if (riskScore && riskScore > 0) {
+                    totalSubnetsWithRisk++;
+                    totalRiskScore += riskScore;
+                }
+                
+                let details = null;
+                if (riskScore && riskScore > 0) {
+                    details = riskScore.toString();
+                } else if (note) {
+                    details = note;
+                }
+                
+                console.log(`Processing subnet ${index + 1}: ${subnetRange} | Risk: ${riskScore || 0} | Note: ${note || 'none'}`);
+                
+                elements.push({
+                    data: {
+                        id: `subnet-${subnetRange}`,
+                        type: 'Subnet',
+                        label: subnetRange,
+                        details: details,
+                        'Risk Score': riskScore || 0,
+                        riskScore: riskScore || 0,
+                        note: note
+                    }
+                });
+            });
+
+            const avgRiskScore = totalSubnetsWithRisk > 0 ? 
+                (totalRiskScore / totalSubnetsWithRisk) : 0;
+            
+            console.timeEnd("Data Collection");
+            console.log(`====== Direct Subnet Collection Complete: ${subnetResult.records.length} subnets ======`);
+            console.log(`====== ${totalSubnetsWithRisk} subnets have risk scores, Average: ${avgRiskScore.toFixed(2)} ======`);
+
+            return elements;
         }
 
+        console.log(`Found ${orgResult.records.length} OrganizationUnit nodes`);
+        
         const elements = [];
         let totalSubnetsWithRisk = 0;
         let totalRiskScore = 0;
 
-        result.records.forEach((record, index) => {
+        orgResult.records.forEach((record, index) => {
             const orgName = record.get('orgName');
             const orgId = record.get('orgId').low;
             const subnetData = record.get('subnetData') || [];
             
-            // Extract subnet ranges and calculate risk statistics
             const subnetRanges = subnetData.map(s => s.range);
             const subnetsWithRisk = subnetData.filter(s => s.riskScore && s.riskScore > 0);
             totalSubnetsWithRisk += subnetsWithRisk.length;
@@ -90,7 +156,6 @@ async function getInitialData() {
             
             console.log(`Processing org ${index + 1}: ${orgName} with ${subnetRanges.length} subnets (${subnetsWithRisk.length} have risk scores)`);
             
-            // Create organization element
             elements.push({
                 data: {
                     id: orgId,
@@ -102,9 +167,7 @@ async function getInitialData() {
                 }
             });
             
-            // Create subnet elements with risk scores
             subnetData.forEach(subnet => {
-                // Use Risk Score for details if available, otherwise use note
                 let details = null;
                 if (subnet.riskScore && subnet.riskScore > 0) {
                     details = subnet.riskScore.toString();
@@ -118,25 +181,26 @@ async function getInitialData() {
                         type: 'Subnet',
                         label: subnet.range,
                         details: details,
-                        'Risk Score': subnet.riskScore || 0,  // Store with the same property name as Neo4j
-                        riskScore: subnet.riskScore || 0,      // Also store as riskScore for compatibility
+                        'Risk Score': subnet.riskScore || 0,
+                        riskScore: subnet.riskScore || 0,
                         note: subnet.note
                     }
                 });
             });
         });
 
-        const avgRiskScore = totalSubnetsWithRisk > 0 ? (totalRiskScore / totalSubnetsWithRisk) : 0;
+        const avgRiskScore = totalSubnetsWithRisk > 0 ? 
+            (totalRiskScore / totalSubnetsWithRisk) : 0;
         
-        console.timeEnd("Individual Organization Collection");
-        console.log(`====== Individual Collection Complete: ${result.records.length} organizations ======`);
+        console.timeEnd("Data Collection");
+        console.log(`====== Organization Collection Complete: ${orgResult.records.length} organizations ======`);
         console.log(`====== ${totalSubnetsWithRisk} subnets have risk scores, Average: ${avgRiskScore.toFixed(2)} ======`);
 
         return elements;
 
     } catch (error) {
-        console.timeEnd("Individual Organization Collection");
-        console.error('Error fetching organizations from Neo4j:', error);
+        console.timeEnd("Data Collection");
+        console.error('Error fetching data from Neo4j:', error);
         return [];
     } finally {
         await session.close();
