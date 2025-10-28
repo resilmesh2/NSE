@@ -13,7 +13,7 @@ services:
     volumes:
       - ./servers/data:/app/data
     networks:
-      - casm_isim_test_network  # Use ISIM's network
+      - resilmesh_network  # Use ISIM's network
 
   frontend:
     build:
@@ -24,8 +24,4 @@ services:
     depends_on:
       - backend
     networks:
-      - casm_isim_test_network  # Use ISIM's network
-
-networks:
-  casm_isim_test_network:
-    external: true  # Connect to ISIM's existing network
+      - resilmesh_network  # Use ISIM's network
