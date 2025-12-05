@@ -13,12 +13,12 @@ const CIDR = require('cidr-js');
 let virtualNetwork = new graphlib.Graph();
 
 // Neo4j credentials
-const uri = process.env.NEO4J_SERVER_URL || 'bolt://resilmesh_sap_neo4j:7687';
+const uri = process.env.NEO4J_SERVER_URL || 'bolt://resilmesh_sap_isim_neo4j:7687';
 const user = process.env.NEO4J_USERNAME || 'neo4j';
 const password = process.env.NEO4J_PASSWORD || 'supertestovaciheslo';
 const driver = neo4j.driver(uri, neo4j.auth.basic(user, password));
 
-const ISIM_API_BASE = (process.env.ISIM_API_URL || 'http://resilmesh_sap_neo4j_automation:5000') + '/api';
+const ISIM_API_BASE = (process.env.ISIM_API_URL || 'http://resilmesh_sap_isim_automation:5000') + '/api';
 
 
 // Initialize Express.js

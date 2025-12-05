@@ -7,14 +7,14 @@ services:
     ports:
       - "3002:3002"
     environment:
-      - NEO4J_SERVER_URL=bolt://resilmesh_sap_neo4j:7687
+      - NEO4J_SERVER_URL=bolt://resilmesh_sap_isim_neo4j:7687
       - NEO4J_USERNAME=neo4j
       - NEO4J_PASSWORD=supertestovaciheslo
-      - ISIM_API_URL=http://resilmesh_sap_neo4j_automation:5000
+      - ISIM_API_URL=http://resilmesh_sap_isim_automation:5000
     volumes:
       - ./servers/data:/app/data
     networks:
-      - isim_resilmesh_network
+      - resilmesh_network
 
   resilmesh_sap_nse_frontend:
     container_name: resilmesh_sap_nse_frontend
@@ -26,8 +26,8 @@ services:
     depends_on:
       - resilmesh_sap_nse_backend
     networks:
-      - isim_resilmesh_network
+      - resilmesh_network
 
 networks:
-  isim_resilmesh_network:
+  resilmesh_network:
     external: true
