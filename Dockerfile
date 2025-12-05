@@ -4,7 +4,7 @@ FROM node:18-alpine AS build
 WORKDIR /app
 
 COPY package*.json ./
-COPY servers ./servers
+COPY servers/package*.json ./servers/
 RUN npm ci
 
 COPY . .
