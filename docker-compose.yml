@@ -7,7 +7,7 @@ services:
     ports:
       - "3002:3002"
     environment:
-      - NEO4J_SERVER_URL=bolt://resilmesh_sap_isim_neo4j:7687
+      - NEO4J_SERVER_URL=bolt://resilmesh_sap_neo4j:7687
       - NEO4J_USERNAME=neo4j
       - NEO4J_PASSWORD=supertestovaciheslo
       - ISIM_API_URL=http://resilmesh_sap_isim_automation:5000
